@@ -53,9 +53,11 @@ DVM_KINDS = [
 def write_events_to_db(events):
     if events:
         try:
-            db["events"].insert_many(events, ordered=False)
+            result = db["events"].insert_many(events, ordered=False)
+            print(f"Finished writing events to db with result: {result}")
         except Exception as e:
             print(f"Error inserting events into database: {e}")
+
 
 
 import threading
@@ -75,8 +77,10 @@ class NotificationHandler(HandleNotification):
         self.flush_thread.start()
 
     def handle(self, relay_url, event):
-        #print(f"Received new event from {relay_url}: {event.as_json()}")
-        if event.kind() in DVM_KINDS or 6000 < event.kind() < 6999:  # try catching new DVMs
+        # print(f"Received new event from {relay_url}: {event.as_json()}")
+        if (
+            event.kind() in DVM_KINDS or 6000 < event.kind() < 6999
+        ):  # try catching new DVMs
             with self.lock:
                 self.events.append(json.loads(event.as_json()))
 
