@@ -28,6 +28,12 @@ from nostr_dvm.utils.definitions import EventDefinitions
 mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True)
 db = mongo_client["dvmdash"]
 
+try:
+    result = db.events.count_documents({})
+    print(f"There are {result} documents in events collection")
+except Exception as e:
+    print("Could not count documents in db")
+
 
 RELAYS = os.getenv(
     "RELAYS",
@@ -186,4 +192,4 @@ if __name__ == "__main__":
 
     print(result)
 
-    #run_nostr_client()
+    # run_nostr_client()
