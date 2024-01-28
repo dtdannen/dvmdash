@@ -39,7 +39,52 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-mediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">DVM Feedback Kinds Seen</h5>
+                    <p class="card-text display-4">{{ num_dvm_feedback_kinds }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Zaps Seen</h5>
+                    <p class="card-text display-4">{{ zap_counts }}</p>
+                </div>
+            </div>
+        </div>
+
     </div>
+
+        <div class="row">
+
+
+
+        <div class="col-md-3">
+            <div class="card text-white bg-mediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">DMs Seen</h5>
+                    <p class="card-text display-4">{{ dm_counts }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-mediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Uncategorized</h5>
+                    <p class="card-text display-4">{{ uncategorized_counts }}</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
 </div>
 
 
@@ -50,6 +95,9 @@
 <!-- Create a div to render the plot -->
 <div id="plotly-bar-chart"></div>
 
+
+<!-- Create a div to render the plot -->
+<div id="plotly-bar-chart-feedback"></div>
 
 
 <script>
@@ -98,6 +146,52 @@ Plotly.newPlot('plotly-bar-chart', data, layout);
 
 </script>
 
+
+<script>
+    // Create arrays from Django dictionary
+var x_data = [{% for label, value in kind_feedback_counts.items %}"{{ label }}",{% endfor %}];
+var y_data = [{% for label, value in kind_feedback_counts.items %}{{ value }},{% endfor %}];
+
+var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
+
+var barColors = [];
+for (var i = 0; i < x_data.length; i++) {
+    barColors.push(colors[i % colors.length]);
+}
+
+var layout = {
+    title: 'Number of DVM Task Feedbacks per Tag (w/ overlaps)',
+    xaxis: {
+        title: 'Tags',
+        type: 'category',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    yaxis: {
+        title: 'Number of DVM Task Feedbacks',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    paper_bgcolor: '#2a2a2a',
+    plot_bgcolor: '#333333',
+    font: {
+        color: '#eaeaea'
+    }
+};
+
+var data = [{
+    type: 'bar',
+    x: x_data,
+    y: y_data,
+    marker: {
+        color: barColors
+    }
+}];
+
+// Plot the chart
+Plotly.newPlot('plotly-bar-chart-feedback', data, layout);
+
+</script>
 
 
 

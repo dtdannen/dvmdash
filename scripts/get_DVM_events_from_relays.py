@@ -80,6 +80,8 @@ DVM_KINDS = [
     EventDefinitions.KIND_NIP90_GENERIC,
     EventDefinitions.KIND_FEEDBACK,
     EventDefinitions.KIND_ANNOUNCEMENT,
+    EventDefinitions.KIND_DM,
+    EventDefinitions.KIND_ZAP,
 ]
 
 # check for DVMs on any other kinds
@@ -172,9 +174,14 @@ def nostr_client(since_when_timestamp):
 
     # events to us specific
     dvm_filter = Filter().kinds(DVM_KINDS).since(since_when_timestamp)  # public events
-
-    # client.subscribe([dm_zap_filter, dvm_filter])
-    client.subscribe([dvm_filter])
+    dm_zap_filter = (
+        Filter()
+        .pubkey(pk)
+        .kinds([EventDefinitions.KIND_DM, EventDefinitions.KIND_ZAP])
+        .since(since_when_timestamp)
+    )
+    client.subscribe([dm_zap_filter, dvm_filter])
+    # client.subscribe([dvm_filter])
 
     client.handle_notifications(NotificationHandler())
     while True:
@@ -184,7 +191,7 @@ def nostr_client(since_when_timestamp):
         print(f"waking up...")
 
 
-def run_nostr_client(minutes=60):
+def run_nostr_client(minutes=500):
     current_timestamp = Timestamp.now()
     current_secs = current_timestamp.as_secs()
 
