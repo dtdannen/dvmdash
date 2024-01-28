@@ -78,7 +78,12 @@ DVM_KINDS = [
     EventDefinitions.KIND_NIP90_PEOPLE_DISCOVERY,
     EventDefinitions.KIND_NIP90_CONTENT_SEARCH,
     EventDefinitions.KIND_NIP90_GENERIC,
+    EventDefinitions.KIND_FEEDBACK,
+    EventDefinitions.KIND_ANNOUNCEMENT,
 ]
+
+# check for DVMs on any other kinds
+DVM_KINDS = list(set(DVM_KINDS + list(range(5000, 5999)) + list(range(6000, 6999))))
 
 
 def write_events_to_db(events):
@@ -117,9 +122,7 @@ class NotificationHandler(HandleNotification):
 
     def handle(self, relay_url, event):
         # print(f"Received new event from {relay_url}: {event.as_json()}")
-        if (
-            event.kind() in DVM_KINDS or 6000 < event.kind() < 6999
-        ):  # try catching new DVMs
+        if event.kind() in DVM_KINDS:  # try catching new DVMs
             with self.lock:
                 # print("locking to append to events")
                 self.events.append(json.loads(event.as_json()))
@@ -181,7 +184,7 @@ def nostr_client(since_when_timestamp):
         print(f"waking up...")
 
 
-def run_nostr_client(minutes=60):
+def run_nostr_client(minutes=262800):
     current_timestamp = Timestamp.now()
     current_secs = current_timestamp.as_secs()
 
