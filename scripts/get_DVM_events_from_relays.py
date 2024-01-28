@@ -184,7 +184,7 @@ def nostr_client(since_when_timestamp):
         print(f"waking up...")
 
 
-def run_nostr_client(minutes=262800):
+def run_nostr_client(minutes=60):
     current_timestamp = Timestamp.now()
     current_secs = current_timestamp.as_secs()
 
