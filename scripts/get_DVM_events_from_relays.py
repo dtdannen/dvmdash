@@ -91,7 +91,10 @@ def write_events_to_db(events):
         except BulkWriteError as e:
             # If you want to log the details of the duplicates or other errors
             num_duplicates_found = len(e.details["writeErrors"])
-            print(f"Ignoring {num_duplicates_found} / {len(events)} duplicate events")
+            print(
+                f"Ignoring {num_duplicates_found} / {len(events)} duplicate events...",
+                end="",
+            )
         except Exception as e:
             print(f"Error inserting events into database: {e}")
 
@@ -105,7 +108,7 @@ class NotificationHandler(HandleNotification):
     def __init__(self):
         self.events = []
         self.lock = Lock()
-        self.flush_interval = 15  # Flush every 10 seconds, adjust as needed
+        self.flush_interval = 10  # Flush every 10 seconds, adjust as needed
         self.stop_requested = False  # Flag to signal thread to stop
 
         # Start a thread to flush events periodically
@@ -124,14 +127,14 @@ class NotificationHandler(HandleNotification):
 
     def flush_events(self):
         with self.lock:
-            print("locking to write to db...", end="")
             if self.events:
+                print("locking to write to db...", end="")
                 print(f"...writing {len(self.events)} to db...", end="")
                 write_events_to_db(
                     self.events
                 )  # Assuming this function writes a list of events to the DB
                 self.events.clear()
-            print("...unlocking write to db")
+                print("...unlocking write to db")
 
     def flush_events_periodically(self):
         while not self.stop_requested:
