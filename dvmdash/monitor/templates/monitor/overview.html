@@ -1,0 +1,106 @@
+<!--{% extends 'monitor/base.html' %}-->
+<!--{% load humanize %}-->
+<!--{% block title %}-->
+<!--Overview-->
+<!--{% endblock %}-->
+
+<!--{% block content %}-->
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"> <!-- Enable global dark mode -->
+
+<head>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <meta http-equiv="refresh" content="60">
+</head>
+<body>
+
+<div class="text-center">
+    <h3>DVM Activity on Nostr</h3>
+</div>
+
+<div class="container mt-5">
+    <div class="row">
+
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">DVM Events Seen</h5>
+                    <p class="card-text display-4">{{ num_dvm_events }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-mediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">DVM Kinds Seen</h5>
+                    <p class="card-text display-4">{{ num_dvm_kinds }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<h2>DVM Events by Kinds</h2>
+<div id="samplePlot"></div>
+
+
+<!-- Create a div to render the plot -->
+<div id="plotly-bar-chart"></div>
+
+
+
+<script>
+    // Create arrays from Django dictionary
+var x_data = [{% for label, value in kinds_counts.items %}"{{ label }}",{% endfor %}];
+var y_data = [{% for label, value in kinds_counts.items %}{{ value }},{% endfor %}];
+
+var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
+
+var barColors = [];
+for (var i = 0; i < x_data.length; i++) {
+    barColors.push(colors[i % colors.length]);
+}
+
+var layout = {
+    title: 'Number of DVM Tasks per Tag (w/ overlaps)',
+    xaxis: {
+        title: 'Tags',
+        type: 'category',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    yaxis: {
+        title: 'Number of DVM Tasks',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    paper_bgcolor: '#2a2a2a',
+    plot_bgcolor: '#333333',
+    font: {
+        color: '#eaeaea'
+    }
+};
+
+var data = [{
+    type: 'bar',
+    x: x_data,
+    y: y_data,
+    marker: {
+        color: barColors
+    }
+}];
+
+// Plot the chart
+Plotly.newPlot('plotly-bar-chart', data, layout);
+
+</script>
+
+
+
+
+<!--{% endblock %}-->
+</body>
+</html>
