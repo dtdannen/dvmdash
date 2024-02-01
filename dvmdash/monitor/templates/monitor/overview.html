@@ -1,13 +1,13 @@
-<!--{% extends 'monitor/base.html' %}-->
-<!--{% load humanize %}-->
-<!--{% block title %}-->
-<!--Overview-->
-<!--{% endblock %}-->
+<!-- {% extends 'monitor/base.html' %} -->
+<!-- {% load humanize %} -->
+<!-- {% block title %} -->
+<!-- Overview -->
+<!-- {% endblock %} -->
 
-<!--{% block content %}-->
+<!-- {% block content %} -->
 
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"> <!-- Enable global dark mode -->
+<html lang="en" data-bs-theme="dark">
 
 <head>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
@@ -49,35 +49,61 @@
             </div>
         </div>
 
+
         <div class="col-md-3">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">Zaps Seen</h5>
-                    <p class="card-text display-4">{{ zap_counts }}</p>
+                    <h5 class="card-title">DVM Pub Keys Seen</h5>
+                    <p class="card-text display-4">{{ dvm_pub_keys }}</p>
                 </div>
             </div>
         </div>
 
     </div>
 
-        <div class="row">
+    <div class="row">
 
-
+<!--        <div class="col-md-3">-->
+<!--            <div class="card text-white bg-mediumpurple mb-3">-->
+<!--                <div class="card-body">-->
+<!--                    <h5 class="card-title">DMs Seen</h5>-->
+<!--                    <p class="card-text display-4">{{ dm_counts }}</p>-->
+<!--                </div>-->
+<!--            </div>-->
+<!--        </div>-->
 
         <div class="col-md-3">
-            <div class="card text-white bg-mediumpurple mb-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">DMs Seen</h5>
-                    <p class="card-text display-4">{{ dm_counts }}</p>
+                    <h5 class="card-title">(24 hr) DVM Tasks</h5>
+                    <p class="card-text display-4">{{ num_dvm_tasks_24h }}</p>
                 </div>
             </div>
         </div>
 
         <div class="col-md-3">
-            <div class="card text-white bg-mediumpurple mb-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">Uncategorized</h5>
-                    <p class="card-text display-4">{{ uncategorized_counts }}</p>
+                    <h5 class="card-title">(24 hr) DVM Results</h5>
+                    <p class="card-text display-4">{{ num_dvm_results_24h }}</p>
+                </div>
+            </div>
+        </div>
+
+                <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">(1 week) DVM Tasks</h5>
+                    <p class="card-text display-4">{{ num_dvm_tasks_1week }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">(1 week) DVM Results</h5>
+                    <p class="card-text display-4">{{ num_dvm_results_1week }}</p>
                 </div>
             </div>
         </div>
@@ -99,6 +125,7 @@
 <!-- Create a div to render the plot -->
 <div id="plotly-bar-chart-feedback"></div>
 
+<div id="plotly-bar-chart-feedback-dvm"></div>
 
 <script>
     // Create arrays from Django dictionary
@@ -160,7 +187,7 @@ for (var i = 0; i < x_data.length; i++) {
 }
 
 var layout = {
-    title: 'Number of DVM Task Feedbacks per Tag (w/ overlaps)',
+    title: 'Number of DVM Task Job results per Kind (w/ overlaps)',
     xaxis: {
         title: 'Tags',
         type: 'category',
@@ -168,7 +195,7 @@ var layout = {
         zerolinecolor: '#444'
     },
     yaxis: {
-        title: 'Number of DVM Task Feedbacks',
+        title: 'Number of DVM Task Job Results by Kind',
         gridcolor: '#444',
         zerolinecolor: '#444'
     },
@@ -193,8 +220,54 @@ Plotly.newPlot('plotly-bar-chart-feedback', data, layout);
 
 </script>
 
+<script>
+    // Create arrays from Django dictionary
+var x_data = [{% for label, value in dvm_job_results.items %}"{{ label }}",{% endfor %}];
+var y_data = [{% for label, value in dvm_job_results.items %}{{ value }},{% endfor %}];
+
+var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
+
+var barColors = [];
+for (var i = 0; i < x_data.length; i++) {
+    barColors.push(colors[i % colors.length]);
+}
+
+var layout = {
+    title: 'Number of DVM Task Feedbacks per DVM ',
+    xaxis: {
+        title: 'Tags',
+        type: 'category',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    yaxis: {
+        title: 'Number of DVM Task Job Results by Kind',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    paper_bgcolor: '#2a2a2a',
+    plot_bgcolor: '#333333',
+    font: {
+        color: '#eaeaea'
+    }
+};
+
+var data = [{
+    type: 'bar',
+    x: x_data,
+    y: y_data,
+    marker: {
+        color: barColors
+    }
+}];
+
+// Plot the chart
+Plotly.newPlot('plotly-bar-chart-feedback-dvm', data, layout);
+
+</script>
 
 
-<!--{% endblock %}-->
+
+<!-- {% endblock %} -->
 </body>
 </html>

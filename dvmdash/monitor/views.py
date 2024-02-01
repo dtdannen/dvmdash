@@ -5,6 +5,7 @@ import dotenv
 from pathlib import Path
 from django.shortcuts import HttpResponse, redirect
 from django.template import loader
+from nostr_sdk import Timestamp
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
     print("Using mongita")
@@ -40,7 +41,7 @@ def overview(request):
 
     # get the number of unique kinds of all events
     # TODO - use a proper mongo query here
-    all_dvm_events_cursor = db.events.find({})
+    all_dvm_events_cursor = db.events.find({"kind": {"$gte": 5000, "$lte": 6999}})
 
     all_dvm_events = [doc for doc in all_dvm_events_cursor]
     kinds_counts = {}
@@ -49,6 +50,49 @@ def overview(request):
     dm_counts = 0
     uncategorized_counts = 0
     num_dvm_events = 0
+
+    current_timestamp = Timestamp.now()
+    current_secs = current_timestamp.as_secs()
+
+    max_time_24hr = Timestamp.from_secs(current_secs - (24 * 60 * 60))
+    max_time_1week = Timestamp.from_secs(current_secs - (7 * 24 * 60 * 60))
+
+    dvm_tasks_24h = db.events.count_documents(
+        {
+            "created_at": {"$gte": max_time_24hr.as_secs()},
+            "kind": {"$gte": 5000, "$lte": 5999},
+        }
+    )
+    context["num_dvm_tasks_24h"] = dvm_tasks_24h
+
+    dvm_results_24h = db.events.count_documents(
+        {
+            "created_at": {"$gte": max_time_24hr.as_secs()},
+            "kind": {"$gte": 6000, "$lte": 6999},
+        }
+    )
+    context["num_dvm_results_24h"] = dvm_results_24h
+
+    dvm_tasks_1week = db.events.count_documents(
+        {
+            "created_at": {"$gte": max_time_1week.as_secs()},
+            "kind": {"$gte": 5000, "$lte": 5999},
+        }
+    )
+    context["num_dvm_tasks_1week"] = dvm_tasks_1week
+
+    dvm_results_1week = db.events.count_documents(
+        {
+            "created_at": {"$gte": max_time_1week.as_secs()},
+            "kind": {"$gte": 6000, "$lte": 6999},
+        }
+    )
+
+    context["num_dvm_results_1week"] = dvm_results_1week
+
+    # pub ids of all dvms
+    dvm_job_results = {}
+
     for dvm_event_i in all_dvm_events:
         if "kind" in dvm_event_i:
             kind_num = dvm_event_i["kind"]
@@ -65,6 +109,13 @@ def overview(request):
                     kind_feedback_counts[kind_num] += 1
                 else:
                     kind_feedback_counts[kind_num] = 1
+
+                dvm_pub_key = dvm_event_i["pubkey"]
+                if dvm_pub_key in dvm_job_results:
+                    dvm_job_results[dvm_pub_key] += 1
+                else:
+                    dvm_job_results[dvm_pub_key] = 1
+
             elif kind_num == 9735:
                 zap_counts += 1
             elif kind_num == 4:
@@ -83,6 +134,8 @@ def overview(request):
     context["kinds_counts"] = kinds_counts
     context["kind_feedback_counts"] = kind_feedback_counts
     context["num_dvm_events"] = num_dvm_events
+    context["dvm_job_results"] = {k: v for k, v in dvm_job_results.items() if v > 100}
+    context["dvm_pub_keys"] = len(list(dvm_job_results.keys()))
 
     for kind, count in kinds_counts.items():
         print(f"\tKind {kind} has {count} instances")
