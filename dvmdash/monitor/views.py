@@ -93,6 +93,9 @@ def overview(request):
     # pub ids of all dvms
     dvm_job_results = {}
 
+    # pub ids of all dvm requests - these are probably people?
+    dvm_job_requests = {}
+
     for dvm_event_i in all_dvm_events:
         if "kind" in dvm_event_i:
             kind_num = dvm_event_i["kind"]
@@ -103,6 +106,13 @@ def overview(request):
                     kinds_counts[kind_num] += 1
                 else:
                     kinds_counts[kind_num] = 1
+
+                dvm_request_pub_key = dvm_event_i["pubkey"]
+                if dvm_request_pub_key in dvm_job_requests:
+                    dvm_job_requests[dvm_request_pub_key] += 1
+                else:
+                    dvm_job_requests[dvm_request_pub_key] = 1
+
             elif 6000 <= kind_num <= 6999:
                 num_dvm_events += 1
                 if kind_num in kind_feedback_counts:
@@ -136,6 +146,18 @@ def overview(request):
     context["num_dvm_events"] = num_dvm_events
     context["dvm_job_results"] = {k: v for k, v in dvm_job_results.items() if v > 100}
     context["dvm_pub_keys"] = len(list(dvm_job_results.keys()))
+
+    # get the top 15 dvm job requests pub ids
+    # first sort dictionary by value
+    # then pick the top 15
+    # Sort the dictionary by value in descending order and get the top 15 items
+    top_dvm_job_requests = sorted(
+        dvm_job_requests.items(), key=lambda x: x[1], reverse=True
+    )[:15]
+
+    # Convert the list of tuples back to a dictionary
+    top_dvm_job_requests_dict = dict(top_dvm_job_requests)
+    context["dvm_job_requests"] = top_dvm_job_requests_dict
 
     for kind, count in kinds_counts.items():
         print(f"\tKind {kind} has {count} instances")

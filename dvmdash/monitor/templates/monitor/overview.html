@@ -127,6 +127,8 @@
 
 <div id="plotly-bar-chart-feedback-dvm"></div>
 
+<div id="plotly-bar-chart-request-pubs"></div>
+
 <script>
     // Create arrays from Django dictionary
 var x_data = [{% for label, value in kinds_counts.items %}"{{ label }}",{% endfor %}];
@@ -266,7 +268,51 @@ Plotly.newPlot('plotly-bar-chart-feedback-dvm', data, layout);
 
 </script>
 
+<script>
+    // Create arrays from Django dictionary
+var x_data = [{% for label, value in dvm_job_requests.items %}"{{ label }}",{% endfor %}];
+var y_data = [{% for label, value in dvm_job_requests.items %}{{ value }},{% endfor %}];
 
+var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
+
+var barColors = [];
+for (var i = 0; i < x_data.length; i++) {
+    barColors.push(colors[i % colors.length]);
+}
+
+var layout = {
+    title: 'DVM Requests by User Pub Keys',
+    xaxis: {
+        title: 'User Pub Key',
+        type: 'category',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    yaxis: {
+        title: 'Number of DVM Requests',
+        gridcolor: '#444',
+        zerolinecolor: '#444'
+    },
+    paper_bgcolor: '#2a2a2a',
+    plot_bgcolor: '#333333',
+    font: {
+        color: '#eaeaea'
+    }
+};
+
+var data = [{
+    type: 'bar',
+    x: x_data,
+    y: y_data,
+    marker: {
+        color: barColors
+    }
+}];
+
+// Plot the chart
+Plotly.newPlot('plotly-bar-chart-request-pubs', data, layout);
+
+</script>
 
 <!-- {% endblock %} -->
 </body>
