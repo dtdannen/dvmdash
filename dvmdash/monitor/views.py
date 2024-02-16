@@ -162,7 +162,7 @@ def overview(request):
     for kind, count in kinds_counts.items():
         print(f"\tKind {kind} has {count} instances")
 
-    print(f"Setting num_dvm_kinds to {context['num_dvm_kinds']}")
+    print(f"Setting var num_dvm_kinds to {context['num_dvm_kinds']}")
 
     template = loader.get_template("monitor/overview.html")
     return HttpResponse(template.render(context, request))
