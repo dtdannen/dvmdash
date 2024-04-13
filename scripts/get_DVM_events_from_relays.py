@@ -89,6 +89,7 @@ DVM_KINDS = [
 DVM_KINDS = list(set(DVM_KINDS + list(range(5000, 5999)) + list(range(6000, 6999)))) + [
     31990
 ]
+# DVM_KINDS = [31990]
 
 
 def write_events_to_db(events):

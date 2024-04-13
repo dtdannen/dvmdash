@@ -6,6 +6,8 @@ from pathlib import Path
 from django.shortcuts import HttpResponse, redirect
 from django.template import loader
 from nostr_sdk import Timestamp
+import json
+
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
     print("Using mongita")
@@ -42,8 +44,24 @@ def overview(request):
     # get the number of unique kinds of all events
     # TODO - use a proper mongo query here
     all_dvm_events_cursor = db.events.find({"kind": {"$gte": 5000, "$lte": 6999}})
+    all_dvm_events = list(all_dvm_events_cursor)
 
-    all_dvm_events = [doc for doc in all_dvm_events_cursor]
+    dvm_nip89_profiles = {}
+
+    for nip89_event in db.events.find({"kind": 31990}):
+        if "pubkey" in nip89_event:
+            try:
+                dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
+                    nip89_event["content"]
+                )
+                print(
+                    f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
+                )
+            except Exception as e:
+                print(f"Error loading json from {nip89_event['content']}")
+                print(f"Content is: {nip89_event['content']}")
+                print(e)
+
     kinds_counts = {}
     kind_feedback_counts = {}
     zap_counts = 0
@@ -136,6 +154,14 @@ def overview(request):
             print("WARNING - event missing kind field")
             print(f"{dvm_event_i}")
 
+    # replace dvm_job_results keys with names if available
+    dvm_job_results_names = {}
+    for pub_key, count in dvm_job_results.items():
+        if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
+            dvm_job_results_names[dvm_nip89_profiles[pub_key]["name"]] = count
+        else:
+            dvm_job_results_names[pub_key] = count
+
     context["num_dvm_kinds"] = len(list(kinds_counts.keys()))
     context["num_dvm_feedback_kinds"] = len(list(kind_feedback_counts.keys()))
     context["zap_counts"] = zap_counts
@@ -144,7 +170,9 @@ def overview(request):
     context["kinds_counts"] = kinds_counts
     context["kind_feedback_counts"] = kind_feedback_counts
     context["num_dvm_events"] = num_dvm_events
-    context["dvm_job_results"] = {k: v for k, v in dvm_job_results.items() if v > 100}
+    context["dvm_job_results"] = {
+        k: v for k, v in dvm_job_results_names.items() if v > 100
+    }
     context["dvm_pub_keys"] = len(list(dvm_job_results.keys()))
 
     # get the top 15 dvm job requests pub ids
@@ -157,7 +185,16 @@ def overview(request):
 
     # Convert the list of tuples back to a dictionary
     top_dvm_job_requests_dict = dict(top_dvm_job_requests)
-    context["dvm_job_requests"] = top_dvm_job_requests_dict
+
+    top_dvm_job_requests_via_name = {}
+    for pub_key, count in top_dvm_job_requests_dict.items():
+        print(f"pub_key: {pub_key}, count: {count}")
+        if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
+            top_dvm_job_requests_via_name[dvm_nip89_profiles[pub_key]["name"]] = count
+        else:
+            top_dvm_job_requests_via_name[pub_key] = count
+
+    context["dvm_job_requests"] = top_dvm_job_requests_via_name
 
     for kind, count in kinds_counts.items():
         print(f"\tKind {kind} has {count} instances")
