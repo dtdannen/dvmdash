@@ -100,7 +100,7 @@ def overview(request):
         if "kind" in dvm_event_i:
             kind_num = dvm_event_i["kind"]
 
-            if 5000 <= kind_num <= 5999:
+            if 5000 <= kind_num <= 5999 and kind_num not in [5666]:
                 num_dvm_events += 1
                 if kind_num in kinds_counts:
                     kinds_counts[kind_num] += 1
@@ -113,7 +113,7 @@ def overview(request):
                 else:
                     dvm_job_requests[dvm_request_pub_key] = 1
 
-            elif 6000 <= kind_num <= 6999:
+            elif 6000 <= kind_num <= 6999 and kind_num not in [6666]:
                 num_dvm_events += 1
                 if kind_num in kind_feedback_counts:
                     kind_feedback_counts[kind_num] += 1

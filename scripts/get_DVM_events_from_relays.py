@@ -20,6 +20,7 @@ from nostr_sdk import (
     nip04_decrypt,
 )
 
+
 from nostr_dvm.utils.dvmconfig import DVMConfig
 from nostr_dvm.utils.nostr_utils import send_event, check_and_set_private_key
 from nostr_dvm.utils.definitions import EventDefinitions
@@ -85,7 +86,9 @@ DVM_KINDS = [
 ]
 
 # check for DVMs on any other kinds
-DVM_KINDS = list(set(DVM_KINDS + list(range(5000, 5999)) + list(range(6000, 6999))))
+DVM_KINDS = list(set(DVM_KINDS + list(range(5000, 5999)) + list(range(6000, 6999)))) + [
+    31990
+]
 
 
 def write_events_to_db(events):

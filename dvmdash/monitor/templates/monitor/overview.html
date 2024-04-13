@@ -1,20 +1,11 @@
-<!-- {% extends 'monitor/base.html' %} -->
-<!-- {% load humanize %} -->
-<!-- {% block title %} -->
-<!-- Overview -->
-<!-- {% endblock %} -->
+{% extends 'monitor/base.html' %}
 
-<!-- {% block content %} -->
 
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
 
-<head>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <meta http-equiv="refresh" content="60">
-</head>
-<body>
+<!--    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>-->
+<!--    <meta http-equiv="refresh" content="60">-->
 
+{% block content %}
 <div class="text-center">
     <h3>DVM Activity on Nostr</h3>
 </div>
@@ -109,10 +100,35 @@
         </div>
 
     </div>
-
-
 </div>
 
+
+<div class="text-center">
+        <h4>Recent DVM Requests</h4>
+    </div>
+
+
+    <!-- Your existing content here -->
+        <div class="row">
+            <div class="col-md-12">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th scope="col">User</th>
+                            <th scope="col">Event Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for recent_event in recent_events %}
+                        <tr>
+                            <td>{{ recent_event.user }}</td>
+                            <td>{{ recent_event.event }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
 <h2>DVM Events by Kinds</h2>
 <div id="samplePlot"></div>
@@ -130,9 +146,22 @@
 <div id="plotly-bar-chart-request-pubs"></div>
 
 <script>
-    // Create arrays from Django dictionary
-var x_data = [{% for label, value in kinds_counts.items %}"{{ label }}",{% endfor %}];
-var y_data = [{% for label, value in kinds_counts.items %}{{ value }},{% endfor %}];
+// Create arrays from Django dictionary
+var data = [{% for label, value in kinds_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
+
+// Sort the data based on x values in ascending order
+data.sort(function(a, b) {
+    return a.x.localeCompare(b.x);
+});
+
+// Separate the sorted data back into x_data and y_data arrays
+var x_data = data.map(function(item) {
+    return item.x;
+});
+
+var y_data = data.map(function(item) {
+    return item.y;
+});
 
 var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
 
@@ -177,9 +206,22 @@ Plotly.newPlot('plotly-bar-chart', data, layout);
 
 
 <script>
-    // Create arrays from Django dictionary
-var x_data = [{% for label, value in kind_feedback_counts.items %}"{{ label }}",{% endfor %}];
-var y_data = [{% for label, value in kind_feedback_counts.items %}{{ value }},{% endfor %}];
+// Create arrays from Django dictionary
+var data = [{% for label, value in kind_feedback_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
+
+// Sort the data based on x values in ascending order
+data.sort(function(a, b) {
+    return a.x.localeCompare(b.x);
+});
+
+// Separate the sorted data back into x_data and y_data arrays
+var x_data = data.map(function(item) {
+    return item.x;
+});
+
+var y_data = data.map(function(item) {
+    return item.y;
+});
 
 var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
 
@@ -314,6 +356,4 @@ Plotly.newPlot('plotly-bar-chart-request-pubs', data, layout);
 
 </script>
 
-<!-- {% endblock %} -->
-</body>
-</html>
+{% endblock %}

@@ -9,3 +9,9 @@ A version of the website is running here, although it may go down anytime so ple
 https://oyster-app-r8i8k.ondigitalocean.app/
 
 
+DVM pages will show:
+- NIP-89 information for that DVM
+- List number of events by this DVM
+
+User pages wil show:
+- Number of requests per each DVM type
