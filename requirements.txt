@@ -51,3 +51,4 @@ typing_extensions==4.9.0
 tzdata==2023.4
 urllib3==2.1.0
 zipp==3.17.0
+loguru==0.7.2
