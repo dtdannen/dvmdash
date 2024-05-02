@@ -1,17 +1,10 @@
 # dvmdash
 
-DVMDash aims to be a monitoring and debugging tool for DVM activity on Nostr. 
+DVMDash aims to be a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
 
-The project is pre-alpha, so the code is in a rough state. The entire code base may even be rewritten.
+The project is pre-alpha. Main branch is not guaranteed to be stable.
 
-A version of the website is running here, although it may go down anytime so please do not rely on it yet:
+A version of the website is running here:
 
 https://dvmdash.live/
 
-
-DVM pages will show:
-- NIP-89 information for that DVM
-- List number of events by this DVM
-
-User pages wil show:
-- Number of requests per each DVM type
