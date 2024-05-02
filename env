@@ -1,0 +1,7 @@
+RELAYS=wss://relay.current.fyi,wss://nostr1.current.fyi,wss://nostr-pub.wellorder.net,wss://relay.damus.io,wss://nostr-relay.wlvs.space,wss://nostr.zebedee.cloud,wss://student.chadpolytechnic.com,wss://global.relay.red,wss://nos.lol,wss://relay.primal.net,wss://nostr21.com,wss://offchain.pub,wss://relay.plebstr.com,wss://nostr.mom,wss://relay.nostr.bg,wss://nostr.oxtr.dev,wss://relay.nostr.bg,wss://no.str.cr,wss://nostr-relay.nokotaro.com,wss://relay.nostr.wirednet.jp
+MONGO_URI=<your mongo uri here>
+RUST_BACKTRACE=full
+USE_MONGITA=False
+DEVELOPMENT_MODE=True
+DEBUG=True
+
