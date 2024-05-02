@@ -7,6 +7,8 @@ from pathlib import Path
 from threading import Thread
 import ctypes
 
+import loguru
+
 import dotenv
 from nostr_sdk import (
     Keys,
@@ -26,24 +28,26 @@ from nostr_dvm.utils.nostr_utils import send_event, check_and_set_private_key
 from nostr_dvm.utils.definitions import EventDefinitions
 from pymongo.errors import BulkWriteError
 
+logger = loguru.logger
+
 env_path = Path(".env")
 if env_path.is_file():
-    print(f"loading environment from {env_path.resolve()}")
+    logger.info(f"loading environment from {env_path.resolve()}")
     dotenv.load_dotenv(env_path, verbose=True, override=True)
 else:
+    logger.error(f".env file not found at {env_path} ")
     raise FileNotFoundError(f".env file not found at {env_path} ")
 
-print("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
-
+logger.debug("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
-    print("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
-    print("Using mongita")
+    logger.debug("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
+    logger.info("Using mongita")
     from mongita import MongitaClientDisk
 
     mongo_client = MongitaClientDisk()
     db = mongo_client.dvmdash
-    print("Connected to local mongo db using MONGITA")
+    logger.info("Connected to local mongo db using MONGITA")
 else:
     # connect to db
     mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True)
@@ -51,14 +55,14 @@ else:
 
     try:
         result = db["events"].count_documents({})
-        print(f"There are {result} documents in events collection")
+        logger.info(f"There are {result} documents in events collection")
     except Exception as e:
-        print("Could not count documents in db")
+        logger.error("Could not count documents in db")
         import traceback
 
         traceback.print_exc()
 
-    print("Connected to cloud mongo db")
+    logger.info("Connected to cloud mongo db")
 
 
 RELAYS = os.getenv(
@@ -100,18 +104,18 @@ def write_events_to_db(events):
     if events:
         try:
             result = db["events"].insert_many(events, ordered=False)
-            print(
+            logger.info(
                 f"Finished writing events to db with result: {len(result.inserted_ids)}"
             )
         except BulkWriteError as e:
             # If you want to log the details of the duplicates or other errors
             num_duplicates_found = len(e.details["writeErrors"])
-            print(
+            logger.warning(
                 f"Ignoring {num_duplicates_found} / {len(events)} duplicate events...",
                 end="",
             )
         except Exception as e:
-            print(f"Error inserting events into database: {e}")
+            logger.error(f"Error inserting events into database: {e}")
 
 
 import threading
@@ -141,13 +145,13 @@ class NotificationHandler(HandleNotification):
     def flush_events(self):
         with self.lock:
             if self.events:
-                print("locking to write to db...", end="")
-                print(f"...writing {len(self.events)} to db...", end="")
+                logger.debug("locking to write to db...", end="")
+                logger.debug(f"...writing {len(self.events)} to db...", end="")
                 write_events_to_db(
                     self.events
                 )  # Assuming this function writes a list of events to the DB
                 self.events.clear()
-                print("...unlocking write to db")
+                logger.debug("...unlocking write to db")
 
     def flush_events_periodically(self):
         while not self.stop_requested:
@@ -170,7 +174,7 @@ def nostr_client(since_when_timestamp):
     keys = Keys.from_sk_str(check_and_set_private_key("test_client"))
     sk = keys.secret_key()
     pk = keys.public_key()
-    print(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
+    logger.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
     signer = ClientSigner.keys(keys)
     client = Client(signer)
     for relay in RELAYS:
@@ -194,9 +198,9 @@ def nostr_client(since_when_timestamp):
     client.handle_notifications(NotificationHandler())
     while True:
         delay = 60
-        print(f"About to sleep for {delay} seconds...", end="")
+        logger.debug(f"About to sleep for {delay} seconds...", end="")
         time.sleep(delay)
-        print(f"waking up...")
+        logger.debug(f"waking up...")
 
 
 def run_nostr_client(minutes=262980):
@@ -207,9 +211,10 @@ def run_nostr_client(minutes=262980):
 
     env_path = Path(".env")
     if env_path.is_file():
-        print(f"loading environment from {env_path.resolve()}")
+        logger.info(f"loading environment from {env_path.resolve()}")
         dotenv.load_dotenv(env_path, verbose=True, override=True)
     else:
+        logger.error(f".env file not found at {env_path} ")
         raise FileNotFoundError(f".env file not found at {env_path} ")
 
     nostr_dvm_thread = Thread(target=nostr_client, args=(max_time,))
