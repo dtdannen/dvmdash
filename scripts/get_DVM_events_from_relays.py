@@ -89,6 +89,10 @@ DVM_KINDS = [
 DVM_KINDS = list(set(DVM_KINDS + list(range(5000, 5999)) + list(range(6000, 6999)))) + [
     31990
 ]
+
+# Remove Kinds 5666 and 6666 because they are not DVMs
+DVM_KINDS = list(set(DVM_KINDS) - {5666, 6666})
+
 # DVM_KINDS = [31990]
 
 
