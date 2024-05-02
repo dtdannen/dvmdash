@@ -70,6 +70,8 @@ RELAYS = os.getenv(
     "wss://relay.damus.io,wss://blastr.f7z.xyz,wss://relayable.org,wss://nostr-pub.wellorder.net",
 ).split(",")
 
+logger.info(f"Listening to {len(RELAYS)} RELAYS:\n\t{RELAYS}")
+
 DVM_KINDS = [
     EventDefinitions.KIND_NIP90_EXTRACT_TEXT,
     EventDefinitions.KIND_NIP90_SUMMARIZE_TEXT,
