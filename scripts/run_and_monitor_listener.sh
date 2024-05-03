@@ -1,7 +1,7 @@
 #!/bin/bash
 
-script_path="/path/to/your_script.py"
-log_file="/path/to/your_script.log"
+script_path="listen_for_DVM_events.py"
+log_file="listen_for_DVM_events.log"
 
 trap 'echo "Keyboard interrupt received. Exiting..."; exit 0' INT
 
