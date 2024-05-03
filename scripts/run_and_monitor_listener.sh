@@ -1,8 +1,10 @@
 #!/bin/bash
 
-script_path="listen_for_DVM_events.py"
+# Run this script in the root directory (don't CD into scripts directory)
+
+script_path="scripts/listen_for_DVM_events.py"
 log_file="listen_for_DVM_events.log"
-virtualenv_path="../venv/"
+virtualenv_path="venv"
 
 source "$virtualenv_path/bin/activate"
 
