@@ -149,9 +149,9 @@
 // Create arrays from Django dictionary
 var data = [{% for label, value in kinds_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
 
-// Sort the data based on x values in ascending order
+// Sort the data based on y values in descending order
 data.sort(function(a, b) {
-    return a.x.localeCompare(b.x);
+    return b.y - a.y;
 });
 
 // Separate the sorted data back into x_data and y_data arrays
@@ -209,9 +209,9 @@ Plotly.newPlot('plotly-bar-chart', data, layout);
 // Create arrays from Django dictionary
 var data = [{% for label, value in kind_feedback_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
 
-// Sort the data based on x values in ascending order
+// Sort the data based on y values in descending order
 data.sort(function(a, b) {
-    return a.x.localeCompare(b.x);
+    return b.y - a.y;
 });
 
 // Separate the sorted data back into x_data and y_data arrays
@@ -265,9 +265,28 @@ Plotly.newPlot('plotly-bar-chart-feedback', data, layout);
 </script>
 
 <script>
-    // Create arrays from Django dictionary
+// Create arrays from Django dictionary
 var x_data = [{% for label, value in dvm_job_results.items %}"{{ label }}",{% endfor %}];
 var y_data = [{% for label, value in dvm_job_results.items %}{{ value }},{% endfor %}];
+
+// Combine x_data and y_data into an array of objects
+var data = x_data.map(function(label, index) {
+    return { x: label, y: y_data[index] };
+});
+
+// Sort the data based on y values in descending order
+data.sort(function(a, b) {
+    return b.y - a.y;
+});
+
+// Separate the sorted data back into x_data and y_data arrays
+x_data = data.map(function(item) {
+    return item.x;
+});
+
+y_data = data.map(function(item) {
+    return item.y;
+});
 
 var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
 

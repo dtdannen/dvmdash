@@ -1,12 +1,15 @@
 from django.shortcuts import render
 from pymongo import MongoClient
 import os
+import sys
 import dotenv
 from pathlib import Path
 from django.shortcuts import HttpResponse, redirect
 from django.template import loader
 from nostr_sdk import Timestamp
+from datetime import datetime
 import json
+import monitor.helpers as helpers
 
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
@@ -54,13 +57,14 @@ def overview(request):
                 dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
                     nip89_event["content"]
                 )
-                print(
-                    f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
-                )
+                # print(
+                #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
+                # )
             except Exception as e:
-                print(f"Error loading json from {nip89_event['content']}")
-                print(f"Content is: {nip89_event['content']}")
-                print(e)
+                # print(f"Error loading json from {nip89_event['content']}")
+                # print(f"Content is: {nip89_event['content']}")
+                # print(e)
+                pass
 
     kinds_counts = {}
     kind_feedback_counts = {}
@@ -107,6 +111,12 @@ def overview(request):
     )
 
     context["num_dvm_results_1week"] = dvm_results_1week
+
+    # print the memory usages of all events so far:
+    memory_usage = sys.getsizeof(all_dvm_events)
+    # Convert memory usage to megabytes
+    memory_usage_mb = memory_usage / (1024 * 1024)
+    print(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
 
     # pub ids of all dvms
     dvm_job_results = {}
@@ -202,4 +212,95 @@ def overview(request):
     print(f"Setting var num_dvm_kinds to {context['num_dvm_kinds']}")
 
     template = loader.get_template("monitor/overview.html")
+    return HttpResponse(template.render(context, request))
+
+
+def dvm(request, pub_key=""):
+    print(f"Calling dvm with dvm_pub_key: {pub_key}")
+    context = {}
+
+    if pub_key == "":
+        # get all dvm pub keys
+        dvm_pub_keys = list(
+            db.events.distinct("pubkey", {"kind": {"$gte": 5000, "$lte": 6999}})
+        )
+
+        # get all dvm pub key names from nip 89s
+        dvm_nip89_profiles = {}
+
+        for nip89_event in db.events.find({"kind": 31990}):
+            if "pubkey" in nip89_event:
+                try:
+                    dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
+                        nip89_event["content"]
+                    )
+                    # print(
+                    #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
+                    # )
+                except Exception as e:
+                    # print(f"Error loading json from {nip89_event['content']}")
+                    # print(f"Content is: {nip89_event['content']}")
+                    # print(e)
+                    pass
+
+        dvm_pub_keys_and_names = {}  # key is pub key or dvm name, value is pub key
+
+        for pub_key in dvm_pub_keys:
+            dvm_pub_keys_and_names[pub_key] = pub_key
+            dvm_pub_keys_and_names[helpers.hex_to_npub(pub_key)] = pub_key
+            if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
+                dvm_pub_keys_and_names[dvm_nip89_profiles[pub_key]["name"]] = pub_key
+
+        context["dvm_pub_keys_and_names"] = dvm_pub_keys_and_names
+
+        template = loader.get_template("monitor/dvm.html")
+        return HttpResponse(template.render(context, request))
+
+    # get profile information for this dvm
+    # check to see if there is a nip89 profile, if so grab the latest one
+    dvm_nip89_profile_latest = db.events.find_one(
+        {"kind": 31990, "pubkey": pub_key},
+        sort=[("created_at", -1)],
+    )
+
+    if dvm_nip89_profile_latest is not None:
+        context["dvm_nip89_profile"] = json.loads(dvm_nip89_profile_latest["content"])
+
+    # get all events from this dvm_pub_key
+    dvm_events = list(db.events.find({"pubkey": pub_key}))
+
+    memory_usage = sys.getsizeof(dvm_events)
+    print(f"Memory usage of dvm_events: {memory_usage}")
+
+    num_dvm_events = len(dvm_events)
+
+    # compute that number of events per day for the last 30 days
+    # get the current time
+    current_timestamp = Timestamp.now()
+    current_secs = current_timestamp.as_secs()
+
+    num_events_per_day = {}
+
+    for day_i in range(30):
+        day_start = Timestamp.from_secs(current_secs - (day_i * 24 * 60 * 60))
+        day_end = Timestamp.from_secs(current_secs - ((day_i - 1) * 24 * 60 * 60))
+        num_events_day_i = db.events.count_documents(
+            {
+                "pubkey": pub_key,
+                "created_at": {"$gte": day_start.as_secs(), "$lt": day_end.as_secs()},
+            }
+        )
+
+        date_from_day_i = datetime.fromtimestamp(day_start.as_secs()).strftime(
+            "%Y-%m-%d"
+        )
+
+        num_events_per_day[date_from_day_i] = num_events_day_i
+        # print(f"Day {day_i} has {num_events_day_i} events")
+
+    context["num_dvm_events"] = num_dvm_events
+    context["dvm_pub_key"] = pub_key
+    context["num_events_per_day"] = num_events_per_day
+
+    template = loader.get_template("monitor/dvm.html")
     return HttpResponse(template.render(context, request))

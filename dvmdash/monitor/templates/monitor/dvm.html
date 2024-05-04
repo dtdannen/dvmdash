@@ -1,0 +1,149 @@
+{% extends 'monitor/base.html' %}
+
+{% block extrahead %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<style>
+    .select2-container--default .select2-selection--single,
+    .select2-container--default .select2-selection--single .select2-selection__rendered,
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        background-color: #343a40 !important;
+        border-color: #6c757d !important;
+        color: #fff !important;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__placeholder {
+        color: #adb5bd !important;
+    }
+
+    .select2-container--default .select2-results__option {
+        background-color: #343a40 !important;
+        color: #fff !important;
+    }
+
+    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #6c757d !important;
+        color: #fff !important;
+    }
+
+    .select2-container--default .select2-selection--single {
+        border-style: solid !important;
+        border-width: 1px !important;
+        border-color: #6c757d !important;
+    }
+
+    .select2-container--default.select2-container--open .select2-selection--single,
+    .select2-container--default.select2-container--focus .select2-selection--single {
+        border-color: #6c757d !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    {% if dvm_pub_keys_and_names %}
+        <form id="dvm-form">
+            <select id="dvm-select" name="selected_item" class="select2" style="width: 100%;">
+                <option value="">Start typing the pub key, hex, or nip-89 name of the dvm....</option>
+                {% for key, value in dvm_pub_keys_and_names.items %}
+                    <option value="{{ value }}">{{ key }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Submit</button>
+        </form>
+    {% endif %}
+
+    {% if dvm_pub_key %}
+        {% if dvm_nip89_profile %}
+            <!-- show raw profile info -->
+            <pre><code>{{ dvm_nip89_profile|json_script }}</code></pre>
+        {% endif %}
+
+        {% if num_dvm_events %}
+            <div class="container mt-5">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card text-white bg-darkmediumpurple mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Events Served</h5>
+                                <p class="card-text display-4">{{ num_dvm_events }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+    <div id="plotly-bar-chart-events-per-day"></div>
+
+    {% endif %}
+
+    {% if dvm_pub_keys_and_names %}
+        <script>
+            $(document).ready(function() {
+                $('.select2').select2({
+                    placeholder: 'Start typing the pub key, hex, or nip-89 name of the dvm....',
+                    minimumInputLength: 1,
+                    allowClear: true
+                });
+            });
+        </script>
+        <script>
+            document.getElementById('dvm-form').addEventListener('submit', function (event) {
+                event.preventDefault();
+                var selectedValue = document.getElementById('dvm-select').value;
+                if (selectedValue) {
+                    window.location.href = "{% url 'dvm' %}" + selectedValue + "/";
+                }
+            });
+        </script>
+    {% endif %}
+
+    {% if dvm_pub_key %}
+    <script>
+    // Create arrays from Django dictionary
+    var x_data = [{% for date in num_events_per_day.keys %}"{{ date }}",{% endfor %}];
+    var y_data = [{% for count in num_events_per_day.values %}{{ count }},{% endfor %}];
+
+    var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
+
+    var barColors = [];
+    for (var i = 0; i < x_data.length; i++) {
+        barColors.push(colors[i % colors.length]);
+    }
+
+    var layout = {
+        title: 'Number of Events per Day',
+        xaxis: {
+            title: 'Date',
+            type: 'date',
+            gridcolor: '#444',
+            zerolinecolor: '#444'
+        },
+        yaxis: {
+            title: 'Number of Events',
+            gridcolor: '#444',
+            zerolinecolor: '#444'
+        },
+        paper_bgcolor: '#2a2a2a',
+        plot_bgcolor: '#333333',
+        font: {
+            color: '#eaeaea'
+        }
+    };
+
+    var data = [{
+        type: 'bar',
+        x: x_data,
+        y: y_data,
+        marker: {
+            color: barColors
+        }
+    }];
+
+    // Plot the chart
+    Plotly.newPlot('plotly-bar-chart-events-per-day', data, layout);
+</script>
+    {% endif %}
+
+{% endblock %}

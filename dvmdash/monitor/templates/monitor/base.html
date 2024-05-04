@@ -28,24 +28,57 @@
     <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
 
+    <!-- ... (existing head content) ... -->
+    <style>
+        .navbar-custom {
+            background-color: #343a40; /* Dark gray background color */
+        }
+        .navbar-custom .navbar-brand,
+        .navbar-custom .navbar-nav .nav-link {
+            color: #fff; /* White text color */
+        }
+        .navbar-custom .navbar-brand:hover,
+        .navbar-custom .navbar-nav .nav-link:hover {
+            color: #ffc107; /* Medium light purple hover color */
+        }
+        .navbar-custom .navbar-nav .nav-link:hover {
+        color: #ffc107; /* Yellow hover color */
+    }
+    </style>
+
     {% block extrahead %}{% endblock %}
 </head>
 
 <body>
-    <!-- Navigation Bar -->
-<nav class="navbar navbar-expand-lg" id="mainNavbar">
-    <a class="navbar-brand" href="#">DVM Dash</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'overview' %}">Overview</a>
-            </li>
-        </ul>
+    <!-- Development Banner -->
+    <div class="container-fluid bg-warning text-dark py-2">
+        <div class="container text-center">
+            <p class="mb-0">
+                <strong>Note:</strong> Under active development, may break anytime. Made with ❤️ by <a href="https://njump.me/nprofile1qyghwumn8ghj7mn0wd68ytnhd9hx2tcpzdmhxue69uhhqatjwpkx2urpvuhx2ue0qqsd5x8fscqypualfyu8dlqkkx539tj6dah634g4ns779wpr8gxes5grkwu97" target="_blank" class="text-dark">Dustin</a>. Source: <a href="https://github.com/dtdannen/dvmdash" target="_blank" class="text-dark">GitHub</a>.
+            </p>
+        </div>
     </div>
-</nav>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">DVM Dash</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'overview' %}">Overview</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'dvm' %}">DVM Browser</a>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+    </nav>
+
 
 
     <!-- Main content block (where other templates will be inserted) -->

@@ -6,4 +6,6 @@ from . import views
 
 urlpatterns = [
     path("", views.overview, name="overview"),
+    path("dvm/", views.dvm, name="dvm"),
+    path("dvm/<str:pub_key>/", views.dvm, name="dvm_with_pub_key"),
 ]
