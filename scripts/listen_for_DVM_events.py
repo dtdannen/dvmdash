@@ -210,10 +210,6 @@ def nostr_client(since_when_timestamp):
         time.sleep(delay)
         logger.debug(f"waking up...")
 
-        if (datetime.now() - SCRIPT_START_TIME).seconds > 300:  # 5 minutes
-            # Note that the bash script should restart this script if it dies
-            sys.exit(0)
-
 
 def run_nostr_client(minutes=10080):
     current_timestamp = Timestamp.now()
