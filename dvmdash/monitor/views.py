@@ -164,13 +164,18 @@ def overview(request):
             print("WARNING - event missing kind field")
             print(f"{dvm_event_i}")
 
+    # this is used to make the bars and labels of the graphs clickable to go to the corresponding dvm page
+    labels_to_pubkeys = {}
+
     # replace dvm_job_results keys with names if available
     dvm_job_results_names = {}
     for pub_key, count in dvm_job_results.items():
         if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
             dvm_job_results_names[dvm_nip89_profiles[pub_key]["name"]] = count
+            labels_to_pubkeys[dvm_nip89_profiles[pub_key]["name"]] = pub_key
         else:
-            dvm_job_results_names[pub_key] = count
+            dvm_job_results_names[pub_key[:6]] = count
+            labels_to_pubkeys[pub_key[:6]] = pub_key
 
     context["num_dvm_kinds"] = len(list(kinds_counts.keys()))
     context["num_dvm_feedback_kinds"] = len(list(kind_feedback_counts.keys()))
@@ -201,10 +206,13 @@ def overview(request):
         print(f"pub_key: {pub_key}, count: {count}")
         if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
             top_dvm_job_requests_via_name[dvm_nip89_profiles[pub_key]["name"]] = count
+            labels_to_pubkeys[dvm_nip89_profiles[pub_key]["name"]] = pub_key
         else:
-            top_dvm_job_requests_via_name[pub_key] = count
+            top_dvm_job_requests_via_name[pub_key[:6]] = count
+            labels_to_pubkeys[pub_key[:6]] = pub_key
 
     context["dvm_job_requests"] = top_dvm_job_requests_via_name
+    context["labels_to_pubkeys"] = json.dumps(labels_to_pubkeys).replace("'", "")
 
     for kind, count in kinds_counts.items():
         print(f"\tKind {kind} has {count} instances")

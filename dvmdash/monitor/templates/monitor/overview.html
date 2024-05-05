@@ -269,6 +269,9 @@ Plotly.newPlot('plotly-bar-chart-feedback', data, layout);
 var x_data = [{% for label, value in dvm_job_results.items %}"{{ label }}",{% endfor %}];
 var y_data = [{% for label, value in dvm_job_results.items %}{{ value }},{% endfor %}];
 
+// Create a dictionary to map labels to pubkeys
+var labelsToPubkeys = JSON.parse('{{ labels_to_pubkeys|safe }}');
+
 // Combine x_data and y_data into an array of objects
 var data = x_data.map(function(label, index) {
     return { x: label, y: y_data[index] };
@@ -327,12 +330,28 @@ var data = [{
 // Plot the chart
 Plotly.newPlot('plotly-bar-chart-feedback-dvm', data, layout);
 
+// Get the plot element
+var myPlot = document.getElementById('plotly-bar-chart-feedback-dvm');
+
+// Add click event listener
+myPlot.on('plotly_click', function(data) {
+    console.log("Bar clicked:", data.points[0].x);
+    var clickedLabel = data.points[0].x;
+    var pubkey = labelsToPubkeys[clickedLabel];
+    if (pubkey) {
+        window.location.href = "/dvm/" + pubkey;
+    }
+});
+
 </script>
 
 <script>
     // Create arrays from Django dictionary
 var x_data = [{% for label, value in dvm_job_requests.items %}"{{ label }}",{% endfor %}];
 var y_data = [{% for label, value in dvm_job_requests.items %}{{ value }},{% endfor %}];
+
+// Create a dictionary to map labels to pubkeys
+var labelsToPubkeys = JSON.parse('{{ labels_to_pubkeys|safe }}');
 
 var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
 
@@ -372,6 +391,19 @@ var data = [{
 
 // Plot the chart
 Plotly.newPlot('plotly-bar-chart-request-pubs', data, layout);
+
+// Get the plot element
+var myPlot = document.getElementById('plotly-bar-chart-request-pubs');
+
+// Add click event listener
+myPlot.on('plotly_click', function(data) {
+    console.log("Bar clicked:", data.points[0].x);
+    var clickedLabel = data.points[0].x;
+    var pubkey = labelsToPubkeys[clickedLabel];
+    if (pubkey) {
+        window.location.href = "/dvm/" + pubkey;
+    }
+});
 
 </script>
 
