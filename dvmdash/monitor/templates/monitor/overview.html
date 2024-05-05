@@ -202,6 +202,18 @@ var data = [{
 // Plot the chart
 Plotly.newPlot('plotly-bar-chart', data, layout);
 
+// Get the plot element
+var myPlot = document.getElementById('plotly-bar-chart');
+
+// Add click event listener
+myPlot.on('plotly_click', function(data) {
+    console.log("Bar clicked:", data.points[0].x);
+    var kindLabel = data.points[0].x;
+    if (kindLabel) {
+        window.location.href = "/kind/" + kindLabel;
+    }
+});
+
 </script>
 
 
@@ -261,6 +273,18 @@ var data = [{
 
 // Plot the chart
 Plotly.newPlot('plotly-bar-chart-feedback', data, layout);
+
+// Get the plot element
+var myPlot = document.getElementById('plotly-bar-chart-feedback');
+
+// Add click event listener
+myPlot.on('plotly_click', function(data) {
+    console.log("Bar clicked:", data.points[0].x);
+    var kindLabel = data.points[0].x;
+    if (kindLabel) {
+        window.location.href = "/kind/" + kindLabel;
+    }
+});
 
 </script>
 
