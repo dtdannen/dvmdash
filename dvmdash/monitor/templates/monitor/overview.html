@@ -53,16 +53,6 @@
     </div>
 
     <div class="row">
-
-<!--        <div class="col-md-3">-->
-<!--            <div class="card text-white bg-mediumpurple mb-3">-->
-<!--                <div class="card-body">-->
-<!--                    <h5 class="card-title">DMs Seen</h5>-->
-<!--                    <p class="card-text display-4">{{ dm_counts }}</p>-->
-<!--                </div>-->
-<!--            </div>-->
-<!--        </div>-->
-
         <div class="col-md-3">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
@@ -98,39 +88,15 @@
                 </div>
             </div>
         </div>
-
     </div>
 </div>
 
-
 <div class="text-center">
-        <h4>Recent DVM Requests</h4>
-    </div>
+    <h2>Charts</h2>
+    <h5>Pro tip: click on a bar to go the corresponding page</h5>
+</div>
 
 
-    <!-- Your existing content here -->
-        <div class="row">
-            <div class="col-md-12">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th scope="col">User</th>
-                            <th scope="col">Event Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for recent_event in recent_events %}
-                        <tr>
-                            <td>{{ recent_event.user }}</td>
-                            <td>{{ recent_event.event }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-<h2>DVM Events by Kinds</h2>
 <div id="samplePlot"></div>
 
 
