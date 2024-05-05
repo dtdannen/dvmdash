@@ -312,3 +312,36 @@ def dvm(request, pub_key=""):
 
     template = loader.get_template("monitor/dvm.html")
     return HttpResponse(template.render(context, request))
+
+
+def kind(request, kind_num=""):
+    print(f"Calling kind with kind_num: {kind_num}")
+    context = {}
+
+    if kind_num == "":
+        # get all kinds
+        kinds = list(db.events.distinct("kind"))
+
+        context["kinds"] = kinds
+
+        template = loader.get_template("monitor/kind.html")
+        return HttpResponse(template.render(context, request))
+
+    # get all events of this kind
+    kind_events = list(db.events.find({"kind": int(kind_num)}))
+
+    # get all unique dvms that have this kind of event, and get the counts for number of events per dvm
+    # TODO - fix this
+    # dvm_pub_keys = list(db.events.distinct("pubkey", {"kind": int(kind_num)}))
+
+    memory_usage = sys.getsizeof(kind_events)
+    print(f"Memory usage of kind_events: {memory_usage}")
+
+    num_kind_events = len(kind_events)
+
+    context["kind"] = kind_num
+    context["num_kind_events"] = num_kind_events
+    context["kind_num"] = kind_num
+
+    template = loader.get_template("monitor/kind.html")
+    return HttpResponse(template.render(context, request))
