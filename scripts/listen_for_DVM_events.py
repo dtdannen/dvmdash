@@ -1,3 +1,5 @@
+import sys
+
 import pymongo
 from pymongo import MongoClient
 import json
@@ -6,6 +8,7 @@ import time
 from pathlib import Path
 from threading import Thread
 import ctypes
+from datetime import datetime
 
 import loguru
 
@@ -100,6 +103,9 @@ DVM_KINDS = list(set(DVM_KINDS + list(range(5000, 5999)) + list(range(6000, 6999
 DVM_KINDS = list(set(DVM_KINDS) - {5666, 6666})
 
 # DVM_KINDS = [31990]
+
+
+SCRIPT_START_TIME = datetime.now()
 
 
 def write_events_to_db(events):
@@ -199,10 +205,14 @@ def nostr_client(since_when_timestamp):
 
     client.handle_notifications(NotificationHandler())
     while True:
-        delay = 60
+        delay = 10
         logger.debug(f"About to sleep for {delay} seconds...", end="")
         time.sleep(delay)
         logger.debug(f"waking up...")
+
+        if (datetime.now() - SCRIPT_START_TIME).seconds > 300:  # 5 minutes
+            # Note that the bash script should restart this script if it dies
+            sys.exit(0)
 
 
 def run_nostr_client(minutes=10080):
