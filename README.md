@@ -8,6 +8,12 @@ A version of the website is running here:
 
 https://dvmdash.live/
 
+## Install
+
+- Use Python3.11
+  - As of May 13th, 2024, Python 3.12 is unsupported
+- If you are only using scripts/ (i.e. listengin for DVM events, you should only need requirements_backend.txt)
+
 
 ## List of Relays to Watch for DVM Events
 
