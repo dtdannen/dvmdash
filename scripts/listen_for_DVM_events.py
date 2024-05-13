@@ -1,5 +1,6 @@
 import sys
 
+import nostr_sdk
 import pymongo
 from pymongo import MongoClient
 import json
@@ -8,7 +9,7 @@ import time
 from pathlib import Path
 from threading import Thread
 import ctypes
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import loguru
 
@@ -16,22 +17,29 @@ import dotenv
 from nostr_sdk import (
     Keys,
     Client,
-    ClientSigner,
     Tag,
     EventBuilder,
     Filter,
     HandleNotification,
     Timestamp,
     nip04_decrypt,
+    LogLevel,
+    NostrSigner,
+    Kind,
+    SubscribeAutoCloseOptions,
+    Options,
+    Event,
 )
 
 
-from nostr_dvm.utils.dvmconfig import DVMConfig
-from nostr_dvm.utils.nostr_utils import send_event, check_and_set_private_key
-from nostr_dvm.utils.definitions import EventDefinitions
 from pymongo.errors import BulkWriteError
+import logging
+from general.dvm import EventKind
 
 logger = loguru.logger
+
+# init logger
+nostr_sdk.init_logger(LogLevel.DEBUG)
 
 env_path = Path(".env")
 if env_path.is_file():
@@ -75,32 +83,31 @@ RELAYS = os.getenv(
 
 logger.info(f"Listening to {len(RELAYS)} RELAYS:\n\t{RELAYS}")
 
-DVM_KINDS = [
-    EventDefinitions.KIND_NIP90_EXTRACT_TEXT,
-    EventDefinitions.KIND_NIP90_SUMMARIZE_TEXT,
-    EventDefinitions.KIND_NIP90_TRANSLATE_TEXT,
-    EventDefinitions.KIND_NIP90_GENERATE_TEXT,
-    EventDefinitions.KIND_NIP90_GENERATE_IMAGE,
-    EventDefinitions.KIND_NIP90_CONVERT_VIDEO,
-    EventDefinitions.KIND_NIP90_GENERATE_VIDEO,
-    EventDefinitions.KIND_NIP90_TEXT_TO_SPEECH,
-    EventDefinitions.KIND_NIP90_CONTENT_DISCOVERY,
-    EventDefinitions.KIND_NIP90_PEOPLE_DISCOVERY,
-    EventDefinitions.KIND_NIP90_CONTENT_SEARCH,
-    EventDefinitions.KIND_NIP90_GENERIC,
-    EventDefinitions.KIND_FEEDBACK,
-    EventDefinitions.KIND_ANNOUNCEMENT,
-    EventDefinitions.KIND_DM,
-    EventDefinitions.KIND_ZAP,
+# Kinds to listen to
+known_kinds = [
+    EventKind.DM.value,
+    EventKind.ZAP.value,
+    EventKind.DVM_NIP89_ANNOUNCEMENT.value,
+    EventKind.DVM_FEEDBACK.value,
 ]
 
-# check for DVMs on any other kinds
-DVM_KINDS = list(set(DVM_KINDS + list(range(5000, 5999)) + list(range(6000, 6999)))) + [
-    31990
-]
+all_kinds = set(
+    known_kinds
+    + list(
+        range(
+            EventKind.DVM_RANGE_START.value,
+            EventKind.DVM_RANGE_END.value,
+        )
+    )
+    + list(
+        range(
+            EventKind.DVM_FEEDBACK_RANGE_START.value,
+            EventKind.DVM_FEEDBACK_RANGE_END.value,
+        )
+    )
+)
 
-# Remove Kinds 5666 and 6666 because they are not DVMs
-DVM_KINDS = list(set(DVM_KINDS) - {5666, 6666})
+RELEVANT_KINDS = [Kind(k) for k in list(all_kinds - set(EventKind.get_bad_dvm_kinds()))]
 
 # DVM_KINDS = [31990]
 
@@ -142,9 +149,9 @@ class NotificationHandler(HandleNotification):
         self.flush_thread = threading.Thread(target=self.flush_events_periodically)
         self.flush_thread.start()
 
-    def handle(self, relay_url, event):
+    def handle(self, relay_url, subscription_id, event: Event):
         # print(f"Received new event from {relay_url}: {event.as_json()}")
-        if event.kind() in DVM_KINDS:  # try catching new DVMs
+        if event.kind() in RELEVANT_KINDS:  # try catching new DVMs
             with self.lock:
                 # print("locking to append to events")
                 self.events.append(json.loads(event.as_json()))
@@ -179,11 +186,11 @@ class NotificationHandler(HandleNotification):
 
 
 def nostr_client(since_when_timestamp):
-    keys = Keys.from_sk_str(check_and_set_private_key("test_client"))
+    keys = Keys.parse(os.environ.get("DVM_PRIVATE_KEY_TEST_CLIENT", None))
     sk = keys.secret_key()
     pk = keys.public_key()
     logger.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
-    signer = ClientSigner.keys(keys)
+    signer = NostrSigner.keys(keys)
     client = Client(signer)
     for relay in RELAYS:
         client.add_relay(relay)
@@ -192,15 +199,17 @@ def nostr_client(since_when_timestamp):
     # dm_zap_filter = Filter().kinds([EventDefinitions.KIND_DM,
     #                                EventDefinitions.KIND_ZAP]).since(since_when_timestamp)
 
+    # opts = (
+    #     Options()
+    #     .connection_timeout(timedelta(seconds=60))
+    #     .send_timeout(timedelta(seconds=10))
+    # )
+    # options.auto_close = False
+
     # events to us specific
-    dvm_filter = Filter().kinds(DVM_KINDS).since(since_when_timestamp)  # public events
-    dm_zap_filter = (
-        Filter()
-        .pubkey(pk)
-        .kinds([EventDefinitions.KIND_DM, EventDefinitions.KIND_ZAP])
-        .since(since_when_timestamp)
-    )
-    client.subscribe([dm_zap_filter, dvm_filter])
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(since_when_timestamp)
+    # public events
+    client.subscribe([dvm_filter], None)
     # client.subscribe([dvm_filter])
 
     client.handle_notifications(NotificationHandler())

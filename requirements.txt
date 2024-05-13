@@ -22,8 +22,7 @@ lnurl==0.4.2
 mongita==1.2.0
 moviepy==2.0.0.dev2
 mypy-extensions==1.0.0
-nostr-dvm==0.2.0
-nostr-sdk==0.7.1
+nostr-sdk==0.11.0
 numpy==1.26.3
 packaging==23.2
 pandas==2.1.3
