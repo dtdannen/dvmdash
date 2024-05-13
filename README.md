@@ -8,3 +8,19 @@ A version of the website is running here:
 
 https://dvmdash.live/
 
+
+## List of Relays to Watch for DVM Events
+
+These are the relays where we watch for DVM events.
+
+- wss://nostr-pub.wellorder.net
+- wss://relay.damus.io
+- wss://nos.lol
+- wss://relay.primal.net
+- wss://offchain.pub
+- wss://nostr.mom
+- wss://relay.nostr.bg
+- wss://nostr.oxtr.dev
+- wss://relay.nostr.bg
+- wss://nostr-relay.nokotaro.com
+- wss://relay.nostr.wirednet.jp
