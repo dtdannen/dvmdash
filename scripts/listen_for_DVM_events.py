@@ -1,5 +1,5 @@
 import sys
-
+from datetime import datetime, timedelta
 import nostr_sdk
 import pymongo
 from pymongo import MongoClient
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from threading import Thread
 import ctypes
-from datetime import datetime, timedelta
+
 
 import loguru
 
@@ -38,8 +38,12 @@ from general.dvm import EventKind
 
 logger = loguru.logger
 
+# have loguru write to stderror
+logger.add(sys.stderr, level="DEBUG")
+
 # init logger
 nostr_sdk.init_logger(LogLevel.DEBUG)
+
 
 env_path = Path(".env")
 if env_path.is_file():

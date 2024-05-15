@@ -8,7 +8,7 @@ Use this script to collect DVM related events from relays. This should be left r
 cd dvmdash/  # top level of the project
 screen
 chmod +x scripts/run_and_monitor_listener.sh
-scripts/run_and_monitor_listener.sh
+python scripts/listen_for_DVM_events.py &> logs/listen_for_DVM_events_output_$(date +"%Y-%m-%d_%H-%M-%S").log
 # then exit screen by pressing ctrl+a then d
 ```
 
