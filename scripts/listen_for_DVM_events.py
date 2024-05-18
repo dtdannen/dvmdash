@@ -281,6 +281,7 @@ if __name__ == "__main__":
             f"Client run completed. Sleeping for {WAIT_LIMIT} seconds before exiting completely"
         )
         time.sleep(WAIT_LIMIT)  # Sleep for a short time before restarting
+        LOGGER.info("Goodbye!")
     except Exception as e:
         LOGGER.error(f"Exception occurred: {e}")
         LOGGER.info(
@@ -289,3 +290,4 @@ if __name__ == "__main__":
         time.sleep(
             WAIT_LIMIT
         )  # Sleep for a short time before restarting in case of an exception
+        LOGGER.info("Goodbye!")
