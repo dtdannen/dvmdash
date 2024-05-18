@@ -8,6 +8,9 @@ VENV_PATH="/home/dvmdash/dvmdash/backend_venv"  # Update this with the correct p
 # Create the log directory if it doesn't exist
 mkdir -p $LOG_DIR
 
+# Set the working directory
+cd /home/dvmdash/dvmdash || exit
+
 {
     echo "[$(date)] Checking if script is already running..."
     if pgrep -f "$SCRIPT" > /dev/null
