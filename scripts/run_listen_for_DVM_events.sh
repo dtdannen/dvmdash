@@ -20,9 +20,9 @@ then
 fi
 
 echo "[$(date)] Generating random values..."
-RUNTIME_LIMIT=$(shuf -i 1-2 -n 1)
-LOOKBACK_TIME=$(shuf -i 120-480 -n 1)
-WAIT_LIMIT=$(shuf -i 1-2 -n 1)
+RUNTIME_LIMIT=$(shuf -i 5-15 -n 1)
+LOOKBACK_TIME=$(shuf -i 108-1337 -n 1)
+WAIT_LIMIT=$(shuf -i 2-10 -n 1)
 WAIT_LIMIT=$((WAIT_LIMIT * 60))
 
 echo "[$(date)] Random values generated: RUNTIME_LIMIT=$RUNTIME_LIMIT, LOOKBACK_TIME=$LOOKBACK_TIME, WAIT_LIMIT=$WAIT_LIMIT"
