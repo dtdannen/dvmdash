@@ -51,6 +51,7 @@ def setup_logging():
 # set up logging
 
 LOGGER = setup_logging()
+LOGGER.info("Starting up in current directory: ", os.getcwd())
 
 
 def setup_environment():
