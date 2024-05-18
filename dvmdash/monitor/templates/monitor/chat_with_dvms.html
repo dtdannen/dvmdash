@@ -1,0 +1,90 @@
+{% load static %}
+{% load humanize %}
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <!-- ... (existing head content) ... -->
+    <style>
+        .navbar-custom {
+            background-color: #343a40;
+        }
+        .navbar-custom .navbar-brand,
+        .navbar-custom .navbar-nav .nav-link {
+            color: #fff;
+        }
+        .navbar-custom .navbar-brand:hover,
+        .navbar-custom .navbar-nav .nav-link:hover {
+            color: #ffc107;
+        }
+        .navbar-custom .navbar-nav .nav-link:hover {
+            color: #ffc107;
+        }
+    </style>
+
+    {% block extrahead %}{% endblock %}
+</head>
+
+<body>
+    <!-- ... (existing body content) ... -->
+
+    <!-- Main content block (where other templates will be inserted) -->
+    <div class="container mt-4">
+        {% block content %}
+        <!-- Content from other templates will be rendered here -->
+        {% endblock %}
+    </div>
+
+    <!-- Chat Interface -->
+    <div class="container mt-4">
+        <h2>Chat Interface</h2>
+        <div class="card">
+            <div class="card-body">
+                <div id="chat-messages">
+                    {% for message in messages %}
+                        {% if message.sender == 'user' %}
+                            <div class="d-flex justify-content-end mb-3">
+                                <div class="bg-primary text-white p-2 rounded">{{ message.content }}</div>
+                            </div>
+                        {% else %}
+                            <div class="d-flex justify-content-start mb-3">
+                                <div class="bg-secondary text-white p-2 rounded">{{ message.content }}</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer">
+                <form id="chat-form">
+                    <div class="input-group">
+                        <input type="text" id="chat-input" class="form-control" placeholder="Type your message...">
+                        <button type="submit" class="btn btn-primary">Send</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ... (existing scripts) ... -->
+    <script>
+        // JavaScript code for handling form submission and updating the chat messages
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+
+        chatForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const message = chatInput.value.trim();
+            if (message !== '') {
+                // Send the message to the server using AJAX or fetch API
+                // Update the chat messages with the user's message
+                const userMessage = `<div class="d-flex justify-content-end mb-3">
+                                         <div class="bg-primary text-white p-2 rounded">${message}</div>
+                                     </div>`;
+                chatMessages.innerHTML += userMessage;
+                chatInput.value = '';
+            }
+        });
+    </script>
+</body>
+</html>
