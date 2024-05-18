@@ -250,9 +250,7 @@ def run_nostr_client(run_time_limit_minutes=10, look_back_minutes=120):
         LOGGER.error(f".env file not found at {env_path} ")
         raise FileNotFoundError(f".env file not found at {env_path} ")
 
-    nostr_dvm_thread = Thread(
-        target=nostr_client, args=(LOGGER, look_back_time, max_run_time)
-    )
+    nostr_dvm_thread = Thread(target=nostr_client, args=(look_back_time, max_run_time))
     nostr_dvm_thread.start()
     nostr_dvm_thread.join()  # Wait for the thread to finish
 
