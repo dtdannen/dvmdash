@@ -40,7 +40,7 @@ fi
 # Run the Python script and log the output
 
 echo "[$(date)] Running the Python script..."
-timeout $RUNTIME_LIMIT python $SCRIPT $RUNTIME_LIMIT $LOOKBACK_TIME $WAIT_LIMIT &> $LOG_FILE
+python $SCRIPT $RUNTIME_LIMIT $LOOKBACK_TIME $WAIT_LIMIT &> $LOG_FILE
 
 if [ $? -ne 0 ]; then
     echo "[$(date)] Python script encountered an error."
