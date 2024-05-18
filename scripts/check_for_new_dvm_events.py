@@ -31,6 +31,8 @@ from general.dvm import EventKind
 # init logger
 logger = loguru.logger
 
+logger.info("Starting up in current directory: ", os.getcwd())
+
 # get environment variables
 env_path = Path(".env")
 if env_path.is_file():
