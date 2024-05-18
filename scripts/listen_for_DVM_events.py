@@ -205,10 +205,10 @@ class NotificationHandler(HandleNotification):
         return
 
 
-def nostr_client(logger, since_when_timestamp: Timestamp, runtime_limit: Timestamp):
+def nostr_client(since_when_timestamp: Timestamp, runtime_limit: Timestamp):
     keys = Keys.generate()
     pk = keys.public_key()
-    logger.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
+    LOGGER.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
     signer = NostrSigner.keys(keys)
     client = Client(signer)
     for relay in RELAYS:
@@ -222,15 +222,15 @@ def nostr_client(logger, since_when_timestamp: Timestamp, runtime_limit: Timesta
     client.handle_notifications(handler)
 
     while Timestamp.now().as_secs() < runtime_limit.as_secs():
-        logger.debug(
+        LOGGER.debug(
             f"There are this many seconds left: {runtime_limit.as_secs() - Timestamp.now().as_secs()}"
         )
         delay = 10
-        logger.debug(f"About to sleep for {delay} seconds...", end="")
+        LOGGER.debug(f"About to sleep for {delay} seconds...", end="")
         time.sleep(delay)
-        logger.debug(f"waking up...")
+        LOGGER.debug(f"waking up...")
 
-    logger.info("Time is up. Requesting stop.")
+    LOGGER.info("Time is up. Requesting stop.")
     client.disconnect()
     handler.request_stop()
 
