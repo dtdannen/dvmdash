@@ -11,11 +11,9 @@ then
     exit 1
 fi
 
-# change to be 5-20 later
-RUNTIME_LIMIT=$(shuf -i 3-5 -n 1)
-LOOKBACK_TIME=$(shuf -i 120-480 -n 1)
-# change to be 2-15 later
-WAIT_LIMIT=$(shuf -i 1-2 -n 1)
+RUNTIME_LIMIT=$(shuf -i 5-20 -n 1)
+LOOKBACK_TIME=$(shuf -i 108-1337 -n 1)
+WAIT_LIMIT=$(shuf -i 2-15 -n 1)
 WAIT_LIMIT=$((WAIT_LIMIT * 60))
 
 echo "Running $SCRIPT with RUNTIME_LIMIT=$RUNTIME_LIMIT, LOOKBACK_TIME=$LOOKBACK_TIME, WAIT_LIMIT=$WAIT_LIMIT."
