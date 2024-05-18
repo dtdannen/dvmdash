@@ -257,38 +257,36 @@ def run_nostr_client(run_time_limit_minutes=10, look_back_minutes=120):
 
 
 if __name__ == "__main__":
-    while True:
-        # this is to avoid pestering relays too much
-        # needs to be in minutes
-        # RUNTIME_LIMIT = random.Random().randint(5, 20)
-        RUNTIME_LIMIT = 3
-        # LOOKBACK_TIME = random.Random().randint(120, 480)
-        LOOKBACK_TIME = 120
-        # needs to be in seconds
-        # WAIT_LIMIT = random.Random().randint(2, 15) * 60
-        WAIT_LIMIT = 15  # seconds
+    # get the limits from sys.args
+    if len(sys.argv) == 4:
+        RUNTIME_LIMIT = int(sys.argv[1])
+        LOOKBACK_TIME = int(sys.argv[2])
+        WAIT_LIMIT = int(sys.argv[3])
+    else:
+        print(
+            "Usage: python listen_for_DVM_events.py <RUNTIME_LIMIT_AS_MINS>"
+            " <LOOKBACK_TIME_AS_MINS> <WAIT_LIMIT_AS_SECS>\n"
+            "Example: python listen_for_DVM_events.py 10 120 60\n"
+        )
+        sys.exit(1)
 
-        try:
-            LOGGER.info(
-                f"Starting client run with RUNTIME_LIMIT: {RUNTIME_LIMIT} minutes"
-            )
-            LOGGER.info(
-                f"Starting client run with LOOKBACK_TIME: {LOOKBACK_TIME} minutes"
-            )
-            LOGGER.info(f"Starting client run with WAIT_LIMIT: {WAIT_LIMIT} seconds")
+    try:
+        LOGGER.info(f"Starting client run with RUNTIME_LIMIT: {RUNTIME_LIMIT} minutes")
+        LOGGER.info(f"Starting client run with LOOKBACK_TIME: {LOOKBACK_TIME} minutes")
+        LOGGER.info(f"Starting client run with WAIT_LIMIT: {WAIT_LIMIT} seconds")
 
-            run_nostr_client(
-                RUNTIME_LIMIT, LOOKBACK_TIME
-            )  # Replace 3 with your desired run time limit in minutes
-            LOGGER.info(
-                f"Client run completed. Restarting after {WAIT_LIMIT} seconds..."
-            )
-            time.sleep(WAIT_LIMIT)  # Sleep for a short time before restarting
-        except Exception as e:
-            LOGGER.error(f"Exception occurred: {e}")
-            LOGGER.info(
-                f"Client exception occurred. Restarting after {WAIT_LIMIT} seconds..."
-            )
-            time.sleep(
-                WAIT_LIMIT
-            )  # Sleep for a short time before restarting in case of an exception
+        run_nostr_client(
+            RUNTIME_LIMIT, LOOKBACK_TIME
+        )  # Replace 3 with your desired run time limit in minutes
+        LOGGER.info(
+            f"Client run completed. Sleeping for {WAIT_LIMIT} seconds before exiting completely"
+        )
+        time.sleep(WAIT_LIMIT)  # Sleep for a short time before restarting
+    except Exception as e:
+        LOGGER.error(f"Exception occurred: {e}")
+        LOGGER.info(
+            f"Client exception occurred. Sleeping for {WAIT_LIMIT} seconds before exiting completely"
+        )
+        time.sleep(
+            WAIT_LIMIT
+        )  # Sleep for a short time before restarting in case of an exception
