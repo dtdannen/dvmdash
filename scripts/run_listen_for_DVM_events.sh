@@ -52,14 +52,17 @@ fi
 echo "[$(date)] Deactivating virtual environment..."
 deactivate
 
-# Trim log files if there are more than MAX_LOG_FILES
-echo "[$(date)] Checking number of log files..."
-LOG_FILE_COUNT=$(ls -1 $LOG_DIR/*.log 2>/dev/null | wc -l)
+# Count the number of log files
+FILE_COUNT=$(ls -1 $LOG_DIR | wc -l)
 
-if [ "$LOG_FILE_COUNT" -gt "$MAX_LOG_FILES" ]; then
-    echo "[$(date)] Number of log files ($LOG_FILE_COUNT) exceeds $MAX_LOG_FILES. Deleting the oldest files..."
-    ls -1t $LOG_DIR/*.log | tail -n +$((MAX_LOG_FILES+1)) | xargs -I {} rm -- "$LOG_DIR/{}"
-    echo "[$(date)] Cleanup complete. Removed $((LOG_FILE_COUNT - MAX_LOG_FILES)) files."
+# If the number of files is greater than MAX_LOG_FILES, remove the oldest files
+if [ "$FILE_COUNT" -gt "$MAX_LOG_FILES" ]; then
+    echo "[$(date)] Number of log files ($FILE_COUNT) exceeds $MAX_LOG_FILES. Deleting the oldest files..." >> $LOG_DIR/cleanup.log
+
+    # Find and remove the oldest files, keeping only the newest MAX_LOG_FILES
+    ls -1t $LOG_DIR | tail -n +$((MAX_LOG_FILES+1)) | xargs -I {} rm -- "$LOG_DIR/{}"
+
+    echo "[$(date)] Cleanup complete. Removed $((FILE_COUNT - MAX_LOG_FILES)) files." >> $LOG_DIR/cleanup.log
 else
-    echo "[$(date)] Number of log files ($LOG_FILE_COUNT) is within the limit. No action needed."
+    echo "[$(date)] Number of log files ($FILE_COUNT) is within the limit. No action needed." >> $LOG_DIR/cleanup.log
 fi
