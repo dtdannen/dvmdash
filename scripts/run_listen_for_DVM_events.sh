@@ -4,7 +4,7 @@ SCRIPT="/home/dvmdash/dvmdash/scripts/listen_for_DVM_events.py"
 LOG_DIR="/home/dvmdash/dvmdash/logs"
 LOG_FILE="$LOG_DIR/listen_for_DVM_events_output_$(date +"%Y-%m-%d_%H-%M-%S").log"
 VENV_PATH="/home/dvmdash/dvmdash/backend_venv"  # Update this with the correct path to your virtual environment
-MAX_LOG_FILES=10
+MAX_LOG_FILES=100
 
 # Create the log directory if it doesn't exist
 mkdir -p $LOG_DIR
