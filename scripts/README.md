@@ -14,7 +14,7 @@ pip install -r requirements_backend.txt
 
 ### How to run this script once
 
-Use this script to collect DVM related events from relays. This should be left running, like for example:
+Use this script to collect DVM related events from relays.
 
 ```commandline
 cd dvmdash/  # top level of the project
