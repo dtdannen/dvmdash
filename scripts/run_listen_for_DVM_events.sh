@@ -57,12 +57,12 @@ FILE_COUNT=$(ls -1 $LOG_DIR | wc -l)
 
 # If the number of files is greater than MAX_LOG_FILES, remove the oldest files
 if [ "$FILE_COUNT" -gt "$MAX_LOG_FILES" ]; then
-    echo "[$(date)] Number of log files ($FILE_COUNT) exceeds $MAX_LOG_FILES. Deleting the oldest files..." >> $LOG_DIR/cleanup.log
+    echo "[$(date)] Number of log files ($FILE_COUNT) exceeds $MAX_LOG_FILES. Deleting the oldest files..."
 
     # Find and remove the oldest files, keeping only the newest MAX_LOG_FILES
     ls -1t $LOG_DIR | tail -n +$((MAX_LOG_FILES+1)) | xargs -I {} rm -- "$LOG_DIR/{}"
 
-    echo "[$(date)] Cleanup complete. Removed $((FILE_COUNT - MAX_LOG_FILES)) files." >> $LOG_DIR/cleanup.log
+    echo "[$(date)] Cleanup complete. Removed $((FILE_COUNT - MAX_LOG_FILES)) files."
 else
-    echo "[$(date)] Number of log files ($FILE_COUNT) is within the limit. No action needed." >> $LOG_DIR/cleanup.log
+    echo "[$(date)] Number of log files ($FILE_COUNT) is within the limit. No action needed."
 fi
