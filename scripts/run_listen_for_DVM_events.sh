@@ -4,6 +4,7 @@ SCRIPT="/home/dvmdash/dvmdash/scripts/listen_for_DVM_events.py"
 LOG_DIR="/home/dvmdash/dvmdash/logs"
 LOG_FILE="$LOG_DIR/listen_for_DVM_events_output_$(date +"%Y-%m-%d_%H-%M-%S").log"
 VENV_PATH="/home/dvmdash/dvmdash/backend_venv"  # Update this with the correct path to your virtual environment
+MAX_LOG_FILES=10
 
 # Create the log directory if it doesn't exist
 mkdir -p $LOG_DIR
@@ -51,3 +52,14 @@ fi
 echo "[$(date)] Deactivating virtual environment..."
 deactivate
 
+# Trim log files if there are more than MAX_LOG_FILES
+echo "[$(date)] Checking number of log files..."
+LOG_FILE_COUNT=$(ls -1 $LOG_DIR/*.log 2>/dev/null | wc -l)
+
+if [ "$LOG_FILE_COUNT" -gt "$MAX_LOG_FILES" ]; then
+    echo "[$(date)] Number of log files ($LOG_FILE_COUNT) exceeds $MAX_LOG_FILES. Deleting the oldest files..."
+    ls -1t $LOG_DIR/*.log | tail -n +$((MAX_LOG_FILES+1)) | xargs -I {} rm -- "$LOG_DIR/{}"
+    echo "[$(date)] Cleanup complete. Removed $((LOG_FILE_COUNT - MAX_LOG_FILES)) files."
+else
+    echo "[$(date)] Number of log files ($LOG_FILE_COUNT) is within the limit. No action needed."
+fi
