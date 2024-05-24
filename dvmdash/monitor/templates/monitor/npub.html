@@ -1,0 +1,35 @@
+{% extends "monitor/base.html" %}
+{% load humanize %}
+
+{% block title %}NPub Details{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="mb-4">NPub Details</h1>
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th scope="col">Event Link</th>
+                                <th scope="col">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in npub_events %}
+                                <tr>
+                                    <td><a href="{% url 'see_event' event.id %}">{{ event.id }}</a></td>
+                                    <td>{{ event.created_at|naturaltime }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <a href="{% url 'overview' %}" class="btn btn-primary mt-3">Go to Homepage</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

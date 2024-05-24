@@ -6,10 +6,15 @@ import dotenv
 from pathlib import Path
 from django.shortcuts import HttpResponse, redirect
 from django.template import loader
+from django.http import HttpResponseNotFound
+from django.utils.timesince import timesince
+from django.utils import timezone
 from nostr_sdk import Timestamp
 from datetime import datetime
 import json
 import monitor.helpers as helpers
+from bson import json_util
+from django.utils.safestring import mark_safe
 
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
@@ -48,6 +53,12 @@ def overview(request):
     # TODO - use a proper mongo query here
     all_dvm_events_cursor = db.events.find({"kind": {"$gte": 5000, "$lte": 6999}})
     all_dvm_events = list(all_dvm_events_cursor)
+
+    # print the memory usages of all events so far:
+    memory_usage = sys.getsizeof(all_dvm_events)
+    # Convert memory usage to megabytes
+    memory_usage_mb = memory_usage / (1024 * 1024)
+    print(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
 
     dvm_nip89_profiles = {}
 
@@ -111,12 +122,6 @@ def overview(request):
     )
 
     context["num_dvm_results_1week"] = dvm_results_1week
-
-    # print the memory usages of all events so far:
-    memory_usage = sys.getsizeof(all_dvm_events)
-    # Convert memory usage to megabytes
-    memory_usage_mb = memory_usage / (1024 * 1024)
-    print(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
 
     # pub ids of all dvms
     dvm_job_results = {}
@@ -289,23 +294,6 @@ def dvm(request, pub_key=""):
 
     num_events_per_day = {}
 
-    for day_i in range(30):
-        day_start = Timestamp.from_secs(current_secs - (day_i * 24 * 60 * 60))
-        day_end = Timestamp.from_secs(current_secs - ((day_i - 1) * 24 * 60 * 60))
-        num_events_day_i = db.events.count_documents(
-            {
-                "pubkey": pub_key,
-                "created_at": {"$gte": day_start.as_secs(), "$lt": day_end.as_secs()},
-            }
-        )
-
-        date_from_day_i = datetime.fromtimestamp(day_start.as_secs()).strftime(
-            "%Y-%m-%d"
-        )
-
-        num_events_per_day[date_from_day_i] = num_events_day_i
-        # print(f"Day {day_i} has {num_events_day_i} events")
-
     context["num_dvm_events"] = num_dvm_events
     context["dvm_pub_key"] = pub_key
     context["num_events_per_day"] = num_events_per_day
@@ -345,3 +333,150 @@ def kind(request, kind_num=""):
 
     template = loader.get_template("monitor/kind.html")
     return HttpResponse(template.render(context, request))
+
+
+def see_event(request, event_id=""):
+    print(f"Calling see_event with event_id: {event_id}")
+    context = {}
+
+    if event_id == "":
+        # show a 404 page with a link back to the homepage
+        template = loader.get_template("monitor/404.html")
+        context[
+            "message"
+        ] = f"You have given a blank event ID. Please go back or go back to the homepage."
+        return HttpResponseNotFound(template.render(context, request))
+
+    # get the event with this id
+    event = db.events.find_one({"id": event_id})
+
+    if not event:
+        # If no event is found, show a 404 page
+        template = loader.get_template("monitor/404.html")
+        context["message"] = f"Event with ID {event_id} was not found in our database."
+        return HttpResponseNotFound(template.render(context, request))
+
+    # Remove the '_id' field from the event dictionary
+    event.pop("_id", None)
+
+    # Convert the event to a JSON string using json_util to handle ObjectId
+    # and process tags to convert 'p' tags to links
+    event_str = json_util.dumps(event, indent=2)
+
+    # Process the JSON string to convert 'p' tags to links
+    event_data = json.loads(event_str)
+    for tag in event_data.get("tags", []):
+        if tag[0] == "e":
+            tag[1] = f'<a href="/event/{tag[1]}/">{tag[1]}</a>'
+        elif tag[0] == "p":
+            tag[1] = f'<a href="/npub/{tag[1]}/">{tag[1]}</a>'
+        elif tag[0] == "request":
+            request_data = tag[1]
+            print("Raw request data: ", request_data)
+            request_as_json = json.loads(request_data)
+
+            print(f"Request as json: {request_as_json}")
+
+            if "kind" in request_as_json:
+                request_as_json[
+                    "kind"
+                ] = f'<a href="/kind/{request_as_json["kind"]}/">{request_as_json["kind"]}</a>'
+
+            if "id" in request_as_json:
+                request_as_json[
+                    "id"
+                ] = f'<a href="/event/{request_as_json["id"]}/">{request_as_json["id"]}</a>'
+
+            if "pubkey" in request_as_json:
+                request_as_json[
+                    "pubkey"
+                ] = f'<a href="/npub/{request_as_json["pubkey"]}/">{request_as_json["pubkey"]}</a>'
+
+            for sub_tag in request_as_json.get("tags", []):
+                if sub_tag[0] == "e":
+                    sub_tag[1] = f'<a href="/event/{sub_tag[1]}/">{sub_tag[1]}</a>'
+                elif sub_tag[0] == "p":
+                    sub_tag[1] = f'<a href="/npub/{sub_tag[1]}/">{sub_tag[1]}</a>'
+
+            tag[1] = tag[1] = mark_safe(json.dumps(request_as_json, indent=8))
+
+    if "pubkey" in event_data:
+        event_data[
+            "pubkey"
+        ] = f'<a href="/npub/{event_data["pubkey"]}/">{event_data["pubkey"]}</a>'
+
+        # event_data["request"] = request_as_json
+
+    # Humanize the created_at timestamp
+    created_at = datetime.fromtimestamp(event_data.get("created_at"))
+    created_at_aware = timezone.make_aware(created_at, timezone.get_current_timezone())
+    humanized_date = timesince(created_at_aware, timezone.now())
+
+    # Add a description to the context
+    context["event_description"] = (
+        f"This is a KIND {event_data.get('kind')} event "
+        f"created on {created_at_aware.strftime('%Y-%m-%d %H:%M:%S')} ({humanized_date} ago)."
+    )
+
+    # Convert the processed data back to a JSON string
+    context["event"] = (
+        json.dumps(event_data, indent=2).replace('\\"', '"').replace("\\n", "\n")
+    )
+
+    template = loader.get_template("monitor/event.html")
+    return HttpResponse(template.render(context, request))
+
+
+def see_npub(request, npub=""):
+    print(f"Calling see_npub with npub: {npub}")
+    context = {}
+
+    if npub == "":
+        # show a 404 page with a link back to the homepage and custom message
+        template = loader.get_template("monitor/404.html")
+        return HttpResponseNotFound(
+            template.render({"message": "Sorry, no npub was provided."}, request)
+        )
+
+    # see if we can get a nip-89 profile for this npub
+    nip89_profile = db.events.find_one({"kind": 31990, "pubkey": npub})
+    if nip89_profile:
+        print("About to redirect with pub_key: ", npub)
+        return redirect("dvm_with_pub_key", pub_key=npub)
+
+    context["npub"] = npub
+
+    # get the npub details (assuming `db.events` is your collection for npub data)
+    npub_data_cursor = (
+        db.events.find({"pubkey": npub}).sort("created_at", -1).limit(20)
+    )  # -1 for descending order, limit to 20
+
+    if not npub_data_cursor:
+        # If no npub is found, show a 404 page with a custom message
+        template = loader.get_template("monitor/404.html")
+        return HttpResponseNotFound(
+            template.render(
+                {"message": "Sorry, this npub isn't in our database."}, request
+            )
+        )
+
+    npub_data = list(npub_data_cursor)  # Convert the cursor to a list
+
+    # Process the event data to include human-readable timestamps
+    for event in npub_data:
+        if isinstance(event["created_at"], (int, float)):
+            event["created_at"] = datetime.fromtimestamp(event["created_at"])
+
+    context["npub_events"] = npub_data
+
+    template = loader.get_template("monitor/npub.html")
+    return HttpResponse(template.render(context, request))
+
+
+def custom_404(
+    request,
+    exception=None,
+    message="Sorry, the page you are looking for does not exist.",
+):
+    context = {"message": message}
+    return render(request, "monitor/404.html", context, status=404)

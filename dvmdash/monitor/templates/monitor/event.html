@@ -1,0 +1,19 @@
+{% extends 'monitor/base.html' %}
+
+{% block title %}Event Details{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="mb-4">Event Details</h1>
+            <p>{{ event_description }}</p>
+            <div class="card">
+                <div class="card-body">
+                    <pre class="bg-dark p-3 rounded">{{ event|safe }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
