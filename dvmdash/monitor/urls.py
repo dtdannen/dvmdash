@@ -9,6 +9,8 @@ urlpatterns = [
     path("kind/<str:kind_num>/", views.kind, name="kind_with_kind_num"),
     path("event/<str:event_id>/", views.see_event, name="see_event"),
     path("npub/<str:npub>/", views.see_npub, name="see_npub"),
+    path("graph/", views.graph, name="graph"),
+    path("api/graph/", views.get_graph_data, name="get_graph_data"),
 ]
 
 handler404 = "monitor.views.custom_404"

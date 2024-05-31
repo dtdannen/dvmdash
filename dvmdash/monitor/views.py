@@ -6,7 +6,7 @@ import dotenv
 from pathlib import Path
 from django.shortcuts import HttpResponse, redirect
 from django.template import loader
-from django.http import HttpResponseNotFound
+from django.http import HttpResponseNotFound, JsonResponse
 from django.utils.timesince import timesince
 from django.utils import timezone
 from nostr_sdk import Timestamp
@@ -15,6 +15,7 @@ import json
 import monitor.helpers as helpers
 from bson import json_util
 from django.utils.safestring import mark_safe
+from .neo4j_service import neo4j_service
 
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
@@ -473,6 +474,13 @@ def see_npub(request, npub=""):
     return HttpResponse(template.render(context, request))
 
 
+def graph(request, dvm_request_event_id=""):
+    context = {}
+
+    template = loader.get_template("monitor/graph.html")
+    return HttpResponse(template.render(context, request))
+
+
 def custom_404(
     request,
     exception=None,
@@ -480,3 +488,12 @@ def custom_404(
 ):
     context = {"message": message}
     return render(request, "monitor/404.html", context, status=404)
+
+
+def get_graph_data(request):
+    """
+    Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
+    """
+    query = "MATCH p=()-[:CREATED_FOR]->() RETURN p LIMIT 25"
+    data = neo4j_service.run_query(query)
+    return JsonResponse(data, safe=False)
