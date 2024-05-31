@@ -4,6 +4,7 @@ from django.conf import settings
 
 class Neo4jService:
     def __init__(self):
+        print("NEO4J_URI: ", settings.NEO4J_URI)
         self._driver = GraphDatabase.driver(
             settings.NEO4J_URI, auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD)
         )
