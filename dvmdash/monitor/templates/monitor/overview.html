@@ -16,8 +16,17 @@
         <div class="col-md-3">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">DVM Events Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_events }}</p>
+                    <h5 class="card-title">DVM Requests</h5>
+                    <p class="card-text display-4">{{ num_dvm_request_events }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">DVM Responses</h5>
+                    <p class="card-text display-4">{{ num_dvm_response_events }}</p>
                 </div>
             </div>
         </div>
@@ -25,27 +34,56 @@
         <div class="col-md-3">
             <div class="card text-white bg-mediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">DVM Kinds Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_kinds }}</p>
+                    <h5 class="card-title">DVM Request Kinds Seen</h5>
+                    <p class="card-text display-4">{{ num_dvm_request_kinds }}</p>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-3">
+                <div class="col-md-3">
             <div class="card text-white bg-mediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">DVM Feedback Kinds Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_feedback_kinds }}</p>
+                    <h5 class="card-title">DVM Response Kinds Seen</h5>
+                    <p class="card-text display-4">{{ num_dvm_response_kinds }}</p>
                 </div>
             </div>
         </div>
 
+    </div>
+    <div class="row">
 
         <div class="col-md-3">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Pub Keys Seen</h5>
                     <p class="card-text display-4">{{ dvm_pub_keys }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">DVM Profiles (NIP-89) Seen </h5>
+                    <p class="card-text display-4">{{ dvm_nip_89s }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Most Popular DVM</h5>
+                    <p class="card-text display-4" style="font-size: 2.0rem;">{{ most_popular_dvm }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Most Popular Kind</h5>
+                    <p class="card-text display-4">{{ most_popular_kind }}</p>
                 </div>
             </div>
         </div>
@@ -113,7 +151,7 @@
 
 <script>
 // Create arrays from Django dictionary
-var data = [{% for label, value in kinds_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
+var data = [{% for label, value in request_kinds_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
 
 // Sort the data based on y values in descending order
 data.sort(function(a, b) {
@@ -185,7 +223,7 @@ myPlot.on('plotly_click', function(data) {
 
 <script>
 // Create arrays from Django dictionary
-var data = [{% for label, value in kind_feedback_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
+var data = [{% for label, value in response_kinds_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
 
 // Sort the data based on y values in descending order
 data.sort(function(a, b) {

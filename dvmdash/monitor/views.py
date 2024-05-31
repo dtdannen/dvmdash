@@ -52,7 +52,6 @@ def overview(request):
     context["num_dvm_events_in_db"] = num_dvm_events_in_db
 
     # get the number of unique kinds of all events
-    # TODO - use a proper mongo query here
     all_dvm_events_cursor = db.events.find({"kind": {"$gte": 5000, "$lte": 6999}})
     all_dvm_events = list(all_dvm_events_cursor)
     all_dvm_events = [
@@ -83,12 +82,13 @@ def overview(request):
                 # print(e)
                 pass
 
-    kinds_counts = {}
-    kind_feedback_counts = {}
+    request_kinds_counts = {}
+    response_kinds_counts = {}
     zap_counts = 0
     dm_counts = 0
     uncategorized_counts = 0
-    num_dvm_events = 0
+    num_dvm_request_events = 0
+    num_dvm_response_events = 0
 
     current_timestamp = Timestamp.now()
     current_secs = current_timestamp.as_secs()
@@ -147,11 +147,11 @@ def overview(request):
                 5000 <= kind_num <= 5999
                 and kind_num not in EventKind.get_bad_dvm_kinds()
             ):
-                num_dvm_events += 1
-                if kind_num in kinds_counts:
-                    kinds_counts[kind_num] += 1
+                num_dvm_request_events += 1
+                if kind_num in request_kinds_counts:
+                    request_kinds_counts[kind_num] += 1
                 else:
-                    kinds_counts[kind_num] = 1
+                    request_kinds_counts[kind_num] = 1
 
                 dvm_request_pub_key = dvm_event_i["pubkey"]
                 if dvm_request_pub_key in dvm_job_requests:
@@ -163,11 +163,11 @@ def overview(request):
                 6000 <= kind_num <= 6999
                 and kind_num not in EventKind.get_bad_dvm_kinds()
             ):
-                num_dvm_events += 1
-                if kind_num in kind_feedback_counts:
-                    kind_feedback_counts[kind_num] += 1
+                num_dvm_response_events += 1
+                if kind_num in response_kinds_counts:
+                    response_kinds_counts[kind_num] += 1
                 else:
-                    kind_feedback_counts[kind_num] = 1
+                    response_kinds_counts[kind_num] = 1
 
                 dvm_pub_key = dvm_event_i["pubkey"]
                 if dvm_pub_key in dvm_job_results:
@@ -198,18 +198,45 @@ def overview(request):
             dvm_job_results_names[pub_key[:6]] = count
             labels_to_pubkeys[pub_key[:6]] = pub_key
 
-    context["num_dvm_kinds"] = len(list(kinds_counts.keys()))
-    context["num_dvm_feedback_kinds"] = len(list(kind_feedback_counts.keys()))
+    context["num_dvm_kinds"] = len(list(request_kinds_counts.keys()))
+    context["num_dvm_feedback_kinds"] = len(list(response_kinds_counts.keys()))
     context["zap_counts"] = zap_counts
     context["dm_counts"] = dm_counts
     context["uncategorized_counts"] = uncategorized_counts
-    context["kinds_counts"] = kinds_counts
-    context["kind_feedback_counts"] = kind_feedback_counts
-    context["num_dvm_events"] = num_dvm_events
+    context["num_dvm_request_kinds"] = len(
+        [
+            k
+            for k in list(request_kinds_counts.keys())
+            if k not in EventKind.get_bad_dvm_kinds()
+        ]
+    )
+    context["num_dvm_response_kinds"] = len(
+        [
+            k
+            for k in list(response_kinds_counts.keys())
+            if k not in EventKind.get_bad_dvm_kinds()
+        ]
+    )
+    context["request_kinds_counts"] = request_kinds_counts
+    context["response_kinds_counts"] = response_kinds_counts
+    context["num_dvm_request_events"] = num_dvm_request_events
+    context["num_dvm_response_events"] = num_dvm_response_events
     context["dvm_job_results"] = {
         k: v for k, v in dvm_job_results_names.items() if v > 100
     }
     context["dvm_pub_keys"] = len(list(dvm_job_results.keys()))
+    context["dvm_nip_89s"] = len(list(dvm_nip89_profiles.keys()))
+
+    most_popular_dvm_npub = max(dvm_job_results, key=dvm_job_results.get)
+    if (
+        most_popular_dvm_npub in dvm_nip89_profiles
+        and "name" in dvm_nip89_profiles[most_popular_dvm_npub]
+    ):
+        context["most_popular_dvm"] = dvm_nip89_profiles[most_popular_dvm_npub]["name"]
+
+    context["most_popular_kind"] = max(
+        request_kinds_counts, key=request_kinds_counts.get
+    )
 
     # get the top 15 dvm job requests pub ids
     # first sort dictionary by value
@@ -235,7 +262,7 @@ def overview(request):
     context["dvm_job_requests"] = top_dvm_job_requests_via_name
     context["labels_to_pubkeys"] = json.dumps(labels_to_pubkeys).replace("'", "")
 
-    for kind, count in kinds_counts.items():
+    for kind, count in request_kinds_counts.items():
         print(f"\tKind {kind} has {count} instances")
 
     print(f"Setting var num_dvm_kinds to {context['num_dvm_kinds']}")

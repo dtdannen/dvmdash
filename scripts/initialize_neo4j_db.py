@@ -617,7 +617,7 @@ def delete_all_nodes(neo4j_driver):
 if __name__ == "__main__":
     mongo_db, neo4j_driver = setup_databases()
 
-    delete_all_relationships(neo4j_driver)
-    delete_all_nodes(neo4j_driver)
+    # delete_all_relationships(neo4j_driver)
+    # delete_all_nodes(neo4j_driver)
 
     process_notes_into_neo4j(mongo_db, neo4j_driver)
