@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sideways Tree with Text Nodes</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+</head>
+<body>
+    <svg width="800" height="600"></svg>
+    <script>
+        const svg = d3.select("svg");
+        const data = {
+            name: "Root",
+            children: [
+                { name: "Child1" },
+                { name: "Child2" },
+                {
+                    name: "TangledNode1",
+                    children: [
+                        { name: "SubChild1" },
+                        { name: "SubChild2" }
+                    ]
+                },
+                { name: "DirectNode1" },
+                { name: "DirectNode2" }
+            ]
+        };
+
+        const root = d3.hierarchy(data);
+        const treeLayout = d3.tree().size([580, 780]); // Adjusted for horizontal layout
+        treeLayout(root);
+
+        // Drawing links
+        svg.selectAll('.link')
+            .data(root.links())
+            .enter()
+            .append('path')
+            .attr('d', d3.linkHorizontal()
+                .x(d => d.y + 10) // Swap for horizontal layout
+                .y(d => d.x + 10))
+            .attr('fill', 'none')
+            .attr('stroke', 'black');
+
+        // Node groups
+        const node = svg.selectAll('.node')
+            .data(root.descendants())
+            .enter()
+            .append('g')
+            .attr('transform', d => `translate(${d.y},${d.x})`);
+
+        // Rectangles for nodes
+        node.append('rect')
+            .attr('width', 100) // Width of the rectangle
+            .attr('height', 20) // Height of the rectangle
+            .attr('x', 10)
+            .attr('y', -10)
+            .attr('fill', 'lightblue');
+
+        // Text for nodes
+        node.append('text')
+            .attr('x', 15) // Position text slightly right of rectangle start
+            .attr('y', 5) // Position text vertically centered in the rectangle
+            .text(d => d.data.name.substring(0, 50)) // Limit text to 50 characters
+            .attr('font-size', '12px')
+            .attr('fill', 'black');
+    </script>
+</body>
+</html>

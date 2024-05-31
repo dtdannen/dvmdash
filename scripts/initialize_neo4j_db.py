@@ -21,7 +21,7 @@ import hashlib
 from pathlib import Path
 import dotenv
 import ssl
-
+from general.dvm import EventKind
 import certifi
 
 
@@ -148,7 +148,7 @@ def create_npub(tx, npub_hex: str, npub: str, name: str = "") -> None:
     # Define the Cypher query to create a node with the given properties only if it does not exist
     query = """
     MERGE (n:NPub {npub_hex: $npub_hex})
-    ON CREATE SET n.npub = $npub, n.name = $name
+    ON CREATE SET n.npub = $npub, n.name = $name, n.url = "https://dvmdash.live/npub/" + $npub
     """
 
     # Execute the query with the provided parameters
@@ -193,12 +193,119 @@ def create_content(
         # Define the Cypher query to create a node with the given properties only if it does not exist
         query = """
         MERGE (c:Content {content_id: $content_orig_event_id})
-        ON CREATE SET c.content = $content
+        ON CREATE SET c.content = $content, c.url = "https://dvmdash.live/event/" + $content_orig_event_id
         """
         tx.run(query, content_orig_event_id=content_orig_event_id, content=content)
-        print(f"Content node created or already exists: {content_orig_event_id}")
+        # print(f"Content node created or already exists: {content_orig_event_id}")
     else:
-        print(f"Content too large to create node: size: {byte_size} bytes")
+        # Define the Cypher query to create a node with the given properties only if it does not exist
+        query = """
+                MERGE (c:Content {content_id: $content_orig_event_id})
+                ON CREATE SET c.content = $content, c.url = "https://dvmdash.live/event/" + $content_orig_event_id
+                """
+        content = "<content too large, see original event>"
+        tx.run(query, content_orig_event_id=content_orig_event_id, content=content)
+        # print(f"Content node created or already exists: {content_orig_event_id}")
+
+
+def create_request(
+    tx, content: str, request_orig_event_id: str, max_size: int = 1000
+) -> None:
+    """
+    Create a node in the Neo4j database with label 'Request' using a hash of the content to prevent duplicates.
+
+    Parameters:
+    tx (Transaction): The Neo4j transaction context.
+    content (str): The content string.
+    request_orig_event_id (str): The id of the event that has the content.
+    max_size (int): The maximum allowed size for the content in bytes.
+
+    Returns:
+    None
+    """
+    # Measure the size of the content in bytes
+    byte_size = len(content.encode("utf-8"))
+
+    # Check if the content size is within the allowed limit
+    if byte_size <= max_size:
+        # Define the Cypher query to create a node with the given properties only if it does not exist
+        query = """
+        MERGE (r:Request {request_id: $request_orig_event_id})
+        ON CREATE SET r.content = $content, r.url = "https://dvmdash.live/event/" + $request_orig_event_id
+        """
+        tx.run(query, request_orig_event_id=request_orig_event_id, content=content)
+        # print(f"Request node created or already exists: {request_orig_event_id}")
+    else:
+        # Define the Cypher query to create a node with the given properties only if it does not exist
+        query = """
+                MERGE (r:Request {request_id: $request_orig_event_id})
+                ON CREATE SET r.content = $content, r.url = "https://dvmdash.live/event/" + $request_orig_event_id
+                """
+        content = "<content too large, see original event>"
+        tx.run(query, request_orig_event_id=request_orig_event_id, content=content)
+        # print(f"Content too large to create node: size: {byte_size} bytes")
+
+
+def create_feedback(
+    tx, content: str, feedback_orig_event_id: str, max_size: int = 1000
+):
+    """
+    Create a node in the Neo4j database with label 'Feedback' using a hash of the content to prevent duplicates.
+
+    Parameters:
+    tx (Transaction): The Neo4j transaction context.
+    content (str): The content string.
+    feedback_orig_event_id (str): The id of the event that has the content.
+    max_size (int): The maximum allowed size for the content in bytes.
+
+    Returns:
+    None
+    """
+    # Measure the size of the content in bytes
+    byte_size = len(content.encode("utf-8"))
+
+    # Check if the content size is within the allowed limit
+    if byte_size <= max_size:
+        # Define the Cypher query to create a node with the given properties only if it does not exist
+        query = """
+        MERGE (f:Feedback {feedback_id: $feedback_orig_event_id})
+        ON CREATE SET f.content = $content, f.url = "https://dvmdash.live/event/" + $feedback_orig_event_id
+        """
+        tx.run(query, feedback_orig_event_id=feedback_orig_event_id, content=content)
+        # print(f"Feedback node created or already exists: {feedback_orig_event_id}")
+    else:
+        query = """
+                MERGE (f:Feedback {feedback_id: $feedback_orig_event_id})
+                ON CREATE SET f.content = $content, f.url = "https://dvmdash.live/event/" + $feedback_orig_event_id
+                """
+        content = "<content too large, see original event>"
+        tx.run(query, feedback_orig_event_id=feedback_orig_event_id, content=content)
+        # print(f"Content too large to create node: size: {byte_size} bytes")
+
+
+def create_requested_relationship(
+    tx, npub_hex: str, content_orig_event_id: str
+) -> None:
+    """
+    Create a relationship in the Neo4j database between an NPub node and a Request node.
+
+    Parameters:
+    tx (Transaction): The Neo4j transaction context.
+    npub_hex (str): The hexadecimal representation of the public key.
+    content_orig_event_id (str): The id of the event that has the content
+
+    Returns:
+    None
+    """
+    # Define the Cypher query to create a relationship between the NPub and Content nodes
+    query = """
+    MATCH (n:NPub {npub_hex: $npub_hex})
+    MATCH (c:Content {content_id: $content_orig_event_id})
+    MERGE (n)-[:REQUESTED]->(c)
+    """
+
+    # Execute the query with the provided parameters
+    tx.run(query, npub_hex=npub_hex, content_orig_event_id=content_orig_event_id)
 
 
 def create_created_for_relationship(
@@ -226,6 +333,64 @@ def create_created_for_relationship(
     tx.run(query, npub_hex=npub_hex, content_orig_event_id=content_orig_event_id)
 
 
+def created_result_for_relationship(
+    tx, request_orig_event_id: str, content_orig_event_id: str
+) -> None:
+    """
+    Create a relationship in the Neo4j database between a Request node and a Content node.
+
+    Parameters:
+    tx (Transaction): The Neo4j transaction context.
+    request_orig_event_id (str): The id of the event that has the request content.
+    content_orig_event_id (str): The id of the event that has the response content.
+
+    Returns:
+    None
+    """
+    # Define the Cypher query to create a relationship between the Request and Content nodes
+    query = """
+    MATCH (r:Request {request_id: $request_orig_event_id})
+    MATCH (c:Content {content_id: $content_orig_event_id})
+    MERGE (r)-[:RESULT_FOR]->(c)
+    """
+
+    # Execute the query with the provided parameters
+    tx.run(
+        query,
+        request_orig_event_id=request_orig_event_id,
+        content_orig_event_id=content_orig_event_id,
+    )
+
+
+def created_feedback_for_relationship(
+    tx, request_orig_event_id: str, feedback_orig_event_id: str
+) -> None:
+    """
+    Create a relationship in the Neo4j database between a Request node and a Feedback node.
+
+    Parameters:
+    tx (Transaction): The Neo4j transaction context.
+    request_orig_event_id (str): The id of the event that has the request content.
+    feedback_orig_event_id (str): The id of the event that has the feedback content.
+
+    Returns:
+    None
+    """
+    # Define the Cypher query to create a relationship between the Request and Feedback nodes
+    query = """
+    MATCH (r:Request {request_id: $request_orig_event_id})
+    MATCH (f:Feedback {feedback_id: $feedback_orig_event_id})
+    MERGE (f)-[:FEEDBACK_FOR]->(r)
+    """
+
+    # Execute the query with the provided parameters
+    tx.run(
+        query,
+        request_orig_event_id=request_orig_event_id,
+        feedback_orig_event_id=feedback_orig_event_id,
+    )
+
+
 def process_notes_into_neo4j(mongo_db, neo4j_driver):
     all_dvm_request_events = list(
         mongo_db.events.find({"kind": {"$gte": 5000, "$lte": 5999}})
@@ -233,7 +398,9 @@ def process_notes_into_neo4j(mongo_db, neo4j_driver):
 
     # remove 5666
     all_dvm_request_events = [
-        event for event in all_dvm_request_events if event["kind"] not in [5666]
+        event
+        for event in all_dvm_request_events
+        if event["kind"] not in EventKind.get_bad_dvm_kinds()
     ]
     logger.info(f"Loaded {len(all_dvm_request_events)} dvm request events from mongo")
 
@@ -241,29 +408,67 @@ def process_notes_into_neo4j(mongo_db, neo4j_driver):
         mongo_db.events.find({"kind": {"$gte": 6000, "$lte": 6999}})
     )
 
-    # remove 6666
     all_dvm_response_events = [
-        event for event in all_dvm_response_events if event["kind"] not in [6666]
+        event
+        for event in all_dvm_response_events
+        if event["kind"] not in EventKind.get_bad_dvm_kinds()
     ]
 
     logger.info(f"Loaded {len(all_dvm_response_events)} dvm response events from mongo")
+
+    all_feedback_requests = list(mongo_db.events.find({"kind": 7000}))
+
+    logger.info(
+        f"Loaded {len(all_feedback_requests)} feedback request events from mongo"
+    )
 
     dvm_nip89_profiles = get_all_dvm_nip89_profiles(mongo_db)
     logger.info(f"Loaded {len(dvm_nip89_profiles)} dvm nip89 profiles")
 
     with neo4j_driver.session() as session:
-        # first, create all nodes for all npubs
-        # for event in tqdm(all_dvm_request_events + all_dvm_response_events):
-        #     npub_hex = event["pubkey"]
-        #     npub = helpers.hex_to_npub(npub_hex)
-        #
-        #     name = ""
-        #     if npub_hex in dvm_nip89_profiles:
-        #         name = dvm_nip89_profiles[npub_hex].get("name", "")
-        #
-        #     create_npub(session, npub_hex, npub, name)
+        # # first, create all nodes for all npubs
+        for event in tqdm(all_dvm_request_events + all_dvm_response_events):
+            npub_hex = event["pubkey"]
+            npub = helpers.hex_to_npub(npub_hex)
 
-        # second, create content nodes for all DVM response events and create relationship between
+            name = ""
+            if npub_hex in dvm_nip89_profiles:
+                name = dvm_nip89_profiles[npub_hex].get("name", "")
+
+            create_npub(session, npub_hex, npub, name)
+
+    with neo4j_driver.session() as session:
+        # second, create request nodes for all DVM request events and create relationship between
+        for event in tqdm(all_dvm_request_events):
+            if "content" not in event:
+                logger.warning(
+                    f"Event {event['id']} for kind {event['kind']} does not have content field"
+                )
+                continue
+
+            content_payload_str = event["content"]
+            request_orig_event_id = event["id"]
+
+            create_request(session, content_payload_str, request_orig_event_id)
+
+            customer_npub_hex = event.get("pubkey", None)
+
+            if customer_npub_hex is not None:
+                create_requested_relationship(
+                    session,
+                    customer_npub_hex,
+                    request_orig_event_id,
+                )
+                # logger.info(
+                #     f"A relationship was created between {helpers.hex_to_npub(customer_npub_hex)} and {request_orig_event_id}"
+                # )
+            else:
+                logger.warning(
+                    f"Could not find customer npub for request event {request_orig_event_id}"
+                )
+
+    with neo4j_driver.session() as session:
+        # third, create content nodes for all DVM response events and create relationship between
         for event in tqdm(all_dvm_response_events):
             if "content" not in event:
                 logger.warning(
@@ -276,49 +481,143 @@ def process_notes_into_neo4j(mongo_db, neo4j_driver):
 
             create_content(session, content_payload_str, content_orig_event_id)
 
+            request_orig_event_id = None
+            # try getting request tag
+            request_tag_content = next(
+                (req_tag[1] for req_tag in event["tags"] if req_tag[0] == "request"),
+                None,
+            )
+
+            # get the request event id
+            # try to get it from the request tag
+            if request_tag_content:
+                request_tag_content = json.loads(request_tag_content)
+                if "id" in request_tag_content:
+                    request_orig_event_id = request_tag_content["id"]
+            else:
+                request_orig_event_id = next(
+                    (tag[1] for tag in event["tags"] if tag[0] == "e"),
+                    None,
+                )
+
+            if request_orig_event_id is not None:
+                created_result_for_relationship(
+                    session,
+                    request_orig_event_id,
+                    content_orig_event_id,
+                )
+                # logger.info(
+                #     f"A relationship was created between {request_orig_event_id} and {content_orig_event_id}"
+                # )
+            else:
+                logger.warning(
+                    f"Could not find request event {request_orig_event_id} for response event {content_orig_event_id}"
+                )
+
             customer_npub_hex = next(
                 (tag[1] for tag in event["tags"] if tag[0] == "p"), None
             )
 
             if customer_npub_hex is None:
-                # try to get it from the request tag
-                request_tag_content = next(
-                    (
-                        req_tag[1]
-                        for req_tag in event["tags"]
-                        if req_tag[0] == "request"
-                    ),
-                    None,
-                )
-
                 if request_tag_content:
-                    request_tag_content = json.loads(request_tag_content)
-                    if "pubkey" in request_tag_content:
-                        customer_npub_hex = request_tag_content["pubkey"]
+                    try:
+                        request_tag_content = json.loads(request_tag_content)
+                        if "pubkey" in request_tag_content:
+                            customer_npub_hex = request_tag_content["pubkey"]
+                            logger.warning(
+                                "Got customer npub from request tag because it was not in the 'p' tag"
+                            )
+                    except Exception as e:
                         logger.warning(
-                            "Got customer npub from request tag because it was not in the 'p' tag"
+                            f"Could not get customer npub from request tag content: {request_tag_content}"
                         )
+                        logger.warning(e)
             else:
-                logger.info("Got customer npub from 'p' tag")
+                # logger.info("Got customer npub from 'p' tag")
                 pass
 
-            if customer_npub_hex is None:
-                logger.warning(
-                    f"Event {event['id']} for kind {event['kind']} does not have a customer npub"
-                )
-                continue
-
-            if customer_npub_hex:
+            if customer_npub_hex is not None:
                 create_created_for_relationship(
                     session,
                     customer_npub_hex,
                     content_orig_event_id,
                 )
-                logger.info(
-                    f"A relationship was created between {helpers.hex_to_npub(customer_npub_hex)} and {content_orig_event_id}"
+                # logger.info(
+                #     f"A relationship was created between {helpers.hex_to_npub(customer_npub_hex)} and {content_orig_event_id}"
+                # )
+            else:
+                logger.warning(
+                    f"Could not find customer npub for response event {content_orig_event_id}"
                 )
+
+    with neo4j_driver.session() as session:
+        # fourth, create feedback nodes for all request events and create relationship between
+        for event in tqdm(all_feedback_requests):
+            if "content" not in event:
+                logger.warning(
+                    f"Event {event['id']} for kind {event['kind']} does not have content field"
+                )
+                continue
+
+            content_payload_str = event["content"]
+            feedback_orig_event_id = event["id"]
+
+            create_feedback(session, content_payload_str, feedback_orig_event_id)
+
+            request_orig_event_id = next(
+                (tag[1] for tag in event["tags"] if tag[0] == "e"),
+                None,
+            )
+
+            if request_orig_event_id is not None:
+                created_feedback_for_relationship(
+                    session,
+                    request_orig_event_id,
+                    feedback_orig_event_id,
+                )
+                # logger.info(
+                #     f"A relationship was created between {request_orig_event_id} and {feedback_orig_event_id}"
+                # )
+            else:
+                logger.warning(
+                    f"Could not find request event {request_orig_event_id} for feedback event {feedback_orig_event_id}"
+                )
+
+
+def delete_all_relationships(neo4j_driver):
+    """
+    Delete all relationships in the Neo4j database.
+
+    Parameters:
+    neo4j_driver (GraphDatabase.driver): The Neo4j driver instance.
+
+    Returns:
+    None
+    """
+    with neo4j_driver.session() as session:
+        session.run("MATCH ()-[r]->() DELETE r")
+        logger.info("Deleted all relationships in Neo4j")
+
+
+def delete_all_nodes(neo4j_driver):
+    """
+    Delete all nodes in the Neo4j database.
+
+    Parameters:
+    neo4j_driver (GraphDatabase.driver): The Neo4j driver instance.
+
+    Returns:
+    None
+    """
+    with neo4j_driver.session() as session:
+        session.run("MATCH (n) DELETE n")
+        logger.info("Deleted all nodes in Neo4j")
 
 
 if __name__ == "__main__":
     mongo_db, neo4j_driver = setup_databases()
+
+    delete_all_relationships(neo4j_driver)
+    delete_all_nodes(neo4j_driver)
+
     process_notes_into_neo4j(mongo_db, neo4j_driver)

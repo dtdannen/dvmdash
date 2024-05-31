@@ -19,6 +19,6 @@ class EventKind(Enum):
         For some reason, these kinds are not DVM events and should be ignored.
         """
 
-        bad_kinds = [5666, 6666]
+        bad_kinds = [5666, 6666, 5969, 6969]
 
         return bad_kinds

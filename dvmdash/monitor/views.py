@@ -16,6 +16,7 @@ import monitor.helpers as helpers
 from bson import json_util
 from django.utils.safestring import mark_safe
 from .neo4j_service import neo4j_service
+from general.dvm import EventKind
 
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
@@ -54,7 +55,11 @@ def overview(request):
     # TODO - use a proper mongo query here
     all_dvm_events_cursor = db.events.find({"kind": {"$gte": 5000, "$lte": 6999}})
     all_dvm_events = list(all_dvm_events_cursor)
-
+    all_dvm_events = [
+        event
+        for event in all_dvm_events
+        if event["kind"] not in EventKind.get_bad_dvm_kinds()
+    ]
     # print the memory usages of all events so far:
     memory_usage = sys.getsizeof(all_dvm_events)
     # Convert memory usage to megabytes
@@ -91,6 +96,7 @@ def overview(request):
     max_time_24hr = Timestamp.from_secs(current_secs - (24 * 60 * 60))
     max_time_1week = Timestamp.from_secs(current_secs - (7 * 24 * 60 * 60))
 
+    # TODO - alter this to make sure bad dvm kinds are ignored
     dvm_tasks_24h = db.events.count_documents(
         {
             "created_at": {"$gte": max_time_24hr.as_secs()},
@@ -99,6 +105,7 @@ def overview(request):
     )
     context["num_dvm_tasks_24h"] = dvm_tasks_24h
 
+    # TODO - alter this to make sure bad dvm kinds are ignored
     dvm_results_24h = db.events.count_documents(
         {
             "created_at": {"$gte": max_time_24hr.as_secs()},
@@ -107,6 +114,7 @@ def overview(request):
     )
     context["num_dvm_results_24h"] = dvm_results_24h
 
+    # TODO - alter this to make sure bad dvm kinds are ignored
     dvm_tasks_1week = db.events.count_documents(
         {
             "created_at": {"$gte": max_time_1week.as_secs()},
@@ -115,6 +123,7 @@ def overview(request):
     )
     context["num_dvm_tasks_1week"] = dvm_tasks_1week
 
+    # TODO - alter this to make sure bad dvm kinds are ignored
     dvm_results_1week = db.events.count_documents(
         {
             "created_at": {"$gte": max_time_1week.as_secs()},
@@ -134,7 +143,10 @@ def overview(request):
         if "kind" in dvm_event_i:
             kind_num = dvm_event_i["kind"]
 
-            if 5000 <= kind_num <= 5999 and kind_num not in [5666]:
+            if (
+                5000 <= kind_num <= 5999
+                and kind_num not in EventKind.get_bad_dvm_kinds()
+            ):
                 num_dvm_events += 1
                 if kind_num in kinds_counts:
                     kinds_counts[kind_num] += 1
@@ -147,7 +159,10 @@ def overview(request):
                 else:
                     dvm_job_requests[dvm_request_pub_key] = 1
 
-            elif 6000 <= kind_num <= 6999 and kind_num not in [6666]:
+            elif (
+                6000 <= kind_num <= 6999
+                and kind_num not in EventKind.get_bad_dvm_kinds()
+            ):
                 num_dvm_events += 1
                 if kind_num in kind_feedback_counts:
                     kind_feedback_counts[kind_num] += 1
@@ -235,6 +250,7 @@ def dvm(request, pub_key=""):
 
     if pub_key == "":
         # get all dvm pub keys
+        # TODO - update this to ignore bad dvm event kinds
         dvm_pub_keys = list(
             db.events.distinct("pubkey", {"kind": {"$gte": 5000, "$lte": 6999}})
         )

@@ -8,9 +8,17 @@
       stroke-opacity: 0.6;
     }
 
-    .nodes circle {
+    .nodes text {
+      pointer-events: none;
+      font-size: 10px;
+      text-anchor: middle;
+      alignment-baseline: central;
+    }
+
+    .node circle {
       stroke: #fff;
       stroke-width: 1.5px;
+      fill: #69b3a2;
     }
 
     #graph {
@@ -34,9 +42,9 @@
 
         data.forEach(item => {
           const p = item.p;
-          const sourceNode = { id: p[0].npub, label: p[0].name };
-          const targetNode = { id: p[2].content_id, label: p[2].content };
-          const link = { source: p[0].npub, target: p[2].content_id, label: p[1] };
+          const sourceNode = { id: p[0].request_id, label: p[0].content.substring(0, 25) };
+          const targetNode = { id: p[2].content_id, label: p[2].content.substring(0, 25) };
+          const link = { source: p[0].request_id, target: p[2].content_id, label: p[1] };
 
           if (!nodes.find(node => node.id === sourceNode.id)) {
             nodes.push(sourceNode);
@@ -56,8 +64,15 @@
 
         const simulation = d3.forceSimulation(nodes)
           .force("link", d3.forceLink(links).id(d => d.id))
-          .force("charge", d3.forceManyBody().strength(-400))
+          .force("charge", d3.forceManyBody().strength(-200))
           .force("center", d3.forceCenter(width / 2, height / 2));
+
+        const colorMap = {
+          Feedback: "#89CFF0",
+          Request: "#FF7F50",
+          Content: "#90EE90",
+          NPub: "#9125d0"
+        };
 
         const link = svg.append("g")
           .attr("class", "links")
@@ -70,16 +85,27 @@
           .attr("class", "nodes")
           .selectAll("circle")
           .data(nodes)
-          .enter().append("circle")
-          .attr("r", 10)
-          .attr("fill", "#69b3a2")
-          .call(d3.drag()
-            .on("start", dragstarted)
-            .on("drag", dragged)
-            .on("end", dragended));
+          .enter()
+          .append("g")
+          .attr("class", "node");
 
-        node.append("title")
+        node.append("circle")
+          .attr("r", 20)
+          .attr("fill", d => colorMap[d.type] || "#999999"); // Default color
+
+        node.append("text")
           .text(d => d.label);
+
+        node.on("dblclick", function(event, d) {
+            if (d.url) {
+                window.open(d.url, "_blank");
+            }
+        })
+
+        node.call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
 
         simulation
           .nodes(nodes)
@@ -96,8 +122,7 @@
             .attr("y2", d => d.target.y);
 
           node
-            .attr("cx", d => d.x)
-            .attr("cy", d => d.y);
+            .attr("transform", d => `translate(${d.x},${d.y})`);
         }
 
         function dragstarted(event, d) {
