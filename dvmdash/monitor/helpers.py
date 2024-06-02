@@ -7,3 +7,10 @@ def hex_to_npub(hex_pubkey):
     data = bech32.convertbits(data, 8, 5)
     npub = bech32.bech32_encode(hrp, data)
     return npub
+
+
+def npub_to_hex(npub):
+    hrp, data = bech32.bech32_decode(npub)
+    data = bech32.convertbits(data, 5, 8, False)
+    hex_pubkey = "".join([f"{i:02x}" for i in data])
+    return hex_pubkey

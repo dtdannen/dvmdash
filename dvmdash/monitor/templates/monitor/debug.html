@@ -26,9 +26,47 @@
       height: 400px;
     }
   </style>
+
+    <style>
+        .form-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding-top: 100px;
+        }
+        .form-container textarea {
+            resize: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .form-container .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            margin-top: 20px;
+            padding: 10px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+        }
+        .form-container .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+    </style>
 {% endblock %}
 
 {% block content %}
+
+<div class="container">
+        <div class="form-container">
+            <form method="post" class="text-center">
+                {% csrf_token %}
+                <div class="form-group">
+                    <textarea class="form-control" rows="3" name="text_input" placeholder="Paste your text here..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </form>
+        </div>
+    </div>
+
   <div id="graph"></div>
   <p>This is some additional content that will be displayed below the graph.</p>
 

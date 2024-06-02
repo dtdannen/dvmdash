@@ -517,10 +517,10 @@ def see_npub(request, npub=""):
     return HttpResponse(template.render(context, request))
 
 
-def graph(request, dvm_request_event_id=""):
+def debug(request, debug_data=""):
     context = {}
 
-    template = loader.get_template("monitor/graph.html")
+    template = loader.get_template("monitor/debug.html")
     return HttpResponse(template.render(context, request))
 
 

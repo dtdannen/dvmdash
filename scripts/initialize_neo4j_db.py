@@ -23,6 +23,7 @@ import dotenv
 import ssl
 from general.dvm import EventKind
 import certifi
+import time
 
 
 def setup_logging():
@@ -284,7 +285,7 @@ def create_feedback(
 
 
 def create_requested_relationship(
-    tx, npub_hex: str, content_orig_event_id: str
+    tx, npub_hex: str, request_orig_event_id: str
 ) -> None:
     """
     Create a relationship in the Neo4j database between an NPub node and a Request node.
@@ -297,15 +298,60 @@ def create_requested_relationship(
     Returns:
     None
     """
-    # Define the Cypher query to create a relationship between the NPub and Content nodes
+    #
     query = """
     MATCH (n:NPub {npub_hex: $npub_hex})
-    MATCH (c:Content {content_id: $content_orig_event_id})
-    MERGE (n)-[:REQUESTED]->(c)
+    MATCH (r:Request {request_id: $request_orig_event_id})
+    MERGE (n)-[:REQUESTED]->(r)
     """
 
+    query_filled_in = query.replace("$npub_hex", "'" + npub_hex + "'").replace(
+        "$request_orig_event_id", "'" + request_orig_event_id + "'"
+    )
+
+    print("query_filled_in: \n", query_filled_in)
+
+    result = tx.run(
+        query, npub_hex=npub_hex, request_orig_event_id=request_orig_event_id
+    )
+    # record = result.single()
+    #
+    # npub_exists = record["npub_exists"]
+    # request_exists = record["request_exists"]
+    # relationship_created = record["relationship_created"]
+    #
+    # if npub_exists and request_exists:
+    #     if relationship_created:
+    #         print("The relationship was created successfully.")
+    #     else:
+    #         check_query = """
+    #         MATCH (n:NPub {{npub_hex: '{npub_hex}'}})-[rel:REQUESTED]->(r:Request {{request_id: '{request_orig_event_id}'}})
+    #         RETURN COUNT(rel) AS relationship_count
+    #         """.format(
+    #             request_orig_event_id=request_orig_event_id, npub_hex=npub_hex
+    #         )
+    #
+    #         print(
+    #             f"The relationship already exists. Check by running this:\n{check_query}"
+    #         )
+    # else:
+    #     if not npub_exists:
+    #         print(
+    #             "The NPub node does not exist, check via: MATCH (n:NPub {npub_hex: '",
+    #             npub_hex,
+    #             "'}) RETURN n",
+    #         )
+    #     if not request_exists:
+    #         print(
+    #             "The Content node does not exist, check via: MATCH (c:Content {content_id: '",
+    #             request_orig_event_id,
+    #             "'}) RETURN c",
+    #         )
+
     # Execute the query with the provided parameters
-    tx.run(query, npub_hex=npub_hex, content_orig_event_id=content_orig_event_id)
+    # tx.run(query, npub_hex=npub_hex, content_orig_event_id=content_orig_event_id)
+
+    # logger.info("A relationship was created between npub and request")
 
 
 def create_created_for_relationship(
@@ -351,7 +397,7 @@ def created_result_for_relationship(
     query = """
     MATCH (r:Request {request_id: $request_orig_event_id})
     MATCH (c:Content {content_id: $content_orig_event_id})
-    MERGE (r)-[:RESULT_FOR]->(c)
+    MERGE (c)-[:RESULT_FOR]->(r)
     """
 
     # Execute the query with the provided parameters
@@ -404,50 +450,69 @@ def process_notes_into_neo4j(mongo_db, neo4j_driver):
     ]
     logger.info(f"Loaded {len(all_dvm_request_events)} dvm request events from mongo")
 
-    all_dvm_response_events = list(
-        mongo_db.events.find({"kind": {"$gte": 6000, "$lte": 6999}})
-    )
+    # all_dvm_response_events = list(
+    #     mongo_db.events.find({"kind": {"$gte": 6000, "$lte": 6999}})
+    # )
+    #
+    # all_dvm_response_events = [
+    #     event
+    #     for event in all_dvm_response_events
+    #     if event["kind"] not in EventKind.get_bad_dvm_kinds()
+    # ]
+    #
+    # logger.info(f"Loaded {len(all_dvm_response_events)} dvm response events from mongo")
+    #
+    # all_feedback_requests = list(mongo_db.events.find({"kind": 7000}))
+    #
+    # logger.info(
+    #     f"Loaded {len(all_feedback_requests)} feedback request events from mongo"
+    # )
+    #
+    # dvm_nip89_profiles = get_all_dvm_nip89_profiles(mongo_db)
+    # logger.info(f"Loaded {len(dvm_nip89_profiles)} dvm nip89 profiles")
 
-    all_dvm_response_events = [
-        event
-        for event in all_dvm_response_events
-        if event["kind"] not in EventKind.get_bad_dvm_kinds()
-    ]
-
-    logger.info(f"Loaded {len(all_dvm_response_events)} dvm response events from mongo")
-
-    all_feedback_requests = list(mongo_db.events.find({"kind": 7000}))
-
-    logger.info(
-        f"Loaded {len(all_feedback_requests)} feedback request events from mongo"
-    )
-
-    dvm_nip89_profiles = get_all_dvm_nip89_profiles(mongo_db)
-    logger.info(f"Loaded {len(dvm_nip89_profiles)} dvm nip89 profiles")
-
-    with neo4j_driver.session() as session:
-        # # first, create all nodes for all npubs
-        for event in tqdm(all_dvm_request_events + all_dvm_response_events):
-            npub_hex = event["pubkey"]
-            npub = helpers.hex_to_npub(npub_hex)
-
-            name = ""
-            if npub_hex in dvm_nip89_profiles:
-                name = dvm_nip89_profiles[npub_hex].get("name", "")
-
-            create_npub(session, npub_hex, npub, name)
-
+    # with neo4j_driver.session() as session:
+    #     # # first, create all nodes for all npubs
+    #     for event in tqdm(all_dvm_request_events + all_dvm_response_events):
+    #         npub_hex = event["pubkey"]
+    #         npub = helpers.hex_to_npub(npub_hex)
+    #
+    #         name = ""
+    #         if npub_hex in dvm_nip89_profiles:
+    #             name = dvm_nip89_profiles[npub_hex].get("name", "")
+    #
+    #         create_npub(session, npub_hex, npub, name)
+    #
     with neo4j_driver.session() as session:
         # second, create request nodes for all DVM request events and create relationship between
         for event in tqdm(all_dvm_request_events):
-            if "content" not in event:
-                logger.warning(
-                    f"Event {event['id']} for kind {event['kind']} does not have content field"
+            has_encrypted_tag = next(
+                (tag[0] for tag in event["tags"] if tag[0] == "encrypted"), None
+            )
+
+            if has_encrypted_tag is not None:
+                print(f"Skipping encrypted request: {has_encrypted_tag}")
+                continue
+
+            # print("event.keys()")
+            if "content" in event:
+                content = event["content"]
+            else:
+                # get the i tag
+                content = next(
+                    (tag[1] for tag in event["tags"] if tag[0] == "i"),
+                    None,
                 )
+
+            if content is None:
+                logger.warning(
+                    f"Event {event['id']} for kind {event['kind']} does not have content field or i tag"
+                )
+                logger.warning(f"Full event: {event}")
                 continue
 
             content_payload_str = event["content"]
-            request_orig_event_id = event["id"]
+            request_orig_event_id = event["id"].strip()
 
             create_request(session, content_payload_str, request_orig_event_id)
 
@@ -462,126 +527,136 @@ def process_notes_into_neo4j(mongo_db, neo4j_driver):
                 # logger.info(
                 #     f"A relationship was created between {helpers.hex_to_npub(customer_npub_hex)} and {request_orig_event_id}"
                 # )
+                # print("Run this query to see if the request and the npubs exist")
+                # print(
+                #     'MATCH (r:Request {request_id: "',
+                #     request_orig_event_id,
+                #     '"}) RETURN r',
+                # )
+                # print('MATCH (n:NPub {npub_hex: "', customer_npub_hex, '"}) RETURN n')
+                # print("Sleeping to enable time for debugging")
+
+                # time.sleep(200)
             else:
                 logger.warning(
                     f"Could not find customer npub for request event {request_orig_event_id}"
                 )
+    #
+    # with neo4j_driver.session() as session:
+    #     # third, create content nodes for all DVM response events and create relationship between
+    #     for event in tqdm(all_dvm_response_events):
+    #         if "content" not in event:
+    #             logger.warning(
+    #                 f"Event {event['id']} for kind {event['kind']} does not have content field"
+    #             )
+    #             continue
+    #
+    #         content_payload_str = event["content"]
+    #         content_orig_event_id = event["id"]
+    #
+    #         create_content(session, content_payload_str, content_orig_event_id)
+    #
+    #         request_orig_event_id = None
+    #         # try getting request tag
+    #         request_tag_content = next(
+    #             (req_tag[1] for req_tag in event["tags"] if req_tag[0] == "request"),
+    #             None,
+    #         )
+    #
+    #         # get the request event id
+    #         # try to get it from the request tag
+    #         if request_tag_content:
+    #             request_tag_content = json.loads(request_tag_content)
+    #             if "id" in request_tag_content:
+    #                 request_orig_event_id = request_tag_content["id"]
+    #         else:
+    #             request_orig_event_id = next(
+    #                 (tag[1] for tag in event["tags"] if tag[0] == "e"),
+    #                 None,
+    #             )
+    #
+    #         if request_orig_event_id is not None:
+    #             created_result_for_relationship(
+    #                 session,
+    #                 request_orig_event_id,
+    #                 content_orig_event_id,
+    #             )
+    #             # logger.info(
+    #             #     f"A relationship was created between {request_orig_event_id} and {content_orig_event_id}"
+    #             # )
+    #         else:
+    #             logger.warning(
+    #                 f"Could not find request event {request_orig_event_id} for response event {content_orig_event_id}"
+    #             )
+    #
+    #         customer_npub_hex = next(
+    #             (tag[1] for tag in event["tags"] if tag[0] == "p"), None
+    #         )
+    #
+    #         if customer_npub_hex is None:
+    #             if request_tag_content:
+    #                 try:
+    #                     request_tag_content = json.loads(request_tag_content)
+    #                     if "pubkey" in request_tag_content:
+    #                         customer_npub_hex = request_tag_content["pubkey"]
+    #                         logger.warning(
+    #                             "Got customer npub from request tag because it was not in the 'p' tag"
+    #                         )
+    #                 except Exception as e:
+    #                     logger.warning(
+    #                         f"Could not get customer npub from request tag content: {request_tag_content}"
+    #                     )
+    #                     logger.warning(e)
+    #         else:
+    #             # logger.info("Got customer npub from 'p' tag")
+    #             pass
+    #
+    #         if customer_npub_hex is not None:
+    #             create_created_for_relationship(
+    #                 session,
+    #                 customer_npub_hex,
+    #                 content_orig_event_id,
+    #             )
+    #             # logger.info(
+    #             #     f"A relationship was created between {helpers.hex_to_npub(customer_npub_hex)} and {content_orig_event_id}"
+    #             # )
+    #         else:
+    #             logger.warning(
+    #                 f"Could not find customer npub for response event {content_orig_event_id}"
+    #             )
 
-    with neo4j_driver.session() as session:
-        # third, create content nodes for all DVM response events and create relationship between
-        for event in tqdm(all_dvm_response_events):
-            if "content" not in event:
-                logger.warning(
-                    f"Event {event['id']} for kind {event['kind']} does not have content field"
-                )
-                continue
-
-            content_payload_str = event["content"]
-            content_orig_event_id = event["id"]
-
-            create_content(session, content_payload_str, content_orig_event_id)
-
-            request_orig_event_id = None
-            # try getting request tag
-            request_tag_content = next(
-                (req_tag[1] for req_tag in event["tags"] if req_tag[0] == "request"),
-                None,
-            )
-
-            # get the request event id
-            # try to get it from the request tag
-            if request_tag_content:
-                request_tag_content = json.loads(request_tag_content)
-                if "id" in request_tag_content:
-                    request_orig_event_id = request_tag_content["id"]
-            else:
-                request_orig_event_id = next(
-                    (tag[1] for tag in event["tags"] if tag[0] == "e"),
-                    None,
-                )
-
-            if request_orig_event_id is not None:
-                created_result_for_relationship(
-                    session,
-                    request_orig_event_id,
-                    content_orig_event_id,
-                )
-                # logger.info(
-                #     f"A relationship was created between {request_orig_event_id} and {content_orig_event_id}"
-                # )
-            else:
-                logger.warning(
-                    f"Could not find request event {request_orig_event_id} for response event {content_orig_event_id}"
-                )
-
-            customer_npub_hex = next(
-                (tag[1] for tag in event["tags"] if tag[0] == "p"), None
-            )
-
-            if customer_npub_hex is None:
-                if request_tag_content:
-                    try:
-                        request_tag_content = json.loads(request_tag_content)
-                        if "pubkey" in request_tag_content:
-                            customer_npub_hex = request_tag_content["pubkey"]
-                            logger.warning(
-                                "Got customer npub from request tag because it was not in the 'p' tag"
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            f"Could not get customer npub from request tag content: {request_tag_content}"
-                        )
-                        logger.warning(e)
-            else:
-                # logger.info("Got customer npub from 'p' tag")
-                pass
-
-            if customer_npub_hex is not None:
-                create_created_for_relationship(
-                    session,
-                    customer_npub_hex,
-                    content_orig_event_id,
-                )
-                # logger.info(
-                #     f"A relationship was created between {helpers.hex_to_npub(customer_npub_hex)} and {content_orig_event_id}"
-                # )
-            else:
-                logger.warning(
-                    f"Could not find customer npub for response event {content_orig_event_id}"
-                )
-
-    with neo4j_driver.session() as session:
-        # fourth, create feedback nodes for all request events and create relationship between
-        for event in tqdm(all_feedback_requests):
-            if "content" not in event:
-                logger.warning(
-                    f"Event {event['id']} for kind {event['kind']} does not have content field"
-                )
-                continue
-
-            content_payload_str = event["content"]
-            feedback_orig_event_id = event["id"]
-
-            create_feedback(session, content_payload_str, feedback_orig_event_id)
-
-            request_orig_event_id = next(
-                (tag[1] for tag in event["tags"] if tag[0] == "e"),
-                None,
-            )
-
-            if request_orig_event_id is not None:
-                created_feedback_for_relationship(
-                    session,
-                    request_orig_event_id,
-                    feedback_orig_event_id,
-                )
-                # logger.info(
-                #     f"A relationship was created between {request_orig_event_id} and {feedback_orig_event_id}"
-                # )
-            else:
-                logger.warning(
-                    f"Could not find request event {request_orig_event_id} for feedback event {feedback_orig_event_id}"
-                )
+    # with neo4j_driver.session() as session:
+    #     # fourth, create feedback nodes for all request events and create relationship between
+    #     for event in tqdm(all_feedback_requests):
+    #         if "content" not in event:
+    #             logger.warning(
+    #                 f"Event {event['id']} for kind {event['kind']} does not have content field"
+    #             )
+    #             continue
+    #
+    #         content_payload_str = event["content"]
+    #         feedback_orig_event_id = event["id"]
+    #
+    #         create_feedback(session, content_payload_str, feedback_orig_event_id)
+    #
+    #         request_orig_event_id = next(
+    #             (tag[1] for tag in event["tags"] if tag[0] == "e"),
+    #             None,
+    #         )
+    #
+    #         if request_orig_event_id is not None:
+    #             created_feedback_for_relationship(
+    #                 session,
+    #                 request_orig_event_id,
+    #                 feedback_orig_event_id,
+    #             )
+    #             # logger.info(
+    #             #     f"A relationship was created between {request_orig_event_id} and {feedback_orig_event_id}"
+    #             # )
+    #         else:
+    #             logger.warning(
+    #                 f"Could not find request event {request_orig_event_id} for feedback event {feedback_orig_event_id}"
+    #             )
 
 
 def delete_all_relationships(neo4j_driver):
