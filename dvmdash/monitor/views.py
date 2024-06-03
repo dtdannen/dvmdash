@@ -516,6 +516,8 @@ def see_npub(request, npub=""):
 
 
 def recent(request):
+    num_events_to_lookback = 2000
+    num_events_to_show_per_kind = 3
     context = {}
     recent_requests = list(
         db.events.find(
@@ -527,7 +529,7 @@ def recent(request):
                 }
             }
         )
-        .limit(1000)
+        .limit(num_events_to_lookback)
         .sort("created_at", -1)
     )
 
@@ -548,7 +550,7 @@ def recent(request):
         )
 
         if kind in recent_requests_per_kind:
-            if recent_requests_per_kind[kind] < 2:
+            if recent_requests_per_kind[kind] < num_events_to_show_per_kind:
                 recent_requests_per_kind[kind] += 1
                 recent_request_events.append(request_event)
             else:
