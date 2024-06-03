@@ -55,7 +55,13 @@
 
 {% block content %}
 
-<div class="container">
+    {%  if event_id %}
+    {# Show the graph! #}
+        <div id="graph"></div>
+  <p>This is some additional content that will be displayed below the graph.</p>
+    {% else %}
+    {# Show the input box #}
+        <div class="container">
         <div class="form-container">
             <form method="post" class="text-center">
                 {% csrf_token %}
@@ -67,8 +73,11 @@
         </div>
     </div>
 
-  <div id="graph"></div>
-  <p>This is some additional content that will be displayed below the graph.</p>
+    {%  endif %}
+
+
+
+
 
 <script>
   document.addEventListener("DOMContentLoaded", function() {

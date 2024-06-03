@@ -305,53 +305,7 @@ def create_requested_relationship(
     MERGE (n)-[:REQUESTED]->(r)
     """
 
-    query_filled_in = query.replace("$npub_hex", "'" + npub_hex + "'").replace(
-        "$request_orig_event_id", "'" + request_orig_event_id + "'"
-    )
-
-    print("query_filled_in: \n", query_filled_in)
-
-    result = tx.run(
-        query, npub_hex=npub_hex, request_orig_event_id=request_orig_event_id
-    )
-    # record = result.single()
-    #
-    # npub_exists = record["npub_exists"]
-    # request_exists = record["request_exists"]
-    # relationship_created = record["relationship_created"]
-    #
-    # if npub_exists and request_exists:
-    #     if relationship_created:
-    #         print("The relationship was created successfully.")
-    #     else:
-    #         check_query = """
-    #         MATCH (n:NPub {{npub_hex: '{npub_hex}'}})-[rel:REQUESTED]->(r:Request {{request_id: '{request_orig_event_id}'}})
-    #         RETURN COUNT(rel) AS relationship_count
-    #         """.format(
-    #             request_orig_event_id=request_orig_event_id, npub_hex=npub_hex
-    #         )
-    #
-    #         print(
-    #             f"The relationship already exists. Check by running this:\n{check_query}"
-    #         )
-    # else:
-    #     if not npub_exists:
-    #         print(
-    #             "The NPub node does not exist, check via: MATCH (n:NPub {npub_hex: '",
-    #             npub_hex,
-    #             "'}) RETURN n",
-    #         )
-    #     if not request_exists:
-    #         print(
-    #             "The Content node does not exist, check via: MATCH (c:Content {content_id: '",
-    #             request_orig_event_id,
-    #             "'}) RETURN c",
-    #         )
-
-    # Execute the query with the provided parameters
-    # tx.run(query, npub_hex=npub_hex, content_orig_event_id=content_orig_event_id)
-
-    # logger.info("A relationship was created between npub and request")
+    tx.run(query, npub_hex=npub_hex, request_orig_event_id=request_orig_event_id)
 
 
 def create_created_for_relationship(

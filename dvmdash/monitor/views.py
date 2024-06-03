@@ -52,13 +52,11 @@ def overview(request):
     context["num_dvm_events_in_db"] = num_dvm_events_in_db
 
     # get the number of unique kinds of all events
-    all_dvm_events_cursor = db.events.find({"kind": {"$gte": 5000, "$lte": 6999}})
+    all_dvm_events_cursor = db.events.find(
+        {"kind": {"$gte": 5000, "$lte": 6999, "$nin": EventKind.get_bad_dvm_kinds()}}
+    )
     all_dvm_events = list(all_dvm_events_cursor)
-    all_dvm_events = [
-        event
-        for event in all_dvm_events
-        if event["kind"] not in EventKind.get_bad_dvm_kinds()
-    ]
+
     # print the memory usages of all events so far:
     memory_usage = sys.getsizeof(all_dvm_events)
     # Convert memory usage to megabytes
@@ -517,8 +515,88 @@ def see_npub(request, npub=""):
     return HttpResponse(template.render(context, request))
 
 
-def debug(request, debug_data=""):
+def recent(request):
     context = {}
+    recent_requests = list(
+        db.events.find(
+            {
+                "kind": {
+                    "$gte": 5000,
+                    "$lte": 5999,
+                    "$nin": EventKind.get_bad_dvm_kinds(),
+                }
+            }
+        )
+        .limit(1000)
+        .sort("created_at", -1)
+    )
+
+    print(f"Found {len(recent_requests)} recent requests")
+
+    # recent requests per kind
+    recent_requests_per_kind = {}
+    recent_request_events = []
+    kinds_already_filled = []  # make it faster
+    for request_event in recent_requests:
+        kind = request_event["kind"]
+        if kind in kinds_already_filled:
+            continue
+
+        # make it readable on the frontend
+        request_event["created_at"] = datetime.fromtimestamp(
+            request_event["created_at"]
+        )
+
+        if kind in recent_requests_per_kind:
+            if recent_requests_per_kind[kind] < 2:
+                recent_requests_per_kind[kind] += 1
+                recent_request_events.append(request_event)
+            else:
+                kinds_already_filled.append(kind)
+        else:
+            recent_requests_per_kind[kind] = 1
+            recent_request_events.append(request_event)
+
+    print(f"Found {len(recent_request_events)} recent requests (filtered)")
+
+    # Convert the result to a list of dictionaries
+    context["recent_dvm_events"] = recent_request_events
+
+    print(f"context['recent_dvm_events'][0] = {context['recent_dvm_events'][0]}")
+
+    template = loader.get_template("monitor/recent.html")
+    return HttpResponse(template.render(context, request))
+
+
+def debug(request, event_id=""):
+    context = {}
+
+    if event_id == "":
+        # show a 404 page with a link back to the homepage and custom message
+        template = loader.get_template("monitor/404.html")
+        return HttpResponseNotFound(
+            template.render({"message": "Sorry, no event ID was provided."}, request)
+        )
+
+    # get the event with this id
+    event = list(db.events.find_one({"id": event_id}))[0]
+
+    if "kind" in event and event["kind"] not in [5000, 5999]:
+        # show a 404 page with a link back to the homepage and custom message
+        print(f"Event kind {event['kind']} is not supported for debugging")
+        template = loader.get_template("monitor/404.html")
+        return HttpResponseNotFound(
+            template.render(
+                {
+                    "message": "Sorry, only DVM requests in the range 5000-5999 are supported for now"
+                },
+                request,
+            )
+        )
+
+    context["event_id"] = event["id"]
+
+    # now call neo 4j to get the graph data
 
     template = loader.get_template("monitor/debug.html")
     return HttpResponse(template.render(context, request))

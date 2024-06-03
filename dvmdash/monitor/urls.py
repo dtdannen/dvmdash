@@ -10,6 +10,8 @@ urlpatterns = [
     path("event/<str:event_id>/", views.see_event, name="see_event"),
     path("npub/<str:npub>/", views.see_npub, name="see_npub"),
     path("debug/", views.debug, name="debug"),
+    path("debug/<str:event_id>/", views.debug, name="debug"),
+    path("recent/", views.recent, name="recent"),
     path("api/graph/", views.get_graph_data, name="get_graph_data"),
 ]
 

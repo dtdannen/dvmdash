@@ -1,0 +1,29 @@
+{% extends 'monitor/base.html' %}
+{% load humanize %}
+
+{% block title %}Recent Events{% endblock %}
+
+{% block content %}
+{% if recent_dvm_events %}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th scope="col">Birthtime</th>
+          <th scope="col">Kind</th>
+          <th scope="col">Event ID Link</th>
+            <th scope="col">Debug Link</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in recent_dvm_events %}
+        <tr>
+          <td>{{ e.created_at|naturaltime }}</td>
+          <td>{{ e.kind }}</td>
+          <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
+            <td><a href="{% url 'debug' event_id=e.id %}">Debug this DVM Chain</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+{% endblock %}
