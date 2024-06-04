@@ -43,7 +43,7 @@ else:
     print("Connected to cloud mongo db")
 
 
-def overview(request):
+def metrics(request):
     print("calling overview!")
     context = {}
 
@@ -581,9 +581,23 @@ def debug(request, event_id=""):
         )
 
     # get the event with this id
-    event = list(db.events.find_one({"id": event_id}))[0]
+    event = None
+    events = list(db.events.find({"id": event_id}))
+    print(f"events are {events}")
+    if events:
+        event = events[0]
 
-    if "kind" in event and event["kind"] not in [5000, 5999]:
+    if not event:
+        # show a 404 page with a link back to the homepage and custom message
+        template = loader.get_template("monitor/404.html")
+        return HttpResponseNotFound(
+            template.render(
+                {"message": f"Event with ID {event_id} was not found in our database."},
+                request,
+            )
+        )
+
+    if "kind" in event and event["kind"] not in list(range(5000, 6000)):
         # show a 404 page with a link back to the homepage and custom message
         print(f"Event kind {event['kind']} is not supported for debugging")
         template = loader.get_template("monitor/404.html")
@@ -599,6 +613,7 @@ def debug(request, event_id=""):
     context["event_id"] = event["id"]
 
     # now call neo 4j to get the graph data
+    # TODO
 
     template = loader.get_template("monitor/debug.html")
     return HttpResponse(template.render(context, request))

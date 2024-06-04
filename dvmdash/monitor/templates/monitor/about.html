@@ -1,4 +1,5 @@
 {% extends 'monitor/base.html' %}
+{% load static %}
 
 {% block title %}
     <title>What is DVMDash?</title>
@@ -15,5 +16,14 @@
     <p>This app is primarily geared towards developers. If something doesn't work or to request a feature,
         please <a href="https://github.com/dtdannen/dvmdash/issues/new">submit a PR</a>. This project is under
         active development.</p>
+
+    <h3>Description of Pages:</h3>
+    <ul>
+        <li><a href="{% url 'metrics' %}">Metrics</a>: Show metrics of all DVM events that we have been able to collect from relays from all time. This page is slow to load and needs to be optimized later.</li>
+        <li><a href="{% url 'recent' %}">Recent Requests</a>: Shows recent DVM requests by users, making sure not to show too many of any single kind.</li>
+        <li><a href="{% url 'dvm' %}">DVM Browser</a>: Search box to look up DVMs and display information about them. Metrics here need to be added.</li>
+        <li><a href="{% url 'kind' %}">Kind Browser</a>: Search box to look up Kinds and display information about them. Metrics here need to be added.</li>
+        <li><a href="{% url 'debug' event_id="1258f00b94102ed3220de6a05897329e5f5e575c07d77966b303e440570c901c" %}">Debug</a>: Given a request event, this will eventually show a table and graph depicting the interactions among the user and DVMs to accomplish a task.</li>
+    </ul>
 
 {% endblock %}
