@@ -604,6 +604,12 @@ def debug(request, event_id=""):
     return HttpResponse(template.render(context, request))
 
 
+def about(request):
+    context = {}
+    template = loader.get_template("monitor/about.html")
+    return HttpResponse(template.render(context, request))
+
+
 def custom_404(
     request,
     exception=None,

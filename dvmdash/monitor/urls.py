@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path("", views.overview, name="overview"),
+    path("about/", views.about, name="about"),
     path("dvm/", views.dvm, name="dvm"),
     path("dvm/<str:pub_key>/", views.dvm, name="dvm_with_pub_key"),
     path("kind/", views.kind, name="kind"),

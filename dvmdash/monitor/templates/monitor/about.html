@@ -1,0 +1,19 @@
+{% extends 'monitor/base.html' %}
+
+{% block title %}
+    <title>What is DVMDash?</title>
+{% endblock %}
+
+{% block content %}
+
+    <p>DVMDash aims to be a monitoring and debugging tool for DVM activity on Nostr.
+        <a href="https://github.com/nostr-protocol/nips/blob/master/90.md">Data Vending Machines (nip-90)</a>
+        offload computationally expensive tasks from
+        relays and clients in a decentralized, free-market manner. They are especially
+        useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.</p>
+
+    <p>This app is primarily geared towards developers. If something doesn't work or to request a feature,
+        please <a href="https://github.com/dtdannen/dvmdash/issues/new">submit a PR</a>. This project is under
+        active development.</p>
+
+{% endblock %}

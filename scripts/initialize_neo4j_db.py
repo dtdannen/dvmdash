@@ -129,6 +129,35 @@ def get_all_dvm_nip89_profiles(mongo_db):
     return dvm_nip89_profiles
 
 
+def get_all_dvm_npubs(mongo_db):
+    all_dvm_npubs = set()
+    for event in mongo_db.events.find(
+        {"kind": {"$gte": 6000, "$lte": 6999, "$nin": EventKind.get_bad_dvm_kinds()}}
+    ):
+        if "pubkey" in event:
+            all_dvm_npubs.add(event["pubkey"])
+
+    # get all pub keys from nip-89 profiles
+    for nip89_event in mongo_db.events.find({"kind": 31990}):
+        if "pubkey" in nip89_event:
+            all_dvm_npubs.add(nip89_event["pubkey"])
+
+    return all_dvm_npubs
+
+
+def make_user_and_dvm_nodes(mongo_db):
+    # first get all dvm nodes
+    all_dvm_npubs = get_all_dvm_npubs(mongo_db)
+
+    # get all user nodes
+    all_user_npubs = set()
+    for event in mongo_db.events.find(
+        {"kind": {"$gte": 5000, "$lte": 5999, "$nin": EventKind.get_bad_dvm_kinds()}}
+    ):
+        if "pubkey" in event and event["pubkey"] not in all_dvm_npubs:
+            all_user_npubs.add(event["pubkey"])
+
+
 def create_npub(tx, npub_hex: str, npub: str, name: str = "") -> None:
     """
     Create a node in the Neo4j database with label 'NPub'.
@@ -193,7 +222,7 @@ def create_content(
     if byte_size <= max_size:
         # Define the Cypher query to create a node with the given properties only if it does not exist
         query = """
-        MERGE (c:Content {content_id: $content_orig_event_id})
+        MERGE (c:Content {n_id: $content_orig_event_id})
         ON CREATE SET c.content = $content, c.url = "https://dvmdash.live/event/" + $content_orig_event_id
         """
         tx.run(query, content_orig_event_id=content_orig_event_id, content=content)
@@ -201,7 +230,7 @@ def create_content(
     else:
         # Define the Cypher query to create a node with the given properties only if it does not exist
         query = """
-                MERGE (c:Content {content_id: $content_orig_event_id})
+                MERGE (c:Content {n_id: $content_orig_event_id})
                 ON CREATE SET c.content = $content, c.url = "https://dvmdash.live/event/" + $content_orig_event_id
                 """
         content = "<content too large, see original event>"
@@ -231,7 +260,7 @@ def create_request(
     if byte_size <= max_size:
         # Define the Cypher query to create a node with the given properties only if it does not exist
         query = """
-        MERGE (r:Request {request_id: $request_orig_event_id})
+        MERGE (r:Request {n_id: $request_orig_event_id})
         ON CREATE SET r.content = $content, r.url = "https://dvmdash.live/event/" + $request_orig_event_id
         """
         tx.run(query, request_orig_event_id=request_orig_event_id, content=content)
@@ -239,7 +268,7 @@ def create_request(
     else:
         # Define the Cypher query to create a node with the given properties only if it does not exist
         query = """
-                MERGE (r:Request {request_id: $request_orig_event_id})
+                MERGE (r:Request {n_id: $request_orig_event_id})
                 ON CREATE SET r.content = $content, r.url = "https://dvmdash.live/event/" + $request_orig_event_id
                 """
         content = "<content too large, see original event>"
@@ -301,7 +330,7 @@ def create_requested_relationship(
     #
     query = """
     MATCH (n:NPub {npub_hex: $npub_hex})
-    MATCH (r:Request {request_id: $request_orig_event_id})
+    MATCH (r:Request {n_id: $request_orig_event_id})
     MERGE (n)-[:REQUESTED]->(r)
     """
 
@@ -325,12 +354,42 @@ def create_created_for_relationship(
     # Define the Cypher query to create a relationship between the NPub and Content nodes
     query = """
     MATCH (n:NPub {npub_hex: $npub_hex})
-    MATCH (c:Content {content_id: $content_orig_event_id})
+    MATCH (c:Content {n_id: $content_orig_event_id})
     MERGE (c)-[:CREATED_FOR]->(n)
     """
 
     # Execute the query with the provided parameters
     tx.run(query, npub_hex=npub_hex, content_orig_event_id=content_orig_event_id)
+
+
+def create_made_relationship(
+    tx, event_id: str, npub_hex: str, dest_node="request"
+) -> None:
+    """
+    Create a relationship in the Neo4j database between an NPub node and a Request or Content node.
+
+    Parameters:
+    tx (Transaction): The Neo4j transaction context.
+    event_id (str): The id of the event that has the content.
+    npub_hex (str): The hexadecimal representation of the public key.
+    dest_node (str): The destination node type. Defaults to 'request'.
+
+    Returns:
+    None
+    """
+
+    if dest_node not in ["request", "content"]:
+        raise ValueError("dest_node must be either 'request' or 'content'")
+
+    # Define the Cypher query to create a relationship between the NPub and Request or Content nodes
+    query = f"""
+    MATCH (n:NPub {{npub_hex: $npub_hex}})
+    MATCH (c:{dest_node.capitalize()} {{n_id: $event_id}})
+    MERGE (n)-[:MADE]->(c)
+    """
+
+    # Execute the query with the provided parameters
+    tx.run(query, npub_hex=npub_hex, event_id=event_id)
 
 
 def created_result_for_relationship(
@@ -349,8 +408,8 @@ def created_result_for_relationship(
     """
     # Define the Cypher query to create a relationship between the Request and Content nodes
     query = """
-    MATCH (r:Request {request_id: $request_orig_event_id})
-    MATCH (c:Content {content_id: $content_orig_event_id})
+    MATCH (r:Request {n_id: $request_orig_event_id})
+    MATCH (c:Content {n_id: $content_orig_event_id})
     MERGE (c)-[:RESULT_FOR]->(r)
     """
 
@@ -378,7 +437,7 @@ def created_feedback_for_relationship(
     """
     # Define the Cypher query to create a relationship between the Request and Feedback nodes
     query = """
-    MATCH (r:Request {request_id: $request_orig_event_id})
+    MATCH (r:Request {n_id: $request_orig_event_id})
     MATCH (f:Feedback {feedback_id: $feedback_orig_event_id})
     MERGE (f)-[:FEEDBACK_FOR]->(r)
     """
@@ -483,7 +542,7 @@ def process_notes_into_neo4j(mongo_db, neo4j_driver):
                 # )
                 # print("Run this query to see if the request and the npubs exist")
                 # print(
-                #     'MATCH (r:Request {request_id: "',
+                #     'MATCH (r:Request {n_id: "',
                 #     request_orig_event_id,
                 #     '"}) RETURN r',
                 # )
