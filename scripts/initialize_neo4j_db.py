@@ -218,6 +218,14 @@ def create_content(
     # Measure the size of the content in bytes
     byte_size = len(content.encode("utf-8"))
 
+    # TODO - put all data into the node properties like this:
+    #   Define the Cypher query to create a node with properties from the JSON document
+    #   query = """
+    #   MERGE (n:NPub {npub_hex: $npub_hex})
+    #   ON CREATE SET n = apoc.convert.fromJsonMap($json)
+    #   """
+    #   and then make sure to pass the json object as a parameter
+
     # Check if the content size is within the allowed limit
     if byte_size <= max_size:
         # Define the Cypher query to create a node with the given properties only if it does not exist

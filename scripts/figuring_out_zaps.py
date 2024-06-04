@@ -153,9 +153,13 @@ if __name__ == "__main__":
     for event in zap_events:
         if "pubkey" in event:
             if event["pubkey"] in all_dvm_npubs:
-                print(f"found zap receipt by a DVM: {event['pubkey']}")
+                print(f"\n======== Event: {event['id']}")
+                print(f"\tthis event was created by a DVM: {event['pubkey']}")
             elif event["pubkey"] in all_user_npubs:
-                print(f"found zap receipt by a user: {event['pubkey']}")
+                print(f"\n======== Event: {event['id']}")
+                print(f"\tthis event was created by a User: {event['pubkey']}")
+            else:
+                continue
 
         p_tag_value = next((tag[1] for tag in event["tags"] if tag[0] == "p"), None)
         upper_p_tag_value = next(
@@ -164,12 +168,12 @@ if __name__ == "__main__":
 
         if p_tag_value:
             if p_tag_value in all_dvm_npubs:
-                print(f"found zap receipt with 'p' tag of a DVM: {p_tag_value}")
+                print(f"\tfound 'p' tag of a DVM: {p_tag_value}")
             elif p_tag_value in all_user_npubs:
-                print(f"found zap receipt with 'p' tag of a user: {p_tag_value}")
+                print(f"\tfound 'p' tag of a user: {p_tag_value}")
 
         if upper_p_tag_value:
             if upper_p_tag_value in all_dvm_npubs:
-                print(f"found zap receipt with 'P' tag of a DVM: {upper_p_tag_value}")
+                print(f"\tfound 'P' tag of a DVM: {upper_p_tag_value}")
             elif upper_p_tag_value in all_user_npubs:
-                print(f"found zap receipt with 'P' tag of a user: {upper_p_tag_value}")
+                print(f"\tfound 'P' tag of a user: {upper_p_tag_value}")
