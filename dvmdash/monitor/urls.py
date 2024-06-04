@@ -14,7 +14,9 @@ urlpatterns = [
     path("debug/", views.debug, name="debug"),
     path("debug/<str:event_id>/", views.debug, name="debug"),
     path("recent/", views.recent, name="recent"),
-    path("api/graph/", views.get_graph_data, name="get_graph_data"),
+    path(
+        "api/graph/<str:request_event_id>", views.get_graph_data, name="get_graph_data"
+    ),
 ]
 
 handler404 = "monitor.views.custom_404"

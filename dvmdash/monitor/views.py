@@ -44,7 +44,6 @@ else:
 
 
 def metrics(request):
-    print("calling overview!")
     context = {}
 
     # get the number of events in the database
@@ -265,7 +264,7 @@ def metrics(request):
 
     print(f"Setting var num_dvm_kinds to {context['num_dvm_kinds']}")
 
-    template = loader.get_template("monitor/overview.html")
+    template = loader.get_template("monitor/metrics.html")
     return HttpResponse(template.render(context, request))
 
 
@@ -612,9 +611,6 @@ def debug(request, event_id=""):
 
     context["event_id"] = event["id"]
 
-    # now call neo 4j to get the graph data
-    # TODO
-
     template = loader.get_template("monitor/debug.html")
     return HttpResponse(template.render(context, request))
 
@@ -634,10 +630,25 @@ def custom_404(
     return render(request, "monitor/404.html", context, status=404)
 
 
-def get_graph_data(request):
+def get_graph_data(request, request_event_id=""):
     """
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
     """
-    query = "MATCH p=()-[:CREATED_FOR]->() RETURN p LIMIT 25"
+
+    # now call neo 4j to get the graph data
+    query = (
+        """
+        MATCH (r:Request {request_id: '"""
+        + request_event_id
+        + """'})-[rel*..1]-(connected)
+        RETURN r, connected, rel
+        """
+    )
+
+    print("Querying neo4j with query: ", query)
+
     data = neo4j_service.run_query(query)
+
+    print(f"Got data from neo4j: {data}")
+
     return JsonResponse(data, safe=False)

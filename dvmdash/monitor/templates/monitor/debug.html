@@ -58,7 +58,18 @@
     {%  if event_id %}
     {# Show the graph! #}
         <div id="graph"></div>
-  <p>This is some additional content that will be displayed below the graph.</p>
+  <p>(Work in Progress)!</p>
+        <table id="dataTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>URL</th>
+          <th>Created At</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
     {% else %}
     {# Show the input box #}
         <div class="container">
@@ -81,17 +92,20 @@
 
 <script>
   document.addEventListener("DOMContentLoaded", function() {
-    fetch('/api/graph')
+    fetch('/api/graph/{{ event_id }}')
       .then(response => response.json())
       .then(data => {
         const nodes = [];
         const links = [];
 
         data.forEach(item => {
-          const p = item.p;
-          const sourceNode = { id: p[0].request_id, label: p[0].content.substring(0, 25) };
-          const targetNode = { id: p[2].content_id, label: p[2].content.substring(0, 25) };
-          const link = { source: p[0].request_id, target: p[2].content_id, label: p[1] };
+          const r = item.r;
+          const connected = item.connected;
+          const rel = item.rel[0];
+
+          const sourceNode = { id: r.url, label: getLastChars(r.url) };
+          const targetNode = { id: connected.url, label: getLastChars(connected.url) };
+          const link = { source: sourceNode.id, target: targetNode.id, label: rel[1] };
 
           if (!nodes.find(node => node.id === sourceNode.id)) {
             nodes.push(sourceNode);
@@ -114,13 +128,6 @@
           .force("charge", d3.forceManyBody().strength(-200))
           .force("center", d3.forceCenter(width / 2, height / 2));
 
-        const colorMap = {
-          Feedback: "#89CFF0",
-          Request: "#FF7F50",
-          Content: "#90EE90",
-          NPub: "#9125d0"
-        };
-
         const link = svg.append("g")
           .attr("class", "links")
           .selectAll("line")
@@ -130,7 +137,7 @@
 
         const node = svg.append("g")
           .attr("class", "nodes")
-          .selectAll("circle")
+          .selectAll("g")
           .data(nodes)
           .enter()
           .append("g")
@@ -138,21 +145,12 @@
 
         node.append("circle")
           .attr("r", 20)
-          .attr("fill", d => colorMap[d.type] || "#999999"); // Default color
+          .attr("fill", "#999999");
 
         node.append("text")
-          .text(d => d.label);
-
-        node.on("dblclick", function(event, d) {
-            if (d.url) {
-                window.open(d.url, "_blank");
-            }
-        })
-
-        node.call(d3.drag()
-          .on("start", dragstarted)
-          .on("drag", dragged)
-          .on("end", dragended));
+          .text(d => d.label)
+          .attr("text-anchor", "middle")
+          .attr("dy", 5);
 
         simulation
           .nodes(nodes)
@@ -172,25 +170,38 @@
             .attr("transform", d => `translate(${d.x},${d.y})`);
         }
 
-        function dragstarted(event, d) {
-          if (!event.active) simulation.alphaTarget(0.3).restart();
-          d.fx = d.x;
-          d.fy = d.y;
+        function getLastChars(url) {
+          if (url) {
+            const lastChars = url.slice(-6);
+            return `...${lastChars}`;
+          }
+          return "";
         }
 
-        function dragged(event, d) {
-          d.fx = event.x;
-          d.fy = event.y;
-        }
+        // Sort nodes by created_at in descending order
+          nodes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-        function dragended(event, d) {
-          if (!event.active) simulation.alphaTarget(0);
-          d.fx = null;
-          d.fy = null;
-        }
-      })
-      .catch(error => console.error('Error fetching the data:', error));
-  });
+          // Populate the table with data
+          const tableBody = d3.select("#dataTable tbody");
+          tableBody.selectAll("tr")
+            .data(nodes)
+            .enter()
+            .append("tr")
+            .html(d => `
+              <td>${formatDateTime(d.created_at)}</td>
+              <td><a href="${d.id}" target="_blank">View Event</a></td>
+              <td>${d.content}</td>
+            `);
+        })
+        .catch(error => console.error('Error fetching the data:', error));
+    });
+
+    function formatDateTime(unixTimestamp) {
+      const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+      return new Date(unixTimestamp * 1000).toLocaleDateString(undefined, options);
+    }
+
+
 </script>
 
 {% endblock %}
