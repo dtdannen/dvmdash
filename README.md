@@ -14,6 +14,42 @@ https://dvmdash.live/
   - As of May 13th, 2024, Python 3.12 is unsupported
 - If you are only using scripts/ (i.e. listengin for DVM events, you should only need requirements_backend.txt)
 
+## Graph Structure
+
+![DVM_Process_Flow.png](docs%2FDVM_Process_Flow.png)
+
+The graph structure of events is stored in a Neo4j database.
+
+#### Nodes:
+
+- Entity:
+  - These have an npub, and contain all users and DVMs
+- Event:
+  - These are Nostr events signed by Entities
+- Invoice:
+  - Data that contains information for a payment. Events refer to these
+- Payment Receipt:
+  - Data showing a receipt of purchase, such as a zap receipt.
+
+#### Relationships:
+
+Note that these are the primitive relationships. There will be other, inferred relationships later based on the primitive ones.
+
+- MAKES_EVENT:  _# Used any time an entity makes an event_
+  - Entity -> Event
+- FEEDBACK_FOR:  _# Used to connect a DVM feedback event to the original request_
+  - Event -> Event
+- RESULT_FOR:  _# Used to connect a DVM result event to the original request_
+  - Event -> Event
+- HAS_INVOICE:  _# Used to connect a feedback event to an invoice_
+  - Event -> Invoice
+- HAS_RECEIPT:  _# Used to connect an invoice to a payment receipt_
+  - Invoice -> Payment Receipt
+- PAYMENT_FROM:  _# Used to connect a payment receipt to the entity that paid_
+  - Payment Receipt -> Entity
+- PAYMENT_TO:  _# Used to connect a payment receipt to the entity that received the payment_
+  - Payment Receipt -> Entity
+
 
 ## List of Relays to Watch for DVM Events
 
