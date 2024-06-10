@@ -40,3 +40,8 @@ if events:
         print(f"Error inserting events into the local Mongita database: {e}")
 else:
     print("No events found in the cloud database.")
+
+# print how many events are in the mongita db
+print(
+    f"There are {local_db['events'].count_documents({})} documents in events collection"
+)

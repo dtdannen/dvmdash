@@ -14,6 +14,16 @@ https://dvmdash.live/
   - As of May 13th, 2024, Python 3.12 is unsupported
 - If you are only using scripts/ (i.e. listengin for DVM events, you should only need requirements_backend.txt)
 
+## How to run this locally
+
+Run Mongita or a MongoDB locally
+
+Run Neo4j
+
+- See https://neo4j.com/docs/operations-manual/current/installation/
+- Once you have the tar file, you can run it with `./neo4j start`
+- Then check it's running in the web browser at `http://localhost:7474/`
+
 ## Graph Structure
 
 ![DVM_Process_Flow.png](docs%2FDVM_Process_Flow.png)
