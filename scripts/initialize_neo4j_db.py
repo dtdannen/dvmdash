@@ -25,6 +25,8 @@ from general.dvm import EventKind
 import certifi
 import time
 
+from general.graphdbsync import GraphDBSync
+
 
 def setup_logging():
     # Create a logs directory if it doesn't exist
@@ -129,7 +131,13 @@ def setup_databases():
 if __name__ == "__main__":
     mongo_db, neo4j_driver = setup_databases()
 
+    import logging
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.ERROR)
+    graph_sync = GraphDBSync(mongo_db, neo4j_driver, logger)
+
+    graph_sync.run()
+
     # delete_all_relationships(neo4j_driver)
     # delete_all_nodes(neo4j_driver)
-
-    process_notes_into_neo4j(mongo_db, neo4j_driver)
