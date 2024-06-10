@@ -35,7 +35,7 @@ class GraphDBSync:
                     pass
 
     def get_all_dvm_npubs(self):
-        for event in tqdm(self.response_events):
+        for event in tqdm(self.response_events.values()):
             if "pubkey" in event:
                 self.dvm_npubs.add(event["pubkey"])
 
@@ -101,7 +101,7 @@ class GraphDBSync:
             )
 
         # get all user nodes
-        for event in tqdm(self.request_events):
+        for event in tqdm(self.request_events.values()):
             if "pubkey" in event and event["pubkey"] not in self.dvm_npubs:
                 self.user_npubs.add(event["pubkey"])
 
@@ -170,14 +170,14 @@ class GraphDBSync:
                 json_string = json.dumps(node_data)
 
                 query = """
-                MERGE (n:NUSER {npub_hex: $npub_hex})
+                MERGE (n:User {npub_hex: $npub_hex})
                 """
                 # TODO - figure this out
                 # ON CREATE SET n = apoc.convert.fromJsonMap($json)
                 result = session.run(query, npub_hex=user_npub_hex, json=json_string)
 
                 self.logger.debug(
-                    f"Result {result} from creating DVM node: {user_npub_hex}"
+                    f"Result {result} from creating User node: {user_npub_hex}"
                 )
 
     def _create_event_node(self, session, original_event):
@@ -218,7 +218,7 @@ class GraphDBSync:
             else:
                 neo4j_event[k] = original_event[k]
 
-        # add debuging url
+        # add debugging url
         neo4j_event["url"] = f"https://dvmdash.live/event/{neo4j_event['id']}"
 
         # remove the mongo field
@@ -254,7 +254,7 @@ class GraphDBSync:
 
                 # create the relationship between the user and the event node
                 query = """
-                   MATCH (n:NUSER {npub_hex: $npub_hex})
+                   MATCH (n:User {npub_hex: $npub_hex})
                    MATCH (r:Event {event_id: $event_id})
                    MERGE (n)-[:MADE_EVENT]->(r)
                    """
@@ -393,18 +393,21 @@ class GraphDBSync:
 
     def run(self):
         # first get events
+        self.logger.info("Reading events from mongo db... ")
         self.get_all_dvm_nip89_profiles()
         self.get_all_request_events()
         self.get_all_response_events()
         self.get_all_feedback_events()
 
         # then start creating nodes
+        self.logger.info("Creating user and dvm nodes...")
         self.get_all_dvm_npubs()
         self.get_all_user_npubs()
         self.create_dvm_nodes()
         self.create_user_nodes()
 
         # start creating relations
+        self.logger.info("Creating relations...")
         self.create_user_request_relations()
         self.create_dvm_feedback_relations()
         self.create_dvm_response_relations()
