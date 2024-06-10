@@ -638,10 +638,11 @@ def get_graph_data(request, request_event_id=""):
     # now call neo 4j to get the graph data
     query = (
         """
-        MATCH (r:Request {request_id: '"""
+        MATCH (u:User)-[r1:MADE_EVENT]-(req:Event {event_id: '"""
         + request_event_id
-        + """'})-[rel*..1]-(connected)
-        RETURN r, connected, rel
+        + """'})
+        MATCH (d:DVM)-[r2:MADE_EVENT]-(feedback:Event)-[r3:FEEDBACK_FOR]-(req:Event)
+        RETURN u, d, r1, r2, r3, req, feedback LIMIT 50
         """
     )
 
