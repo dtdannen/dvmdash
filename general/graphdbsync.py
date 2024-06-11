@@ -136,9 +136,8 @@ class GraphDBSync:
 
                 query = """
                     MERGE (n:DVM {npub_hex: $npub_hex})
+                    ON CREATE SET n = apoc.convert.fromJsonMap($json)
                     """
-                # TODO add this later:
-                # ON CREATE SET n = apoc.convert.fromJsonMap($json)
                 result = session.run(query, npub_hex=npub_hex, json=json_string)
 
                 self.logger.debug(f"Result {result} from creating DVM node: {npub_hex}")
@@ -228,9 +227,8 @@ class GraphDBSync:
         # TODO - see if we can have an "event" type of Node and have sub nodes of "Request, Feedback, Response"
         query = """
         MERGE (n:Event {event_id: $event_id})
+        ON CREATE SET n = apoc.convert.fromJsonMap($json)
         """
-        # TODO - get all the features to work
-        #  ON CREATE SET n = apoc.convert.fromJsonMap($json)
         json_string = json.dumps(neo4j_event)
 
         result = session.run(query, event_id=neo4j_event["id"], json=json_string)
@@ -439,3 +437,7 @@ class GraphDBSync:
         with self.neo4j_driver.session() as session:
             session.run("MATCH (n) DELETE n")
             self.logger.info("Deleted all nodes in Neo4j")
+
+    def clear(self):
+        self.delete_all_neo4j_relationships()
+        self.delete_all_nodes()

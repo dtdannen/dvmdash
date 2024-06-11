@@ -24,6 +24,14 @@ Run Neo4j
 - Once you have the tar file, you can run it with `./neo4j start`
 - Then check it's running in the web browser at `http://localhost:7474/`
 
+
+### APOC Extension
+
+- Download the APOC library JAR file that matches your Neo4j version from the APOC releases page on GitHub: https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases
+- Copy the APOC JAR file to the plugins directory of your Neo4j installation. For example, if you're using Neo4j 4.x, the path would be neo4j-home/plugins/.
+- Open the neo4j.conf configuration file located in the conf directory of your Neo4j installation.
+- Uncomment or add the following line to the neo4j.conf file to enable the APOC library: `dbms.security.procedures.unrestricted=apoc.*`
+
 ## Graph Structure
 
 ![DVM_Process_Flow.png](docs%2FDVM_Process_Flow.png)

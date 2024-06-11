@@ -99,13 +99,13 @@
         const links = [];
 
         data.forEach(item => {
+          const n = item.n;
           const r = item.r;
-          const connected = item.connected;
-          const rel = item.rel[0];
+          const req = item.req;
 
-          const sourceNode = { id: r.url, label: getLastChars(r.url) };
-          const targetNode = { id: connected.url, label: getLastChars(connected.url) };
-          const link = { source: sourceNode.id, target: targetNode.id, label: rel[1] };
+          const sourceNode = { id: n.npub_hex || n.event_id, label: getLastChars(n.npub_hex || n.event_id) };
+          const targetNode = { id: req.event_id, label: getLastChars(req.event_id) };
+          const link = { source: sourceNode.id, target: targetNode.id, label: r[0][1] };
 
           if (!nodes.find(node => node.id === sourceNode.id)) {
             nodes.push(sourceNode);
@@ -182,26 +182,32 @@
           nodes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
           // Populate the table with data
-          const tableBody = d3.select("#dataTable tbody");
-          tableBody.selectAll("tr")
-            .data(nodes)
-            .enter()
-            .append("tr")
-            .html(d => `
-              <td>${formatDateTime(d.created_at)}</td>
-              <td><a href="${d.id}" target="_blank">View Event</a></td>
-              <td>${d.content}</td>
-            `);
-        })
-        .catch(error => console.error('Error fetching the data:', error));
-    });
+        const tableBody = d3.select("#dataTable tbody");
+        tableBody.selectAll("tr")
+          .data(nodes)
+          .enter()
+          .append("tr")
+          .html(d => `
+            <td>${d.id}</td>
+            <td><a href="https:/dvmdash.live/event/${d.id}" target="_blank">${d.label}</a></td>
+            <td>${formatDateTime(Date.now())}</td>
+          `);
+      })
+      .catch(error => console.error('Error fetching the data:', error));
+  });
 
-    function formatDateTime(unixTimestamp) {
-      const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
-      return new Date(unixTimestamp * 1000).toLocaleDateString(undefined, options);
+  function getLastChars(str) {
+    if (str) {
+      const lastChars = str.slice(-6);
+      return `...${lastChars}`;
     }
+    return "";
+  }
 
-
+  function formatDateTime(timestamp) {
+    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    return new Date(timestamp).toLocaleDateString(undefined, options);
+  }
 </script>
 
 {% endblock %}
