@@ -50,26 +50,47 @@
             background-color: #0056b3;
             border-color: #0056b3;
         }
+        .table-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    #dataTable {
+      width: 80%;
+      border-collapse: collapse;
+    }
+
+    #dataTable th,
+    #dataTable td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
     </style>
 {% endblock %}
 
 {% block content %}
 
-    {%  if event_id %}
-    {# Show the graph! #}
-        <div id="graph"></div>
-  <p>(Work in Progress)!</p>
-        <table id="dataTable">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>URL</th>
-          <th>Created At</th>
-        </tr>
-      </thead>
-      <tbody>
-      </tbody>
-    </table>
+    {% if event_id %}
+    <div id="graph"></div>
+    <p>(Work in Progress)!</p>
+    <div class="table-container">
+      <table id="dataTable">
+        <thead>
+          <tr>
+              <th>Creator</th>
+            <th>Kind</th>
+              <th>Brief Info</th>
+            <th>Event URL</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
     {% else %}
     {# Show the input box #}
         <div class="container">
@@ -94,26 +115,45 @@
   document.addEventListener("DOMContentLoaded", function() {
     fetch('/api/graph/{{ event_id }}')
       .then(response => response.json())
-      .then(data => {
+      .then(responseData => {
+        const data = responseData.data;
+        const eventNodes = responseData.event_nodes;
+
         const nodes = [];
         const links = [];
 
         data.forEach(item => {
-          const n = item.n;
-          const r = item.r;
-          const req = item.req;
+            const n = item.n;
+            const r = item.r;
+            const req = item.req;
 
-          const sourceNode = { id: n.npub_hex || n.event_id, label: getLastChars(n.npub_hex || n.event_id) };
-          const targetNode = { id: req.event_id, label: getLastChars(req.event_id) };
-          const link = { source: sourceNode.id, target: targetNode.id, label: r[0][1] };
+            const sourceNode = {
+              id: n.id,
+                pubkey: n.npub_hex || n.pubkey,
+              label: getLastChars(n.npub_hex || n.id),
+              kind: n.kind,
+                raw_created_at: n.created_at,
+                url: n.url,
+                quick_details: n.quick_details
+            };
+            const targetNode = {
+              id: req.id,
+                pubkey: req.npub_hex || req.pubkey,
+              label: getLastChars(req.id),
+              kind: req.kind,
+                raw_created_at: req.created_at,
+                url: req.url,
+                quick_details: req.quick_details
+            };
+            const link = { source: sourceNode.id, target: targetNode.id, label: r[0][1] };
 
-          if (!nodes.find(node => node.id === sourceNode.id)) {
-            nodes.push(sourceNode);
-          }
-          if (!nodes.find(node => node.id === targetNode.id)) {
-            nodes.push(targetNode);
-          }
-          links.push(link);
+            if (!nodes.find(node => node.id === sourceNode.id)) {
+              nodes.push(sourceNode);
+            }
+            if (!nodes.find(node => node.id === targetNode.id)) {
+              nodes.push(targetNode);
+            }
+            links.push(link);
         });
 
         const width = document.getElementById('graph').clientWidth;
@@ -170,27 +210,24 @@
             .attr("transform", d => `translate(${d.x},${d.y})`);
         }
 
-        function getLastChars(url) {
-          if (url) {
-            const lastChars = url.slice(-6);
-            return `...${lastChars}`;
-          }
-          return "";
-        }
+        // Process the 'eventNodes' for the table
+        const tableNodes = Object.values(eventNodes);
 
-        // Sort nodes by created_at in descending order
-          nodes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        // Sort tableNodes by created_at in ascending order
+        tableNodes.sort((a, b) => a.created_at - b.created_at);
 
-          // Populate the table with data
+        // Populate the table with data from 'eventNodes'
         const tableBody = d3.select("#dataTable tbody");
         tableBody.selectAll("tr")
-          .data(nodes)
+          .data(tableNodes)
           .enter()
           .append("tr")
           .html(d => `
-            <td>${d.id}</td>
-            <td><a href="https:/dvmdash.live/event/${d.id}" target="_blank">${d.label}</a></td>
-            <td>${formatDateTime(Date.now())}</td>
+            <td><a href="https://dvmdash.live/npub/${d.pubkey}">View ...${d.pubkey.slice(-6)}</a></td>
+            <td>${d.kind}</td>
+            <td>${d.quick_details}</td>
+            <td><a href="${d.url}" target="_blank">View</a></td>
+            <td>${formatTimestamp(d.created_at)}</td>
           `);
       })
       .catch(error => console.error('Error fetching the data:', error));
@@ -204,10 +241,43 @@
     return "";
   }
 
-  function formatDateTime(timestamp) {
-    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
-    return new Date(timestamp).toLocaleDateString(undefined, options);
-  }
+  function formatTimestamp(timestamp) {
+      const date = new Date(timestamp * 1000);
+
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+
+      const month = months[date.getMonth()];
+      const day = date.getDate();
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+
+      let daySuffix;
+      if (day >= 11 && day <= 13) {
+        daySuffix = 'th';
+      } else {
+        switch (day % 10) {
+          case 1:
+            daySuffix = 'st';
+            break;
+          case 2:
+            daySuffix = 'nd';
+            break;
+          case 3:
+            daySuffix = 'rd';
+            break;
+          default:
+            daySuffix = 'th';
+        }
+      }
+
+      return `${month} ${day}${daySuffix}, ${year} at ${hours}:${minutes}:${seconds}`;
+    }
+
 </script>
 
 {% endblock %}

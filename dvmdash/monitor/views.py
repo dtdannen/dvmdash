@@ -1,7 +1,10 @@
+import time
+
 from django.shortcuts import render
 from pymongo import MongoClient
 import os
 import sys
+import ast
 import dotenv
 from pathlib import Path
 from django.shortcuts import HttpResponse, redirect
@@ -638,7 +641,7 @@ def get_graph_data(request, request_event_id=""):
     # now call neo 4j to get the graph data
     query = (
         """
-        MATCH (req:Event {event_id: '"""
+        MATCH (req:Event {id: '"""
         + request_event_id
         + """'})
         OPTIONAL MATCH (n)-[r*]->(req)
@@ -650,6 +653,88 @@ def get_graph_data(request, request_event_id=""):
 
     data = neo4j_service.run_query(query)
 
-    print(f"Got data from neo4j: {data}")
+    # print("Got data from neo4j:")
+    # print(json.dumps(data, indent=2, sort_keys=True))
 
-    return JsonResponse(data, safe=False)
+    event_nodes = {}  # key is the event id, value is the event node
+    for record in data:
+        record_str = json.dumps(record, indent=2, sort_keys=True)
+        print(f"Record: {record_str}")
+        if "n" in record or "req" in record:
+            record_data = record["n"] if "n" in record else record["req"]
+
+            if "id" not in record_data:
+                continue
+
+            # see if there is a status tag
+            already_processed_quick_details = False
+
+            if "tags" in record_data:
+                # see if there is a content field
+                if not already_processed_quick_details and "content" in record_data:
+                    record_data["quick_details"] = record_data["content"]
+                    already_processed_quick_details = True
+
+                # see if there is an 'i' tag
+                if not already_processed_quick_details:
+                    try:
+                        tags = ast.literal_eval(tags_str)
+                        for tag in tags:
+                            print(f"Looking at tag: {tag}")
+                            if (
+                                isinstance(tag, list)
+                                and len(tag) >= 2
+                                and tag[0] == "i"
+                            ):
+                                record_data["quick_details"] = tag[1]
+                                already_processed_quick_details = True
+                                break
+                    except (ValueError, SyntaxError) as e:
+                        print(
+                            f"Error parsing tags for record {record_data['id']}: {str(e)}"
+                        )
+                        # Skip processing tags for this record and continue with the next one
+                        pass
+
+                tags_str = record_data["tags"]
+                try:
+                    tags = ast.literal_eval(tags_str)
+                    for tag in tags:
+                        print(f"Looking at tag: {tag}")
+                        if (
+                            isinstance(tag, list)
+                            and len(tag) >= 2
+                            and tag[0] == "status"
+                        ):
+                            record_data["quick_details"] = "status: " + tag[-1]
+                            already_processed_quick_details = True
+                            break
+                except (ValueError, SyntaxError) as e:
+                    print(
+                        f"Error parsing tags for record {record_data['id']}: {str(e)}"
+                    )
+                    # Skip processing tags for this record and continue with the next one
+                    pass
+
+            if record_data["id"] in event_nodes:
+                print(
+                    f"Warning, found existing event id for kind {record_data['kind']}"
+                )
+                time.sleep(1000)
+            event_nodes[record_data["id"]] = record_data
+    # remove unnecessary fields from the raw data if we won't use them to display the graph
+    # currently we only need the relation name so we ignore the duplicated data in the relation
+    # TODO - re-do this after we figure out what the graph needs to look like
+    # for record in data:
+    #     if "r" in record:
+    #         if len(record["r"]) == 3:
+    #             record["r"] = record["r"][1]
+    #         else:
+    #             print(
+    #                 f"Record has length {len(record['r'])} instead of 3, investigate:"
+    #             )
+    #             print(json.dumps(record, indent=2, sort_keys=True))
+
+    response_data = {"data": data, "event_nodes": list(event_nodes.values())}
+
+    return JsonResponse(response_data, safe=False)

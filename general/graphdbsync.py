@@ -234,7 +234,7 @@ class GraphDBSync:
         # create the event node
         # TODO - see if we can have an "event" type of Node and have sub nodes of "Request, Feedback, Response"
         query = """
-        MERGE (n:Event {event_id: $event_id})
+        MERGE (n:Event {id: $event_id})
         ON CREATE SET n = apoc.convert.fromJsonMap($json)
         """
 
@@ -260,7 +260,7 @@ class GraphDBSync:
                 # create the relationship between the user and the event node
                 query = """
                    MATCH (n:User {npub_hex: $npub_hex})
-                   MATCH (r:Event {event_id: $event_id})
+                   MATCH (r:Event {id: $event_id})
                    MERGE (n)-[:MADE_EVENT]->(r)
                    """
 
@@ -287,7 +287,7 @@ class GraphDBSync:
                 # create the relationship between the dvm and the feedback node
                 query = """
                    MATCH (n:DVM {npub_hex: $npub_hex})
-                   MATCH (r:Event {event_id: $event_id})
+                   MATCH (r:Event {id: $event_id})
                    MERGE (n)-[:MADE_EVENT]->(r)
                    """
 
@@ -319,8 +319,8 @@ class GraphDBSync:
 
                 # create the relationship between the feedback and the original request node
                 query = """
-                   MATCH (feedback:Event {event_id: $feedback_event_id})
-                   MATCH (request:Event {event_id: $request_event_id})
+                   MATCH (feedback:Event {id: $feedback_event_id})
+                   MATCH (request:Event {id: $request_event_id})
                    MERGE (feedback)-[:FEEDBACK_FOR]->(request)
                    """
 
@@ -349,7 +349,7 @@ class GraphDBSync:
                 # create the relationship between the dvm and the response event node
                 query = """
                    MATCH (n:DVM {npub_hex: $npub_hex})
-                   MATCH (r:Event {event_id: $event_id})
+                   MATCH (r:Event {id: $event_id})
                    MERGE (n)-[:MADE_EVENT]->(r)
                    """
 
@@ -380,8 +380,8 @@ class GraphDBSync:
                     continue
 
                 query = """
-                   MATCH (response:Event {event_id: $response_event_id})
-                   MATCH (request:Event {event_id: $request_event_id})
+                   MATCH (response:Event {id: $response_event_id})
+                   MATCH (request:Event {id: $request_event_id})
                    MERGE (response)-[:RESULT_FOR]->(request)
                    """
 
