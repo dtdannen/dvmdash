@@ -27,7 +27,7 @@ Run Neo4j
 
 ### APOC Extension
 
-- Download the APOC library JAR file that matches your Neo4j version from the APOC releases page on GitHub: https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases
+- Download the APOC library JAR file that matches your Neo4j version from the APOC releases page on GitHub: https://github.com/neo4j/apoc/releases
 - Copy the APOC JAR file to the plugins directory of your Neo4j installation. For example, if you're using Neo4j 4.x, the path would be neo4j-home/plugins/.
 - Open the neo4j.conf configuration file located in the conf directory of your Neo4j installation.
 - Uncomment or add the following line to the neo4j.conf file to enable the APOC library: `dbms.security.procedures.unrestricted=apoc.*`
