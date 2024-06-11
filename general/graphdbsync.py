@@ -132,6 +132,8 @@ class GraphDBSync:
 
                     node_data.update(profile)
 
+                node_data = helpers.sanitize_json(node_data)
+
                 json_string = json.dumps(node_data)
 
                 query = """
@@ -212,6 +214,10 @@ class GraphDBSync:
 
         # now check if any field is big so we can replace with a short message
         for k, v in original_event.items():
+            if k == "_id":
+                # this is the mongo id, we don't need this
+                continue
+
             if len(str(original_event[k]).encode("utf-8")) > self.MAX_FIELD_SIZE:
                 neo4j_event[k] = "<data not shown b/c too big, see original event>"
             else:
@@ -220,8 +226,10 @@ class GraphDBSync:
         # add debugging url
         neo4j_event["url"] = f"https://dvmdash.live/event/{neo4j_event['id']}"
 
-        # remove the mongo field
-        del neo4j_event["_id"]
+        # sanitize it by only keeping top level values as fields
+        neo4j_event = helpers.sanitize_json(neo4j_event)
+
+        json_string = json.dumps(neo4j_event)
 
         # create the event node
         # TODO - see if we can have an "event" type of Node and have sub nodes of "Request, Feedback, Response"
@@ -229,7 +237,6 @@ class GraphDBSync:
         MERGE (n:Event {event_id: $event_id})
         ON CREATE SET n = apoc.convert.fromJsonMap($json)
         """
-        json_string = json.dumps(neo4j_event)
 
         result = session.run(query, event_id=neo4j_event["id"], json=json_string)
 
