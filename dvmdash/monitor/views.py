@@ -633,6 +633,72 @@ def custom_404(
     return render(request, "monitor/404.html", context, status=404)
 
 
+def _get_row_data_from_event_dict(event_dict):
+    """
+    Helper function to parse results from neo4j
+
+    Adds a 'quick_details' field to the event_dict if it doesn't already exist
+
+    Returns the event id followed by the full event
+    """
+
+    if "id" not in event_dict:
+        return None, event_dict
+
+    already_processed_quick_details = False
+
+    # if the kind is 7000, use the status field
+    if (
+        not already_processed_quick_details
+        and "kind" in event_dict
+        and event_dict["kind"] == 7000
+    ):
+        tags_str = event_dict["tags"]
+        try:
+            tags = ast.literal_eval(tags_str)
+            for tag in tags:
+                print(f"Looking at tag: {tag}")
+                if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "status":
+                    event_dict["quick_details"] = "status: " + tag[-1]
+                    already_processed_quick_details = True
+                    break
+        except (ValueError, SyntaxError) as e:
+            print(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
+            # Skip processing tags for this record and continue with the next one
+            pass
+
+    # use "content" field if it exists
+    if not already_processed_quick_details:
+        if "content" in event_dict and len(event_dict["content"]) > 0:
+            event_dict["quick_details"] = event_dict["content"]
+            already_processed_quick_details = True
+
+    # as a last resort, try the 'i' tag
+    if not already_processed_quick_details:
+        tags_str = event_dict["tags"]
+        try:
+            tags = ast.literal_eval(tags_str)
+            for tag in tags:
+                print(f"Looking at tag: {tag}")
+                if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "i":
+                    event_dict["quick_details"] = tag[1]
+                    already_processed_quick_details = True
+                    break
+        except (ValueError, SyntaxError) as e:
+            print(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
+            # Skip processing tags for this record and continue with the next one
+            pass
+
+    if already_processed_quick_details:
+        # check to see if the value is a link and if so, make a url
+        if event_dict["quick_details"].startswith("http"):
+            event_dict[
+                "quick_details"
+            ] = f'<a href="{event_dict["quick_details"]}">Link</a>'
+
+    return event_dict["id"], event_dict
+
+
 def get_graph_data(request, request_event_id=""):
     """
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
@@ -660,80 +726,15 @@ def get_graph_data(request, request_event_id=""):
     for record in data:
         record_str = json.dumps(record, indent=2, sort_keys=True)
         print(f"Record: {record_str}")
-        if "n" in record or "req" in record:
-            record_data = record["n"] if "n" in record else record["req"]
+        if "n" in record:
+            event_id, event_data = _get_row_data_from_event_dict(record["n"])
+            if event_id and event_id not in event_nodes.keys():
+                event_nodes[event_id] = event_data
 
-            if "id" not in record_data:
-                continue
-
-            # see if there is a status tag
-            already_processed_quick_details = False
-
-            if "tags" in record_data:
-                # see if there is a content field
-                if not already_processed_quick_details and "content" in record_data:
-                    record_data["quick_details"] = record_data["content"]
-                    already_processed_quick_details = True
-
-                # see if there is an 'i' tag
-                if not already_processed_quick_details:
-                    try:
-                        tags = ast.literal_eval(tags_str)
-                        for tag in tags:
-                            print(f"Looking at tag: {tag}")
-                            if (
-                                isinstance(tag, list)
-                                and len(tag) >= 2
-                                and tag[0] == "i"
-                            ):
-                                record_data["quick_details"] = tag[1]
-                                already_processed_quick_details = True
-                                break
-                    except (ValueError, SyntaxError) as e:
-                        print(
-                            f"Error parsing tags for record {record_data['id']}: {str(e)}"
-                        )
-                        # Skip processing tags for this record and continue with the next one
-                        pass
-
-                tags_str = record_data["tags"]
-                try:
-                    tags = ast.literal_eval(tags_str)
-                    for tag in tags:
-                        print(f"Looking at tag: {tag}")
-                        if (
-                            isinstance(tag, list)
-                            and len(tag) >= 2
-                            and tag[0] == "status"
-                        ):
-                            record_data["quick_details"] = "status: " + tag[-1]
-                            already_processed_quick_details = True
-                            break
-                except (ValueError, SyntaxError) as e:
-                    print(
-                        f"Error parsing tags for record {record_data['id']}: {str(e)}"
-                    )
-                    # Skip processing tags for this record and continue with the next one
-                    pass
-
-            if record_data["id"] in event_nodes:
-                print(
-                    f"Warning, found existing event id for kind {record_data['kind']}"
-                )
-                time.sleep(1000)
-            event_nodes[record_data["id"]] = record_data
-    # remove unnecessary fields from the raw data if we won't use them to display the graph
-    # currently we only need the relation name so we ignore the duplicated data in the relation
-    # TODO - re-do this after we figure out what the graph needs to look like
-    # for record in data:
-    #     if "r" in record:
-    #         if len(record["r"]) == 3:
-    #             record["r"] = record["r"][1]
-    #         else:
-    #             print(
-    #                 f"Record has length {len(record['r'])} instead of 3, investigate:"
-    #             )
-    #             print(json.dumps(record, indent=2, sort_keys=True))
+        if "req" in record:
+            event_id, event_data = _get_row_data_from_event_dict(record["req"])
+            if event_id and event_id not in event_nodes.keys():
+                event_nodes[event_id] = event_data
 
     response_data = {"data": data, "event_nodes": list(event_nodes.values())}
 
