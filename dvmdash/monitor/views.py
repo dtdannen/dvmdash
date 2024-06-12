@@ -711,7 +711,7 @@ def get_graph_data(request, request_event_id=""):
         + request_event_id
         + """'})
         OPTIONAL MATCH (n)-[r*]->(req)
-        RETURN n, r, req
+        RETURN n, labels(n) AS n_type, r, req, labels(req) AS req_type
         """
     )
 
@@ -730,11 +730,15 @@ def get_graph_data(request, request_event_id=""):
             event_id, event_data = _get_row_data_from_event_dict(record["n"])
             if event_id and event_id not in event_nodes.keys():
                 event_nodes[event_id] = event_data
+            if "n_type" in record:
+                event_data["neo4j_node_type"] = record["n_type"]
 
         if "req" in record:
             event_id, event_data = _get_row_data_from_event_dict(record["req"])
             if event_id and event_id not in event_nodes.keys():
                 event_nodes[event_id] = event_data
+            if "req_type" in record:
+                event_data["neo4j_node_type"] = record["req_type"]
 
     response_data = {"data": data, "event_nodes": list(event_nodes.values())}
 

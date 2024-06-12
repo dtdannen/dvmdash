@@ -75,7 +75,6 @@
 
     {% if event_id %}
     <div id="graph"></div>
-    <p>(Work in Progress)!</p>
     <div class="table-container">
       <table id="dataTable">
         <thead>
@@ -134,7 +133,8 @@
               kind: n.kind,
                 raw_created_at: n.created_at,
                 url: n.url,
-                quick_details: n.quick_details
+                quick_details: n.quick_details,
+                node_type: n.neo4j_node_type
             };
             const targetNode = {
               id: req.id,
@@ -143,7 +143,8 @@
               kind: req.kind,
                 raw_created_at: req.created_at,
                 url: req.url,
-                quick_details: req.quick_details
+                quick_details: req.quick_details,
+                node_type: req.neo4j_node_type
             };
             const link = { source: sourceNode.id, target: targetNode.id, label: r[0][1] };
 
@@ -156,6 +157,9 @@
             links.push(link);
         });
 
+        // log how many nodes and links there are
+        console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
+
         const width = document.getElementById('graph').clientWidth;
         const height = document.getElementById('graph').clientHeight;
 
@@ -163,9 +167,15 @@
           .attr("width", width)
           .attr("height", height);
 
+        // log the width and height
+        console.log(`Width: ${width}, Height: ${height}`);
+
+
+
+
         const simulation = d3.forceSimulation(nodes)
           .force("link", d3.forceLink(links).id(d => d.id))
-          .force("charge", d3.forceManyBody().strength(-200))
+          .force("charge", d3.forceManyBody().strength(-1500))
           .force("center", d3.forceCenter(width / 2, height / 2));
 
         const link = svg.append("g")
@@ -184,16 +194,14 @@
           .attr("class", "node");
 
         node.append("circle")
-          .attr("r", 20)
-          .attr("fill", "#999999");
+          .attr("r", 30)
+          .attr("fill", d => getNodeColor(d));
 
         node.append("text")
-          .text(d => d.label)
-          .attr("text-anchor", "middle")
-          .attr("dy", 5);
+          .text(d => getNodeLabel(d))
+          .attr("text-anchor", "middle");
 
-        simulation
-          .nodes(nodes)
+        simulation.nodes(nodes)
           .on("tick", ticked);
 
         simulation.force("link")
@@ -277,6 +285,32 @@
 
       return `${month} ${day}${daySuffix}, ${year} at ${hours}:${minutes}:${seconds}`;
     }
+
+    function getNodeLabel(node) {
+  if (node.kind >= 5000 && node.kind <= 5999) {
+    return "Request";
+  } else if (node.kind === 7000) {
+    return "Feedback";
+  } else if (node.kind >= 6000 && node.kind <= 6999) {
+    return "Result";
+  } else if (!node.kind && node.node_type === "User") {
+    return "User";
+  }
+  return "";
+}
+
+function getNodeColor(node) {
+  if (node.kind >= 5000 && node.kind <= 5999) {
+    return "green";
+  } else if (node.kind === 7000) {
+    return "lightblue";
+  } else if (node.kind >= 6000 && node.kind <= 6999) {
+    return "pink";
+  } else if (!node.kind && node.node_type === "User") {
+    return "darkblue";
+  }
+  return "#999999";
+}
 
 </script>
 
