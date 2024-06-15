@@ -719,26 +719,44 @@ def get_graph_data(request, request_event_id=""):
 
     data = neo4j_service.run_query(query)
 
+    # process the data so it's in an easy format for forming into a graph
+    node_relations = []
+
     # print("Got data from neo4j:")
     # print(json.dumps(data, indent=2, sort_keys=True))
 
     event_nodes = {}  # key is the event id, value is the event node
     for record in data:
-        record_str = json.dumps(record, indent=2, sort_keys=True)
-        print(f"Record: {record_str}")
-        if "n" in record:
-            event_id, event_data = _get_row_data_from_event_dict(record["n"])
-            if event_id and event_id not in event_nodes.keys():
-                event_nodes[event_id] = event_data
-            if "n_type" in record:
-                event_data["neo4j_node_type"] = record["n_type"]
+        if "n" not in record:
+            print("WARNING!!!! 'n' is not in record:")
+            record_str = json.dumps(record, indent=2, sort_keys=True)
+            print(f"Record: {record_str}")
+            continue
 
-        if "req" in record:
-            event_id, event_data = _get_row_data_from_event_dict(record["req"])
-            if event_id and event_id not in event_nodes.keys():
-                event_nodes[event_id] = event_data
-            if "req_type" in record:
-                event_data["neo4j_node_type"] = record["req_type"]
+        if "req" not in record:
+            print("WARNING!!!! 'req' is not in record:")
+            record_str = json.dumps(record, indent=2, sort_keys=True)
+            print(f"Record: {record_str}")
+            continue
+
+        n_event_id, n_event_data = _get_row_data_from_event_dict(record["n"])
+        if n_event_id and n_event_id not in event_nodes.keys():
+            event_nodes[n_event_id] = n_event_data
+        if "n_type" in record:
+            n_event_data["neo4j_node_type"] = record["n_type"]
+
+        req_event_id, req_event_data = _get_row_data_from_event_dict(record["req"])
+        if req_event_id and req_event_id not in event_nodes.keys():
+            event_nodes[req_event_id] = req_event_data
+        if "req_type" in record:
+            req_event_data["neo4j_node_type"] = record["req_type"]
+
+        for relation in record["r"]:
+            lhs = relation[0]
+            relation_name = relation[1]
+            rhs = relation[2]
+
+            # if the
 
     response_data = {"data": data, "event_nodes": list(event_nodes.values())}
 

@@ -118,6 +118,7 @@ class GraphDBSync:
                     "npub_hex": npub_hex,
                     "npub": npub,
                     "url": "https://dvmdash.live/dvm/" + npub,
+                    "node_type": "DVM",
                 }
 
                 # If a profile exists, add its properties to the JSON document
@@ -155,6 +156,7 @@ class GraphDBSync:
                     "npub_hex": user_npub_hex,
                     "npub": npub,
                     "url": "https://dvmdash.live/npub/" + npub,
+                    "node_type": "User",
                 }
 
                 if profile:
@@ -184,7 +186,7 @@ class GraphDBSync:
     def _create_event_node(self, session, original_event):
         # replace any fields that are too big with a "<data not shown b/c too big, see original event>"
         # TODO - check if we can make this faster, probably inefficient
-        neo4j_event = {}
+        neo4j_event = {"node_type": "Event"}
 
         # start checking special cases
         has_encrypted_tag = next(

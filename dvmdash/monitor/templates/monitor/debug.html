@@ -118,44 +118,55 @@
         const data = responseData.data;
         const eventNodes = responseData.event_nodes;
 
-        const nodes = [];
+        const nodeMap = new Map();
         const links = [];
 
         data.forEach(item => {
-            const n = item.n;
-            const r = item.r;
-            const req = item.req;
+          const n = item.n;
+          const r = item.r;
+          const req = item.req;
 
-            const sourceNode = {
+          if (!nodeMap.has(n.id)) {
+            nodeMap.set(n.id, {
               id: n.id,
-                pubkey: n.npub_hex || n.pubkey,
+              pubkey: n.npub_hex || n.pubkey,
               label: getLastChars(n.npub_hex || n.id),
               kind: n.kind,
-                raw_created_at: n.created_at,
-                url: n.url,
-                quick_details: n.quick_details,
-                node_type: n.neo4j_node_type
-            };
-            const targetNode = {
+              raw_created_at: n.created_at,
+              url: n.url,
+              quick_details: n.quick_details,
+              node_type: n.neo4j_node_type,
+              parentId: null,
+              children: []
+            });
+          }
+
+          if (!nodeMap.has(req.id)) {
+            nodeMap.set(req.id, {
               id: req.id,
-                pubkey: req.npub_hex || req.pubkey,
+              pubkey: req.npub_hex || req.pubkey,
               label: getLastChars(req.id),
               kind: req.kind,
-                raw_created_at: req.created_at,
-                url: req.url,
-                quick_details: req.quick_details,
-                node_type: req.neo4j_node_type
-            };
-            const link = { source: sourceNode.id, target: targetNode.id, label: r[0][1] };
+              raw_created_at: req.created_at,
+              url: req.url,
+              quick_details: req.quick_details,
+              node_type: req.neo4j_node_type,
+              parentId: n.id,
+              children: []
+            });
+          } else {
+            console.log("overwriting node: ", req.id, " parent was ", nodeMap.get(req.id).parentId, " now is ", n.id);
+            nodeMap.get(req.id).parentId = n.id;
+          }
 
-            if (!nodes.find(node => node.id === sourceNode.id)) {
-              nodes.push(sourceNode);
-            }
-            if (!nodes.find(node => node.id === targetNode.id)) {
-              nodes.push(targetNode);
-            }
-            links.push(link);
+          nodeMap.get(n.id).children.push(req.id);
+          links.push({ source: n.id, target: req.id });
+
+            // Display the connection between nodes based on their kind values
+            console.log(`${getNodeKind(n)} -> ${getNodeKind(req)}`);
         });
+
+        const nodes = Array.from(nodeMap.values());
 
         // log how many nodes and links there are
         console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
@@ -170,28 +181,28 @@
         // log the width and height
         console.log(`Width: ${width}, Height: ${height}`);
 
-
-
-
-        const simulation = d3.forceSimulation(nodes)
-          .force("link", d3.forceLink(links).id(d => d.id))
-          .force("charge", d3.forceManyBody().strength(-1500))
-          .force("center", d3.forceCenter(width / 2, height / 2));
+        const treeLayout = d3.tree().size([height, width - 200]);
+        const root = d3.stratify()
+          .id(d => d.id)
+          .parentId(d => d.parentId)(nodes);
+        treeLayout(root);
 
         const link = svg.append("g")
           .attr("class", "links")
-          .selectAll("line")
-          .data(links)
-          .enter().append("line")
-          .attr("stroke-width", 2);
+          .selectAll("path")
+          .data(root.links())
+          .enter().append("path")
+          .attr("d", d3.linkHorizontal()
+            .x(d => d.y)
+            .y(d => d.x));
 
         const node = svg.append("g")
           .attr("class", "nodes")
           .selectAll("g")
-          .data(nodes)
+          .data(root.descendants())
           .enter()
           .append("g")
-          .attr("class", "node");
+          .attr("transform", d => `translate(${d.y},${d.x})`);
 
         node.append("circle")
           .attr("r", 30)
@@ -201,22 +212,6 @@
           .text(d => getNodeLabel(d))
           .attr("text-anchor", "middle");
 
-        simulation.nodes(nodes)
-          .on("tick", ticked);
-
-        simulation.force("link")
-          .links(links);
-
-        function ticked() {
-          link
-            .attr("x1", d => d.source.x)
-            .attr("y1", d => d.source.y)
-            .attr("x2", d => d.target.x)
-            .attr("y2", d => d.target.y);
-
-          node
-            .attr("transform", d => `translate(${d.x},${d.y})`);
-        }
 
         // Process the 'eventNodes' for the table
         const tableNodes = Object.values(eventNodes);
@@ -297,6 +292,24 @@
     return "User";
   }
   return "";
+}
+
+// Helper function to get the kind value or a default value if kind is not available
+function getNodeKind(node) {
+  if (node.kind >= 5000 && node.kind <= 5999) {
+    return "Request " + node.kind;
+  } else if (node.kind === 7000) {
+    return "Feedback " + node.kind;
+  } else if (node.kind >= 6000 && node.kind <= 6999) {
+    return "Result " + node.kind;
+  } else if (!node.kind) {
+      console.log("Missing kind node details: ", node)
+      if (node.neo4j_node_type && node.neo4j_node_type.includes("User")) {
+          return "User " + node.npub_hex[-6];
+      } else {
+        return "Unknown ";
+      }
+  }
 }
 
 function getNodeColor(node) {
