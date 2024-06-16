@@ -1,5 +1,7 @@
 import json
 
+import neo4j
+
 from general import helpers
 from general.dvm import EventKind
 from tqdm import tqdm
@@ -22,6 +24,7 @@ class GraphDBSync:
         """
         Get all DVM NIP-89 profiles from the MongoDB database.
         """
+        self.logger.info("Loading DVM NIP-89 profiles from MongoDB...")
         for nip89_event in tqdm(self.mongo_db.events.find({"kind": 31990})):
             if "pubkey" in nip89_event:
                 try:
@@ -35,6 +38,7 @@ class GraphDBSync:
                     pass
 
     def get_all_dvm_npubs(self):
+        self.logger.info("Getting all DVM npubs...")
         for event in tqdm(self.response_events.values()):
             if "pubkey" in event:
                 self.dvm_npubs.add(event["pubkey"])
@@ -44,6 +48,7 @@ class GraphDBSync:
             self.dvm_npubs.add(dvm_pubkey)
 
     def get_all_request_events(self):
+        self.logger.info("Getting all request events...")
         request_events_ls = list(
             self.mongo_db.events.find(
                 {
@@ -64,6 +69,7 @@ class GraphDBSync:
         )
 
     def get_all_feedback_events(self):
+        self.logger.info("Getting all feedback events...")
         feedback_events_ls = list(self.mongo_db.events.find({"kind": 7000}))
 
         for event in tqdm(feedback_events_ls):
@@ -74,6 +80,7 @@ class GraphDBSync:
         )
 
     def get_all_response_events(self):
+        self.logger.info("Getting all response events...")
         response_events_ls = list(
             self.mongo_db.events.find(
                 {
@@ -94,6 +101,7 @@ class GraphDBSync:
         )
 
     def get_all_user_npubs(self):
+        self.logger.info("Getting all user npubs...")
         # first get all dvm nodes
         if len(self.dvm_npubs) == 0:
             self.logger.warning(
@@ -106,6 +114,7 @@ class GraphDBSync:
                 self.user_npubs.add(event["pubkey"])
 
     def create_dvm_nodes(self):
+        self.logger.info("Creating DVM nodes...")
         with self.neo4j_driver.session() as session:
             for npub_hex in tqdm(self.dvm_npubs):
                 npub = helpers.hex_to_npub(npub_hex)
@@ -118,7 +127,7 @@ class GraphDBSync:
                     "npub_hex": npub_hex,
                     "npub": npub,
                     "url": "https://dvmdash.live/dvm/" + npub,
-                    "node_type": "DVM",
+                    "neo4j_node_type": "DVM",
                 }
 
                 # If a profile exists, add its properties to the JSON document
@@ -140,12 +149,28 @@ class GraphDBSync:
                 query = """
                     MERGE (n:DVM {npub_hex: $npub_hex})
                     ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                    RETURN n
                     """
                 result = session.run(query, npub_hex=npub_hex, json=json_string)
 
-                self.logger.debug(f"Result {result} from creating DVM node: {npub_hex}")
+                record = result.single()
+                if record is None:
+                    self.logger.error(
+                        f"Failed to create or match node for npub_hex: {npub_hex}"
+                    )
+                else:
+                    node = record["n"]
+                    if "DVM" not in node.labels:
+                        self.logger.warning(
+                            f"Node {node.id} was created without the 'DVM' label for npub_hex: {npub_hex}"
+                        )
+                    else:
+                        self.logger.debug(
+                            f"Node {node.id} was created or matched with the 'DVM' label for npub_hex: {npub_hex}"
+                        )
 
     def create_user_nodes(self):
+        self.logger.info("Creating User nodes...")
         with self.neo4j_driver.session() as session:
             for user_npub_hex in tqdm(self.user_npubs):
                 npub = helpers.hex_to_npub(user_npub_hex)
@@ -156,7 +181,7 @@ class GraphDBSync:
                     "npub_hex": user_npub_hex,
                     "npub": npub,
                     "url": "https://dvmdash.live/npub/" + npub,
-                    "node_type": "User",
+                    "neo4j_node_type": "User",
                 }
 
                 if profile:
@@ -174,19 +199,34 @@ class GraphDBSync:
 
                 query = """
                 MERGE (n:User {npub_hex: $npub_hex})
+                ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                RETURN n
                 """
                 # TODO - figure this out
                 # ON CREATE SET n = apoc.convert.fromJsonMap($json)
                 result = session.run(query, npub_hex=user_npub_hex, json=json_string)
 
-                self.logger.debug(
-                    f"Result {result} from creating User node: {user_npub_hex}"
-                )
+                record = result.single()
+                if record is None:
+                    self.logger.error(
+                        f"Failed to create or match node for npub_hex: {user_npub_hex}"
+                    )
+                else:
+                    node = record["n"]
+                    if "User" not in node.labels:
+                        self.logger.warning(
+                            f"Node {node.id} was created without the 'User' label for npub_hex: {user_npub_hex}"
+                        )
+                    else:
+                        self.logger.debug(
+                            f"Node {node.id} was created or matched with the 'User' label for npub_hex: {user_npub_hex}"
+                        )
 
     def _create_event_node(self, session, original_event):
         # replace any fields that are too big with a "<data not shown b/c too big, see original event>"
         # TODO - check if we can make this faster, probably inefficient
-        neo4j_event = {"node_type": "Event"}
+        neo4j_event = {"neo4j_node_type": "Event"}
 
         # start checking special cases
         has_encrypted_tag = next(
@@ -234,21 +274,32 @@ class GraphDBSync:
         json_string = json.dumps(neo4j_event)
 
         # create the event node
-        # TODO - see if we can have an "event" type of Node and have sub nodes of "Request, Feedback, Response"
         query = """
         MERGE (n:Event {id: $event_id})
         ON CREATE SET n = apoc.convert.fromJsonMap($json)
+        ON MATCH SET n += apoc.convert.fromJsonMap($json)
+        RETURN n
         """
 
         result = session.run(query, event_id=neo4j_event["id"], json=json_string)
 
-        self.logger.debug(
-            f"Result {result} from creating request node: {neo4j_event['id']}"
-        )
+        # Check if the created node has the expected label
+        node = result.single()["n"]
+        if "Event" not in node.labels:
+            self.logger.warning(
+                f"Node {node.id} was created !without! the 'Event' label for npub_hex: {original_event['pubkey']}"
+            )
+        else:
+            self.logger.debug(
+                f"Node {node.id} was created with the 'Event' label for npub_hex: {original_event['pubkey']}"
+            )
 
         return True
 
     def create_user_request_relations(self):
+        self.logger.info(
+            "Creating MADE_EVENT relationships between Users and Request events..."
+        )
         with self.neo4j_driver.session() as session:
             for event in tqdm(self.request_events.values()):
                 # get the user's npub_hex
@@ -261,19 +312,32 @@ class GraphDBSync:
 
                 # create the relationship between the user and the event node
                 query = """
-                   MATCH (n:User {npub_hex: $npub_hex})
-                   MATCH (r:Event {id: $event_id})
-                   MERGE (n)-[:MADE_EVENT]->(r)
-                   """
+                    MATCH (n:User {npub_hex: $npub_hex})
+                    MATCH (r:Event {id: $event_id})
+                    MERGE (n)-[rel:MADE_EVENT]->(r)
+                    RETURN rel
+                    """
 
-                result = session.run(
-                    query, npub_hex=user_npub_hex, event_id=event["id"]
-                )
+                try:
+                    result = session.run(
+                        query, npub_hex=user_npub_hex, event_id=event["id"]
+                    )
 
-                self.logger.debug(
-                    f"Result {result} from creating MADE_EVENT relationship"
-                    f" between User {user_npub_hex} and Request event {event['id']}"
-                )
+                    record = result.single()
+                    if record is None:
+                        self.logger.error(
+                            f"Failed to create MADE_EVENT relationship between User {user_npub_hex} and Request event {event['id']}. "
+                            "One or both nodes may not exist."
+                        )
+                    else:
+                        relationship = record["rel"]
+                        self.logger.debug(
+                            f"Created MADE_EVENT relationship between User {user_npub_hex} and Request event {event['id']}"
+                        )
+                except neo4j.exceptions.Neo4jError as e:
+                    self.logger.error(
+                        f"Error occurred while creating MADE_EVENT relationship between User {user_npub_hex} and Request event {event['id']}: {str(e)}"
+                    )
 
     def create_dvm_feedback_relations(self):
         with self.neo4j_driver.session() as session:
@@ -290,10 +354,17 @@ class GraphDBSync:
                 query = """
                    MATCH (n:DVM {npub_hex: $npub_hex})
                    MATCH (r:Event {id: $event_id})
-                   MERGE (n)-[:MADE_EVENT]->(r)
+                   MERGE (n)-[rel:MADE_EVENT]->(r)
+                   RETURN rel
                    """
 
                 result = session.run(query, npub_hex=dvm_npub_hex, event_id=event["id"])
+
+                record = result.single()
+                if record is None:
+                    self.logger.error(
+                        f"Failed to create MADE_EVENT relationship between DVM {dvm_npub_hex} and Feedback event {event['id']}"
+                    )
 
                 self.logger.debug(
                     f"Result {result} from creating MADE_EVENT relationship"
@@ -323,7 +394,8 @@ class GraphDBSync:
                 query = """
                    MATCH (feedback:Event {id: $feedback_event_id})
                    MATCH (request:Event {id: $request_event_id})
-                   MERGE (feedback)-[:FEEDBACK_FOR]->(request)
+                   MERGE (feedback)-[rel:FEEDBACK_FOR]->(request)
+                   RETURN rel
                    """
 
                 result = session.run(
@@ -331,6 +403,13 @@ class GraphDBSync:
                     feedback_event_id=event["id"],
                     request_event_id=request_orig_event_id,
                 )
+
+                record = result.single()
+
+                if record is None:
+                    self.logger.error(
+                        f"Failed to create FEEDBACK_FOR relationship between Feedback {event['id']} and Request event {request_orig_event_id}"
+                    )
 
                 self.logger.debug(
                     f"Feedback {event['id']} successfully has a FEEDBACK_FOR relationship"
@@ -352,10 +431,18 @@ class GraphDBSync:
                 query = """
                    MATCH (n:DVM {npub_hex: $npub_hex})
                    MATCH (r:Event {id: $event_id})
-                   MERGE (n)-[:MADE_EVENT]->(r)
+                   MERGE (n)-[rel:MADE_EVENT]->(r)
+                   RETURN rel
                    """
 
                 result = session.run(query, npub_hex=dvm_npub_hex, event_id=event["id"])
+
+                record = result.single()
+
+                if record is None:
+                    self.logger.error(
+                        f"Failed to create MADE_EVENT relationship between DVM {dvm_npub_hex} and Response event {event['id']}"
+                    )
 
                 self.logger.debug(
                     f"Result {result} from creating MADE_EVENT relationship"
@@ -384,7 +471,8 @@ class GraphDBSync:
                 query = """
                    MATCH (response:Event {id: $response_event_id})
                    MATCH (request:Event {id: $request_event_id})
-                   MERGE (response)-[:RESULT_FOR]->(request)
+                   MERGE (response)-[rel:RESULT_FOR]->(request)
+                   RETURN rel
                    """
 
                 result = session.run(
@@ -392,6 +480,13 @@ class GraphDBSync:
                     response_event_id=event["id"],
                     request_event_id=request_orig_event_id,
                 )
+
+                record = result.single()
+
+                if record is None:
+                    self.logger.error(
+                        f"Failed to create RESULT_FOR relationship between Response {event['id']} and Request event {request_orig_event_id}"
+                    )
 
                 self.logger.debug(
                     f"response {event['id']} successfully has a RESULT_FOR relationship"
@@ -410,14 +505,14 @@ class GraphDBSync:
         self.logger.info("Creating user and dvm nodes...")
         self.get_all_dvm_npubs()
         self.get_all_user_npubs()
-        self.create_dvm_nodes()
+        # self.create_dvm_nodes()
         self.create_user_nodes()
 
         # start creating relations
         self.logger.info("Creating relations...")
-        self.create_user_request_relations()
-        self.create_dvm_feedback_relations()
-        self.create_dvm_response_relations()
+        # self.create_user_request_relations()
+        # self.create_dvm_feedback_relations()
+        # self.create_dvm_response_relations()
 
     def delete_all_neo4j_relationships(self):
         """

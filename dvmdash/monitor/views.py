@@ -720,6 +720,7 @@ def get_graph_data(request, request_event_id=""):
     data = neo4j_service.run_query(query)
 
     # process the data so it's in an easy format for forming into a graph
+    # these will all be triples
     node_relations = []
 
     # print("Got data from neo4j:")
@@ -742,13 +743,13 @@ def get_graph_data(request, request_event_id=""):
         n_event_id, n_event_data = _get_row_data_from_event_dict(record["n"])
         if n_event_id and n_event_id not in event_nodes.keys():
             event_nodes[n_event_id] = n_event_data
-        if "n_type" in record:
+        if "n_type" in record and "neo4j_node_type" not in n_event_data:
             n_event_data["neo4j_node_type"] = record["n_type"]
 
         req_event_id, req_event_data = _get_row_data_from_event_dict(record["req"])
         if req_event_id and req_event_id not in event_nodes.keys():
             event_nodes[req_event_id] = req_event_data
-        if "req_type" in record:
+        if "req_type" in record and "neo4j_node_type" not in req_event_data:
             req_event_data["neo4j_node_type"] = record["req_type"]
 
         for relation in record["r"]:
@@ -756,8 +757,19 @@ def get_graph_data(request, request_event_id=""):
             relation_name = relation[1]
             rhs = relation[2]
 
-            # if the
+            # if the relation is between two events, add it to the list
+            node_relations.append(
+                {
+                    "source_node": lhs,
+                    "target_node": rhs,
+                    "relation": relation_name,
+                }
+            )
 
-    response_data = {"data": data, "event_nodes": list(event_nodes.values())}
+    response_data = {
+        "data": data,
+        "event_nodes": list(event_nodes.values()),
+        "node_relations": node_relations,
+    }
 
     return JsonResponse(response_data, safe=False)

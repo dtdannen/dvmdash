@@ -111,130 +111,142 @@
 
 
 <script>
-  document.addEventListener("DOMContentLoaded", function() {
-    fetch('/api/graph/{{ event_id }}')
-      .then(response => response.json())
-      .then(responseData => {
-        const data = responseData.data;
-        const eventNodes = responseData.event_nodes;
+document.addEventListener("DOMContentLoaded", function() {
+  fetch('/api/graph/{{ event_id }}')
+    .then(response => response.json())
+    .then(responseData => {
+      const data = responseData.node_relations;
+      const eventNodes = responseData.event_nodes;
 
-        const nodeMap = new Map();
-        const links = [];
+      const nodes = [];
+      const links = [];
 
-        data.forEach(item => {
-          const n = item.n;
-          const r = item.r;
-          const req = item.req;
+      data.forEach(item => {
+        const n = item.source_node;
+        const r = item.relation;
+        const req = item.target_node;
 
-          if (!nodeMap.has(n.id)) {
-            nodeMap.set(n.id, {
-              id: n.id,
-              pubkey: n.npub_hex || n.pubkey,
-              label: getLastChars(n.npub_hex || n.id),
-              kind: n.kind,
-              raw_created_at: n.created_at,
-              url: n.url,
-              quick_details: n.quick_details,
-              node_type: n.neo4j_node_type,
-              parentId: null,
-              children: []
-            });
-          }
+        const sourceNode = {
+          id: n.id,
+          pubkey: n.npub_hex || n.pubkey,
+          label: getLastChars(n.npub_hex || n.id),
+          kind: n.kind,
+          raw_created_at: n.created_at,
+          url: n.url,
+          quick_details: n.quick_details,
+          node_type: n.node_type
+        };
+        const targetNode = {
+          id: req.id,
+          pubkey: req.npub_hex || req.pubkey,
+          label: getLastChars(req.id),
+          kind: req.kind,
+          raw_created_at: req.created_at,
+          url: req.url,
+          quick_details: req.quick_details,
+          node_type: req.node_type
+        };
+        console.log("Source Node: ", sourceNode);
+        const link = { source: sourceNode.id, target: targetNode.id, label: r};
 
-          if (!nodeMap.has(req.id)) {
-            nodeMap.set(req.id, {
-              id: req.id,
-              pubkey: req.npub_hex || req.pubkey,
-              label: getLastChars(req.id),
-              kind: req.kind,
-              raw_created_at: req.created_at,
-              url: req.url,
-              quick_details: req.quick_details,
-              node_type: req.neo4j_node_type,
-              parentId: n.id,
-              children: []
-            });
-          } else {
-            console.log("overwriting node: ", req.id, " parent was ", nodeMap.get(req.id).parentId, " now is ", n.id);
-            nodeMap.get(req.id).parentId = n.id;
-          }
+        if (!nodes.find(node => node.id === sourceNode.id)) {
+          nodes.push(sourceNode);
+        }
+        if (!nodes.find(node => node.id === targetNode.id)) {
+          nodes.push(targetNode);
+        }
+        links.push(link);
+        console.log(`Link: ${sourceNode.kind || sourceNode.node_type} -> ${targetNode.kind || targetNode.node_type}`);
+      });
 
-          nodeMap.get(n.id).children.push(req.id);
-          links.push({ source: n.id, target: req.id });
+      // log how many nodes and links there are
+      console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
 
-            // Display the connection between nodes based on their kind values
-            console.log(`${getNodeKind(n)} -> ${getNodeKind(req)}`);
-        });
+      const width = document.getElementById('graph').clientWidth;
+      const height = document.getElementById('graph').clientHeight;
 
-        const nodes = Array.from(nodeMap.values());
+      // Create the tidy tree layout
+      const root = d3.stratify()
+        .id(d => d.id)
+        .parentId(d => links.find(link => link.target === d.id)?.source)
+        (nodes);
 
-        // log how many nodes and links there are
-        console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
+      const dx = 10;
+      const dy = width / (root.height + 1);
+      const tree = d3.tree().nodeSize([dx, dy]);
 
-        const width = document.getElementById('graph').clientWidth;
-        const height = document.getElementById('graph').clientHeight;
+      root.sort((a, b) => d3.ascending(a.data.label, b.data.label));
+      tree(root);
 
-        const svg = d3.select("#graph").append("svg")
-          .attr("width", width)
-          .attr("height", height);
+      let x0 = Infinity;
+      let x1 = -x0;
+      root.each(d => {
+        if (d.x > x1) x1 = d.x;
+        if (d.x < x0) x0 = d.x;
+      });
 
-        // log the width and height
-        console.log(`Width: ${width}, Height: ${height}`);
+      const adjustedHeight = x1 - x0 + dx * 2;
 
-        const treeLayout = d3.tree().size([height, width - 200]);
-        const root = d3.stratify()
-          .id(d => d.id)
-          .parentId(d => d.parentId)(nodes);
-        treeLayout(root);
+      const svg = d3.select("#graph").append("svg")
+        .attr("width", width)
+        .attr("height", adjustedHeight)
+        .attr("viewBox", [-dy / 3, x0 - dx, width, adjustedHeight])
+        .attr("style", "max-width: 100%; height: auto; font: 10px sans-serif;");
 
-        const link = svg.append("g")
-          .attr("class", "links")
-          .selectAll("path")
-          .data(root.links())
-          .enter().append("path")
+      const link = svg.append("g")
+        .attr("fill", "none")
+        .attr("stroke", "#555")
+        .attr("stroke-opacity", 0.4)
+        .attr("stroke-width", 1.5)
+        .selectAll()
+        .data(root.links())
+        .join("path")
           .attr("d", d3.linkHorizontal()
             .x(d => d.y)
             .y(d => d.x));
 
-        const node = svg.append("g")
-          .attr("class", "nodes")
-          .selectAll("g")
-          .data(root.descendants())
-          .enter()
-          .append("g")
+      const node = svg.append("g")
+        .attr("stroke-linejoin", "round")
+        .attr("stroke-width", 3)
+        .selectAll()
+        .data(root.descendants())
+        .join("g")
           .attr("transform", d => `translate(${d.y},${d.x})`);
 
-        node.append("circle")
-          .attr("r", 30)
-          .attr("fill", d => getNodeColor(d));
+      node.append("circle")
+        .attr("fill", d => d.children ? "#555" : "#999")
+        .attr("r", 2.5);
 
-        node.append("text")
-          .text(d => getNodeLabel(d))
-          .attr("text-anchor", "middle");
+      node.append("text")
+        .attr("dy", "0.31em")
+        .attr("x", d => d.children ? -6 : 6)
+        .attr("text-anchor", d => d.children ? "end" : "start")
+        .text(d => d.data.label)
+        .attr("stroke", "white")
+        .attr("paint-order", "stroke");
 
+      // Process the 'eventNodes' for the table
+      const tableNodes = Object.values(eventNodes);
 
-        // Process the 'eventNodes' for the table
-        const tableNodes = Object.values(eventNodes);
+      // Sort tableNodes by created_at in ascending order
+      tableNodes.sort((a, b) => a.created_at - b.created_at);
 
-        // Sort tableNodes by created_at in ascending order
-        tableNodes.sort((a, b) => a.created_at - b.created_at);
-
-        // Populate the table with data from 'eventNodes'
-        const tableBody = d3.select("#dataTable tbody");
-        tableBody.selectAll("tr")
-          .data(tableNodes)
-          .enter()
-          .append("tr")
-          .html(d => `
-            <td><a href="https://dvmdash.live/npub/${d.pubkey}">View ...${d.pubkey.slice(-6)}</a></td>
-            <td>${d.kind}</td>
-            <td>${d.quick_details}</td>
-            <td><a href="${d.url}" target="_blank">View</a></td>
-            <td>${formatTimestamp(d.created_at)}</td>
-          `);
-      })
-      .catch(error => console.error('Error fetching the data:', error));
-  });
+      // Populate the table with data from 'eventNodes'
+      const tableBody = d3.select("#dataTable tbody");
+      tableBody.selectAll("tr")
+        .data(tableNodes)
+        .enter()
+        .append("tr")
+        .html(d => `
+          <td><a href="https://dvmdash.live/npub/${d.pubkey}">View ...${d.pubkey.slice(-6)}</a></td>
+          <td>${d.kind}</td>
+          <td>${d.quick_details}</td>
+          <td><a href="${d.url}" target="_blank">View</a></td>
+          <td>${formatTimestamp(d.created_at)}</td>
+        `);
+    })
+    .catch(error => console.error('Error fetching the data:', error));
+});
 
   function getLastChars(str) {
     if (str) {
@@ -292,24 +304,6 @@
     return "User";
   }
   return "";
-}
-
-// Helper function to get the kind value or a default value if kind is not available
-function getNodeKind(node) {
-  if (node.kind >= 5000 && node.kind <= 5999) {
-    return "Request " + node.kind;
-  } else if (node.kind === 7000) {
-    return "Feedback " + node.kind;
-  } else if (node.kind >= 6000 && node.kind <= 6999) {
-    return "Result " + node.kind;
-  } else if (!node.kind) {
-      console.log("Missing kind node details: ", node)
-      if (node.neo4j_node_type && node.neo4j_node_type.includes("User")) {
-          return "User " + node.npub_hex[-6];
-      } else {
-        return "Unknown ";
-      }
-  }
 }
 
 function getNodeColor(node) {
