@@ -711,7 +711,7 @@ def get_graph_data(request, request_event_id=""):
         + request_event_id
         + """'})
         OPTIONAL MATCH (n)-[r*]->(req)
-        RETURN n, labels(n) AS n_type, r, req, labels(req) AS req_type
+        RETURN n, r, req
         """
     )
 
