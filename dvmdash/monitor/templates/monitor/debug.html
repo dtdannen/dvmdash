@@ -21,6 +21,19 @@
       fill: #69b3a2;
     }
 
+    #graph-container {
+  width: 100%;
+  height: 400px;
+  overflow: auto;
+  position: relative;
+}
+
+#graph {
+  width: 100%;
+  height: 100%;
+  cursor: move;
+}
+
     #graph {
       width: 100%;
       height: 400px;
@@ -74,7 +87,9 @@
 {% block content %}
 
     {% if event_id %}
+        <div id="graph-container">
     <div id="graph"></div>
+        </div>
     <div class="table-container">
       <table id="dataTable">
         <thead>
@@ -148,7 +163,9 @@ document.addEventListener("DOMContentLoaded", function() {
           quick_details: req.quick_details,
           node_type: req.neo4j_node_type
         };
-        console.log("Source Node: ", sourceNode);
+        //console.log("Source Node: ", sourceNode);
+        //console.log("Target Node: ", targetNode);
+        console.log("Relation: ", r);
         const link = { source: sourceNode.id, target: targetNode.id, label: r};
 
         // If there is a source node that is from a User and it's pointing to an Event node with a kind between 5000-5999,
@@ -174,7 +191,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
         console.log('Pushing link with source id: ', sourceNode.id, ' and target id: ', targetNode.id)
         links.push(link);
-        console.log(`Link: ${sourceNode.kind || sourceNode.node_type} -> ${targetNode.kind || targetNode.node_type}`);
+        console.log(`Link: ${sourceNode.kind || sourceNode.node_type} ---${link.label}---> ${targetNode.kind || targetNode.node_type}`);
       });
 
       // log how many nodes and links there are
@@ -191,24 +208,15 @@ links.forEach(link => {
     if (!sourceNode.children) {
       sourceNode.children = [];
     }
+    console.log("About to add a child");
+      // Create a deep copy of the targetNode object
+      const childNode = JSON.parse(JSON.stringify(targetNode));
+      childNode.linkLabel = link.label;
+      sourceNode.children.push(childNode);
+      console.log("Just added child target node:", childNode, "to source node which now has", sourceNode.children.length, "children");
 
-    // loop over the children of the source node to see if the target node is already a child
-    if (sourceNode.children.find(child => child.id === targetNode.id)) {
-      console.log("Target node is already a child of source node");
-      return;
-    }else{
-        sourceNode.children.push(targetNode);
-    console.log("Just added target node:", targetNode, "to source node which now has", sourceNode.children.length, "children");
-    }
   }
 });
-
-      // Flip the source and target of each link
-      const flippedLinks = links.map(link => ({
-        source: link.target,
-        target: link.source,
-        label: link.label
-      }));
 
       const width = document.getElementById('graph').clientWidth;
       const height = document.getElementById('graph').clientHeight;
@@ -219,8 +227,8 @@ links.forEach(link => {
       //root.links(links);
       //root.links(flippedLinks);
 
-      const dx = 20;
-      const dy = width / (root.height + 1);
+      const dx = 40;
+      const dy = (width * 2) / (root.height + 1);
       const tree = d3.tree().nodeSize([dx, dy]);
 
       tree(root);
@@ -249,25 +257,78 @@ links.forEach(link => {
 
       const adjustedHeight = x1 - x0 + dx * 2;
 
-      const svg = d3.select("#graph").append("svg")
-        .attr("width", width)
-        .attr("height", adjustedHeight)
-        .attr("viewBox", [-dy / 3, x0 - dx, width, adjustedHeight])
-        .attr("style", "max-width: 100%; height: auto; font: 10px sans-serif;");
+      const zoom = d3.zoom()
+  .scaleExtent([0.1, 10])
+  .on("zoom", zoomed);
 
-      const link = svg.append("g")
-        .attr("fill", "none")
-        .attr("stroke", "#555")
-        .attr("stroke-opacity", 0.4)
-        .attr("stroke-width", 1.5)
-        .selectAll()
-        .data(root.links())
-        .join("path")
-          .attr("d", d3.linkHorizontal()
-            .x(d => d.y)
-            .y(d => d.x));
+const svg = d3.select("#graph").append("svg")
+  .attr("xmlns", "http://www.w3.org/2000/svg")
+  .attr("xmlns:xlink", "http://www.w3.org/1999/xlink")
+  .attr("width", width)
+  .attr("height", adjustedHeight)
+  .attr("viewBox", [-dy / 3, x0 - dx, width, adjustedHeight])
+  .attr("style", "max-width: 100%; height: auto; font: 10px sans-serif;")
+  .call(zoom)
 
-      const node = svg.append("g")
+    const graphGroup = svg.append("g"); // Create a group element to hold the graph elements
+
+    // Custom link generator for straight lines with 90-degree bends
+    function linkPath(d) {
+      const source = d.source;
+      const target = d.target;
+      const midX = (source.y + target.y) / 2;
+      const midY = (source.x + target.x) / 2;
+      return `M${source.y},${source.x}V${midY}H${target.y}V${target.x}`;
+    }
+
+    const link = graphGroup.append("g")
+      .attr("fill", "none")
+      .attr("stroke", "#555")
+      .attr("stroke-opacity", 0.4)
+      .attr("stroke-width", 2.0)
+      .selectAll()
+      .data(root.links())
+      .join("path")
+        .attr("d", linkPath)
+        .attr("id", (d, i) => `link-${i}`);
+
+        // Create separate selections for link labels and backgrounds
+        const linkLabelGroup = graphGroup.append("g")
+          .attr("fill", "white")
+          .attr("font-family", "Arial, Helvetica, sans-serif")
+          .attr("font-size", 10);
+
+        const linkLabel = linkLabelGroup.selectAll()
+  .data(root.links())
+  .join("text")
+    .attr("font-family", "Arial, Helvetica, sans-serif")
+    .attr("font-size", 12)
+    .attr("fill", "white")
+    .append("textPath")
+      .attr("xlink:href", (d, i) => `#link-${i}`)
+      .attr("startOffset", "50%")
+      .attr("text-anchor", "middle")
+      .attr("dy", "-0.5em")
+      .text(d => d.target.data.linkLabel);
+
+        console.log("Link labels:", linkLabel.nodes().map(node => node.textContent));
+
+        {#const linkLabelBackground = linkLabelGroup.selectAll()#}
+        {#  .data(root.links())#}
+        {#  .join("rect")#}
+        {#    .attr("fill", "white")#}
+        {#    .attr("stroke", "none")#}
+        {#    .attr("x", d => (d.source.y + d.target.y) / 2)#}
+        {#    .attr("y", d => (d.source.x + d.target.x) / 2)#}
+        {#    .attr("width", 100)#}
+        {#    .attr("height", 15)#}
+        {#    .attr("rx", 5)#}
+        {#    .attr("ry", 5);#}
+
+        //linkLabelBackground.raise();
+        linkLabel.raise();
+
+      const node = graphGroup.append("g")
         .attr("stroke-linejoin", "round")
         .attr("stroke-width", 3)
         .selectAll()
@@ -276,8 +337,8 @@ links.forEach(link => {
           .attr("transform", d => `translate(${d.y},${d.x})`);
 
       node.append("circle")
-        .attr("fill", d => d.children ? "#555" : "#999")
-        .attr("r", 2.5);
+          .attr("fill", d => getNodeColor(d.data))
+          .attr("r", 10.0);
 
       node.append("text")
         .attr("dy", "0.31em")
@@ -286,6 +347,17 @@ links.forEach(link => {
         .text(d => d.data.label)
         .attr("stroke", "white")
         .attr("paint-order", "stroke");
+
+      // Set the initial zoom level and position
+        const initialScale = 0.5; // Adjust the scale factor as needed
+        const initialTranslate = [width / 2, adjustedHeight / 2]; // Center the graph initially
+
+        svg.call(zoom.scaleTo, initialScale);
+        svg.call(zoom.translateTo, initialTranslate[0], initialTranslate[1]);
+
+      function zoomed(event) {
+        graphGroup.attr("transform", event.transform);
+        }
 
       // Process the 'eventNodes' for the table
       const tableNodes = Object.values(eventNodes);
@@ -376,7 +448,9 @@ function getNodeColor(node) {
   } else if (node.kind >= 6000 && node.kind <= 6999) {
     return "pink";
   } else if (!node.kind && node.node_type === "User") {
-    return "darkblue";
+    return "purple";
+  } else if (!node.kind && node.node_type === "DVM") {
+    return "orange";
   }
   return "#999999";
 }
