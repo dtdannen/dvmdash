@@ -49,3 +49,45 @@ Add this line to the crontab file:
 */5 * * * * /path/to/run_listen_for_DVM_events.sh
 ```
 
+## Stat docs
+
+For faster rendering of general stats and metrics, we will compute stats for each dvm, user,
+kind, and network. The network stats page is any information that's not per user, dvm, or
+kind. For example, the total number of kinds seens, total number of DVMs, etc.
+
+### DVM
+Stats to compute per DVM
+    
+- number of responses (jobs finished)
+- number of requests to other kinds
+- number of feedback events
+- number of invoices paid
+- total amount of invoices requested
+- total amount of invoices paid
+- average response time
+- fastest response time
+- slowest response time
+- average amount of invoices requested
+- how often it responds
+
+### User
+Stats to compute per User
+
+- number of job requests
+- most popular type of job
+- average amount paid per DVM
+- total amount paid for DVMs
+
+### Kind
+Stats to computer per Kind
+
+- How many DVMs have ever responded
+- Average response from the DVMs
+
+
+### Network
+Stats to computer for the whole network
+
+
+
+
