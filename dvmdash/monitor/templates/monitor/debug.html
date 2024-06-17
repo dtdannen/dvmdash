@@ -208,13 +208,36 @@ links.forEach(link => {
     if (!sourceNode.children) {
       sourceNode.children = [];
     }
-    console.log("About to add a child");
-      // Create a deep copy of the targetNode object
-      const childNode = JSON.parse(JSON.stringify(targetNode));
-      childNode.linkLabel = link.label;
-      sourceNode.children.push(childNode);
-      console.log("Just added child target node:", childNode, "to source node which now has", sourceNode.children.length, "children");
+    console.log("Source (", sourceNode.node_type,"):", sourceNode.id, "has", sourceNode.children.length, "children");
 
+    sourceNode.children.forEach(child => {
+      console.log("Child (", child.node_type,"): ", child.id);
+    });
+
+    console.log("Target (", targetNode.node_type ,"):", targetNode.id);
+
+    // Set the linkLabel property on the targetNode object
+    targetNode.linkLabel = link.label;
+
+    if (sourceNode.node_type === "DVM") {
+      console.log("source node is a DVM node...");
+    }
+
+    if (targetNode.node_type === "DVM") {
+      console.log("target node is a DVM node...");
+    }
+
+    if (sourceNode.children.find(child => child.id === targetNode.id)) {
+      const child = sourceNode.children.find(child => child.id === targetNode.id);
+      console.log("Child already exists and its label is", child.linkLabel, " and target linklabel is ", targetNode.linkLabel," so not adding it again.");
+
+      // Update the child node in the sourceNode.children array with the latest targetNode data
+      Object.assign(child, targetNode);
+    } else {
+      // Add the targetNode object to the sourceNode.children array
+      sourceNode.children.push(targetNode);
+      console.log("Just added child target node:", targetNode, "to source node which now has", sourceNode.children.length, "children");
+    }
   }
 });
 

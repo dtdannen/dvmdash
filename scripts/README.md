@@ -55,6 +55,21 @@ For faster rendering of general stats and metrics, we will compute stats for eac
 kind, and network. The network stats page is any information that's not per user, dvm, or
 kind. For example, the total number of kinds seens, total number of DVMs, etc.
 
+The plan will be to have a new database collection called 'stats', and each DVM, User, and Kind get their own stat page.
+There will be a single network stat page. DVM's will be indexed by their npub, User's will be indexed by their npub,
+kind stat pages will be indexed by their kind number.
+
+All stats will be computed continuously via a script. The script will load all events from the database, run linearly over
+all the events, computing many running stats. Then any additional stats needing to be computed (like averages) will 
+happen after the linear processing of all events. Then these values will get saved (updated) to existing stat pages
+in the database. 
+
+We should keep a timestamp somewhere so we know how long this is taking. Maybe we can make a stats page for dvmdash for
+meta information. We could store all timestamps for finished stat page jobs, the length, how many events were processed.
+This info could be shown on the dvmdash About page. Then on any page, we can say how long ago the stats were updated.
+
+This stats collection page computation should probably be concurrent using threads or processes.
+
 ### DVM
 Stats to compute per DVM
     
@@ -69,6 +84,8 @@ Stats to compute per DVM
 - slowest response time
 - average amount of invoices requested
 - how often it responds
+- last 10 events it interacted with
+- last 10 responses
 
 ### User
 Stats to compute per User
@@ -82,7 +99,10 @@ Stats to compute per User
 Stats to computer per Kind
 
 - How many DVMs have ever responded
-- Average response from the DVMs
+- Average response time from the DVMs
+- Fastest DVM on average to respond
+- How much DVMs are charging
+- Recent failures to respond (i.e. when a payment was taken, but then no response ever given)
 
 
 ### Network
