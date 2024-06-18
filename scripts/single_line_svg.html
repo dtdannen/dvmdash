@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Line Demo</title>
+  <style>
+    .node {
+      fill: #69b3a2;
+      stroke: #fff;
+      stroke-width: 1.5px;
+    }
+
+    .link {
+      fill: none;
+      stroke: #999;
+      stroke-opacity: 0.6;
+      stroke-width: 3px;
+    }
+
+        .link2 {
+      fill: none;
+      stroke: #999;
+      stroke-opacity: 0.6;
+      stroke-width: 3px;
+    }
+  </style>
+</head>
+<body>
+  <svg width="1000" height="1000">
+    <path class="link" d="M100 100 L280 100 A20 20 0 0 1 300 120 L300 200" />
+    <circle class="node" cx="100" cy="100" r="10" />
+    <circle class="node" cx="300" cy="200" r="10" />
+
+    <path class="link2" d="M400 600
+   L370 600
+   L230 400
+   L200 400" />
+    <circle class="node" cx="200" cy="400" r="10" />
+    <circle class="node" cx="400" cy="600" r="10" />
+
+  </svg>
+
+  <script>
+    const link = document.querySelector('.link');
+    const pathData = 'M100 100 L280 100 A20 20 0 0 1 300 120 L300 200';
+    link.setAttribute('d', pathData);
+
+    const link2 = document.querySelector('.link2');
+    const pathData2 = 'M400 600 L370 600 L230 400 L200 400';
+    link2.setAttribute('d', pathData2);
+  </script>
+</body>
+</html>

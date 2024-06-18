@@ -24,23 +24,30 @@
     #graph-container {
   width: 100%;
   height: 400px;
-  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
   position: relative;
 }
-
-#graph {
+    #graph-wrapper {
   width: 100%;
   height: 100%;
-  cursor: move;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: auto;
 }
 
-    #graph {
-      width: 100%;
-      height: 400px;
+    .graph-overlay {
+      fill: none;
+      pointer-events: all;
     }
-  </style>
 
-    <style>
+    #graph {
+      cursor: move;
+    }
+
         .form-container {
             max-width: 1000px;
             margin: 0 auto;
@@ -81,14 +88,15 @@
       border-bottom: 1px solid #ddd;
     }
   </style>
-    </style>
 {% endblock %}
 
 {% block content %}
 
     {% if event_id %}
         <div id="graph-container">
-    <div id="graph"></div>
+            <div id="graph-wrapper">
+                <div id="graph"></div>
+            </div>
         </div>
     <div class="table-container">
       <table id="dataTable">
@@ -146,7 +154,7 @@
       levels.forEach((l, i) => {
         var index = {};
         l.forEach(n => {
-          if (n.parents.length == 0) {
+          if (n.parents.length === 0) {
             return;
           }
 
@@ -208,7 +216,7 @@
       // layout
       const padding = 8;
       const node_height = 22;
-      const node_width = 70;
+      const node_width = 100;
       const bundle_width = 14;
       const level_y_padding = 16;
       const metro_d = 4;
@@ -316,22 +324,22 @@ document.addEventListener("DOMContentLoaded", function() {
         const sourceNode = {
           id: n.id || n.npub_hex,
           pubkey: n.npub_hex || n.pubkey,
-          label: getLastChars(n.npub_hex || n.id),
           kind: n.kind,
           raw_created_at: n.created_at,
           url: n.url,
           quick_details: n.quick_details,
-          node_type: n.neo4j_node_type
+          node_type: n.neo4j_node_type,
+          label: n.neo4j_node_type+getLastChars(n.npub_hex || n.id),
         };
         const targetNode = {
           id: req.id || req.npub_hex,
           pubkey: req.npub_hex || req.pubkey,
-          label: getLastChars(req.id),
           kind: req.kind,
           raw_created_at: req.created_at,
           url: req.url,
           quick_details: req.quick_details,
-          node_type: req.neo4j_node_type
+          node_type: req.neo4j_node_type,
+            label: req.neo4j_node_type+getLastChars(req.id),
         };
         //console.log("Source Node: ", sourceNode);
         //console.log("Target Node: ", targetNode);
@@ -416,9 +424,20 @@ links.forEach(link => {
 
       const tangleTree = constructTangleLayout(convertData(root_request_node), { c: 20, bigc: 100 });
 
-  const svg = d3.select("#graph")
-    .html(renderTangleTree(tangleTree))
-    .select("svg");
+      const svg = d3.select("#graph")
+      .html(renderTangleTree(tangleTree))
+      .select("svg");
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.1, 10])
+      .on("zoom", zoomed);
+
+    svg.call(zoom);
+
+    function zoomed(event) {
+      svg.selectAll("path, text")
+        .attr("transform", event.transform);
+    }
 
   function convertData(root) {
     const levels = [];
@@ -453,20 +472,21 @@ links.forEach(link => {
   function renderTangleTree(tangleTree) {
     const { nodes, links, layout } = tangleTree;
 
-    const nodeColor = (d) => {
-      if (d.kind >= 5000 && d.kind <= 5999) return "green";
-      if (d.kind === 7000) return "lightblue";
-      if (d.kind >= 6000 && d.kind <= 6999) return "pink";
-      if (!d.kind && d.node_type === "User") return "purple";
-      if (!d.kind && d.node_type === "DVM") return "orange";
-      return "#999999";
-    };
+const nodeColor = (d) => {
+  if (d.kind >= 5000 && d.kind <= 5999) return "green";
+  if (d.kind === 7000) return "lightblue";
+  if (d.kind >= 6000 && d.kind <= 6999) return "pink";
+  if (!d.kind && d.node_type === "User") return "purple";
+  if (!d.kind && d.node_type === "DVM") return "orange";
+  return "#69b3a2";
+};
 
     const linkColor = (d, i) => d3.schemeCategory10[i % 10];
 
     const background_color = "white";
 
-    const svg = `<svg width="${layout.width}" height="${layout.height}" style="background-color: ${background_color}">
+    const svgMarkup = `<svg width="${layout.width}" height="${layout.height}" style="background-color: ${background_color}">
+                       <rect class="graph-overlay" width="${layout.width}" height="${layout.height}"/>
       <style>
         text {
           font-family: sans-serif;
@@ -474,23 +494,26 @@ links.forEach(link => {
         }
       </style>
 
-      ${tangleTree.bundles.map((b, i) => {
-        let d = b.links
-          .map(
-            (l) => `
-            M${l.xt} ${l.yt}
-            L${l.xb - l.c1} ${l.yt}
-            A${l.c1} ${l.c1} 90 0 1 ${l.xb} ${l.yt + l.c1}
-            L${l.xb} ${l.ys - l.c2}
-            A${l.c2} ${l.c2} 90 0 0 ${l.xb + l.c2} ${l.ys}
-            L${l.xs} ${l.ys}`
-          )
-          .join("");
-        return `
-          <path class="link" d="${d}" stroke="${background_color}" stroke-width="5"/>
-          <path class="link" d="${d}" stroke="${linkColor(b, i)}" stroke-width="2"/>
-        `;
-      })}
+${tangleTree.bundles.map((b, i) => {
+  let d = b.links
+    .map(
+      (l) => {
+        const sourceNode = nodes.find(node => node.id === l.source.id);
+        const targetNode = nodes.find(node => node.id === l.target.id);
+        const lineDescription = `
+          M${l.xt} ${l.yt}
+          L${l.xb - l.c1} ${l.yt}
+          L${l.xs + l.c1} ${l.ys}
+          L${l.xs} ${l.ys}`;
+        console.log(`Link from "${sourceNode.label}" (${l.xs}, ${l.ys}) to "${targetNode.label}" (${l.xt}, ${l.yt}):`, lineDescription);
+        return lineDescription;
+      }
+    )
+    .join("");
+  return `
+    <path class="link" d="${d}" stroke="${linkColor(b, i)}" stroke-width="3"/>
+  `;
+})}
       ${tangleTree.nodes.map(
         (n) => `
         <path class="selectable node" data-id="${n.id}" stroke="${nodeColor(n)}" stroke-width="8" d="M${n.x} ${
@@ -507,7 +530,7 @@ links.forEach(link => {
       )}
     </svg>`;
 
-    return svg;
+    return svgMarkup;
   }
 
       // Process the 'eventNodes' for the table
@@ -523,7 +546,7 @@ links.forEach(link => {
         .enter()
         .append("tr")
         .html(d => `
-          <td><a href="https://dvmdash.live/npub/${d.pubkey}">View ...${d.pubkey.slice(-6)}</a></td>
+          <td><a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a></td>
           <td>${d.kind}</td>
           <td>${d.quick_details}</td>
           <td><a href="${d.url}" target="_blank">View</a></td>
