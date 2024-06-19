@@ -24,6 +24,7 @@ class Neo4jService:
             self._neo4j_driver.verify_connectivity()
             logger.info("Verified connectivity to local Neo4j")
         else:
+            logger.info("Starting to connect to cloud Neo4j")
             URI = os.getenv("NEO4J_URI")
             AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 
