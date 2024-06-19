@@ -367,9 +367,15 @@ document.addEventListener("DOMContentLoaded", function() {
           console.log('Source id is undefined, here is source object: ', sourceNode);
           return;
         }
-        console.log('Pushing link with source id: ', sourceNode.id, ' and target id: ', targetNode.id)
-        links.push(link);
-        console.log(`Link: ${sourceNode.kind || sourceNode.node_type} ---${link.label}---> ${targetNode.kind || targetNode.node_type}`);
+
+        // see if there is a link with the same source and target and label
+        if (links.find(l => l.source === sourceNode.id && l.target === targetNode.id && l.label === link.label)) {
+          console.log('Link already exists with source id: ', sourceNode.id, ' and target id: ', targetNode.id);
+        }else {
+            console.log('Pushing link with source id: ', sourceNode.id, ' and target id: ', targetNode.id)
+            links.push(link);
+            console.log(`Link: ${sourceNode.kind || sourceNode.node_type} ---${link.label}---> ${targetNode.kind || targetNode.node_type}`);
+        }
       });
 
       // log how many nodes and links there are
@@ -620,7 +626,7 @@ function getNodeColor(node) {
   if (node.kind >= 5000 && node.kind <= 5999) {
     return "green";
   } else if (node.kind === 7000) {
-    return "lightblue";
+    return "blue";
   } else if (node.kind >= 6000 && node.kind <= 6999) {
     return "pink";
   } else if (!node.kind && node.node_type === "User") {
@@ -631,20 +637,31 @@ function getNodeColor(node) {
   return "#999999";
 }
 
+function getLinkColor(link) {
+    if (link.label === "MADE_EVENT" && link.source.kind >= 5000 && link.source.kind <= 5999) {
+        return "green";  // because this is from a user
+    } else if (link.label === "RESULT_FOR") {
+        return "orange";
+    } else if (link.label === "MADE_EVENT") {
+        return "green";
+    }
+  return "black";
+}
+
 function printGraphData(nodes, links) {
   let graphString = "digraph {\n";
-  graphString += "  graph [rankdir=LR];\n";
+  graphString += "  graph [rankdir=RL];\n";
   graphString += "  node [shape=record];\n";
 
   nodes.forEach(node => {
-    const label = `"${node.id}" [label="${node.label}\\n${node.kind || node.node_type}"]`;
+    const label = `"${node.id}" [label="${node.label}\\n${node.kind || node.node_type}", color=${getNodeColor(node)}]`;
     graphString += `  ${label};\n`;
   });
 
   links.forEach(link => {
     const source = nodes.find(node => node.id === link.source);
     const target = nodes.find(node => node.id === link.target);
-    const edgeLabel = `"${source.id}" -> "${target.id}" [label="${link.label}"]`;
+    const edgeLabel = `"${source.id}" -> "${target.id}" [label="${link.label}", color=${getLinkColor(link)}]`;
     graphString += `  ${edgeLabel};\n`;
   });
 
