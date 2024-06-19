@@ -533,6 +533,8 @@ ${tangleTree.bundles.map((b, i) => {
     return svgMarkup;
   }
 
+      printGraphData(nodes, links);
+
       // Process the 'eventNodes' for the table
       const tableNodes = Object.values(eventNodes);
 
@@ -628,6 +630,30 @@ function getNodeColor(node) {
   }
   return "#999999";
 }
+
+function printGraphData(nodes, links) {
+  let graphString = "digraph {\n";
+  graphString += "  graph [rankdir=LR];\n";
+  graphString += "  node [shape=record];\n";
+
+  nodes.forEach(node => {
+    const label = `"${node.id}" [label="${node.label}\\n${node.kind || node.node_type}"]`;
+    graphString += `  ${label};\n`;
+  });
+
+  links.forEach(link => {
+    const source = nodes.find(node => node.id === link.source);
+    const target = nodes.find(node => node.id === link.target);
+    const edgeLabel = `"${source.id}" -> "${target.id}" [label="${link.label}"]`;
+    graphString += `  ${edgeLabel};\n`;
+  });
+
+  graphString += "}";
+  console.log(graphString);
+  return graphString;
+}
+
+
 
 </script>
 
