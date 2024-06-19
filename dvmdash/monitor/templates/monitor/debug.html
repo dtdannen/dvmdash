@@ -1,7 +1,7 @@
 {% extends 'monitor/base.html' %}
 
 {% block extrahead %}
-
+<script src="https://d3js.org/d3.v6.min.js"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
 
@@ -167,6 +167,27 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // log how many nodes and links there are
         console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
+
+
+        // Process the 'eventNodes' for the table
+      const tableNodes = Object.values(eventNodes);
+
+      // Sort tableNodes by created_at in ascending order
+      tableNodes.sort((a, b) => a.created_at - b.created_at);
+
+      // Populate the table with data from 'eventNodes'
+      const tableBody = d3.select("#dataTable tbody");
+      tableBody.selectAll("tr")
+        .data(tableNodes)
+        .enter()
+        .append("tr")
+        .html(d => `
+          <td><a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a></td>
+          <td>${d.kind}</td>
+          <td>${d.quick_details}</td>
+          <td><a href="${d.url}" target="_blank">View</a></td>
+          <td>${formatTimestamp(d.created_at)}</td>
+        `);
 
 
         function getLastChars(str) {
