@@ -301,6 +301,7 @@ document.addEventListener("DOMContentLoaded", function() {
             id: node.id,
             label: `${node.label}\n${node.kind || node.node_type}`,
             color: getNodeColor(node),
+              url: node.url,
           }));
 
           const visLinks = links.map(link => ({
@@ -351,7 +352,18 @@ document.addEventListener("DOMContentLoaded", function() {
             },
           };
 
-          new vis.Network(container, data, options);
+          const network = new vis.Network(container, data, options);
+
+          network.on("doubleClick", function (event) {
+            if (event.nodes.length > 0) {
+              const nodeId = event.nodes[0];
+              const node = nodes.find(n => n.id === nodeId);
+              if (node && node.url) {
+                window.open(node.url, '_blank');
+              }
+            }
+          });
+
         }
     });
 });
