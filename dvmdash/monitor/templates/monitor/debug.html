@@ -276,49 +276,61 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         function createVisNetwork(nodes, links) {
-            const visNodes = nodes.map(node => ({
-                id: node.id,
-                label: `${node.label}\n${node.kind || node.node_type}`,
-                color: getNodeColor(node),
-            }));
+          const visNodes = nodes.map(node => ({
+            id: node.id,
+            label: `${node.label}\n${node.kind || node.node_type}`,
+            color: getNodeColor(node),
+          }));
 
-            const visLinks = links.map(link => ({
-                from: link.source,
-                to: link.target,
-                label: link.label,
-                color: getLinkColor(link),
-            }));
+          const visLinks = links.map(link => ({
+            from: link.source,
+            to: link.target,
+            label: link.label,
+            color: getLinkColor(link),
+              length: 300,
+          }));
 
-            const container = document.getElementById("network-container");
-            const data = {
-                nodes: visNodes,
-                edges: visLinks,
-            };
+          const container = document.getElementById("network-container");
+          const data = {
+            nodes: visNodes,
+            edges: visLinks,
+          };
 
-            const options = {
-                nodes: {
-                    shape: "box",
-                    font: {
-                        size: 14,
-                        color: "#ffffff",
-                    },
-                },
-                edges: {
-                    arrows: "to",
-                    font: {
-                        size: 12,
-                        align: "middle",
-                    },
-                },
-                layout: {
-                    hierarchical: {
-                        direction: "RL",
-                        sortMethod: "directed",
-                    },
-                },
-            };
+          const options = {
+            nodes: {
+              shape: "box",
+              font: {
+                size: 14,
+                color: "#ffffff",
+              },
+              margin: 10, // Add margin around nodes
+            },
+            edges: {
+              arrows: "to",
+              font: {
+                size: 12,
+                align: "middle",
+              },
+            },
+            layout: {
+              hierarchical: {
+                direction: "RL",
+                sortMethod: "directed",
+                nodeSpacing: 50, // Increase node spacing
+                treeSpacing: 50, // Increase tree spacing
+                  levelSeparation: 400, // Adjust the distance between levels
+                  blockShifting: true, // Enable block shifting to avoid overlap
+                  edgeMinimization: true,
+              },
+            },
+            physics: {
+              hierarchicalRepulsion: {
+                nodeDistance: 100, // Increase node repulsion distance
+              },
+            },
+          };
 
-            new vis.Network(container, data, options);
+          new vis.Network(container, data, options);
         }
     });
 });
