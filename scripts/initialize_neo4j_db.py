@@ -139,7 +139,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.ERROR)
     graph_sync = GraphDBSync(mongo_db, neo4j_driver, logger)
     print("About to clear neo4j db...")
-    # graph_sync.clear()
+    graph_sync.clear()
     print("About to sync...")
     graph_sync.run()
 

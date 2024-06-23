@@ -505,14 +505,14 @@ class GraphDBSync:
         self.logger.info("Creating user and dvm nodes...")
         self.get_all_dvm_npubs()
         self.get_all_user_npubs()
-        # self.create_dvm_nodes()
+        self.create_dvm_nodes()
         self.create_user_nodes()
 
         # start creating relations
         self.logger.info("Creating relations...")
-        # self.create_user_request_relations()
-        # self.create_dvm_feedback_relations()
-        # self.create_dvm_response_relations()
+        self.create_user_request_relations()
+        self.create_dvm_feedback_relations()
+        self.create_dvm_response_relations()
 
     def delete_all_neo4j_relationships(self):
         """
