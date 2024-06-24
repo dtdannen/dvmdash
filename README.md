@@ -14,6 +14,13 @@ https://dvmdash.live/
   - As of May 13th, 2024, Python 3.12 is unsupported
 - If you are only using scripts/ (i.e. listengin for DVM events, you should only need requirements_backend.txt)
 
+
+## How to update javascript via npm
+
+- After you've added a new library to the package.json file and made any changes to webpack.config.js, you can run `npm run build` to update the javascript files in the static/ directory in the monitor/static/ directory.
+- Then run `python dvmdash/manage.py collectstatic` to update the static files in the main staticfiles/ directory, which is where static files are served when running locally.
+
+
 ## How to run this locally
 
 Run Mongita or a MongoDB locally

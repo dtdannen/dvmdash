@@ -59,7 +59,7 @@
                 await ndk.connect();
                 console.log('Connected to NDK');
 
-                user = ndk.getUser({pubkey: await signer.getPublicKey()});
+                user = signer.user();
                 console.log('User object:', user);
 
                 updateRelayStatus();
@@ -73,11 +73,10 @@
         async function sendEvent() {
             const content = document.getElementById('eventContent').value;
             try {
-                const event = new NDK.NDKEvent(ndk, {
-                    kind: 5050,
-                    content: content,
-                    tags: []
-                });
+                const event = new NDKEvent(ndk);
+                event.kind = 5050;
+                event.content = content;
+
                 await event.sign(signer);
                 await ndk.publish(event);
                 console.log('Data Vending Machine Event published:', event.id);
