@@ -42,19 +42,27 @@
         let ndk;
         let user;
         let signer;
+        let userProfile;
 
         async function initNostr() {
+            console.log('Starting Nostr initialization');
             try {
                 console.log('NDK object:', NDK);
                 const nip07signer = new NDKNip07Signer();
+                console.log('NDKNip07Signer object:', nip07signer);
 
                 ndk = new NDK({
                     explicitRelayUrls: relays,
                     signer: nip07signer
                 });
 
+                console.log('Connecting to NDK...');
+                await ndk.connect();
+                console.log('Connected to NDK');
+
                 console.log('NDK instance created:', ndk);
 
+                console.log('About to call nip07signer.user()');
                 await nip07signer.user().then(async (user) => {
                     if (!!user.npub) {
                         console.log("Permission granted to read their public key:", user.npub);
@@ -65,10 +73,21 @@
                     }
                 });
 
-                console.log('Connecting to NDK...');
-                await ndk.connect();
-                console.log('Connected to NDK');
+                console.log('About to fetch user profile');
+                try {
+                    user = await nip07signer.user();
+                    userProfile = await user.fetchProfile();
+                    console.log('User profile:', userProfile);
 
+                    if (userProfile) {
+                        console.log(`Fetched profile for ${userProfile.name || 'unnamed user'}`);
+                    } else {
+                        console.log('No profile found for user');
+                    }
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                }
+                
                 updateRelayStatus();
                 document.getElementById('sendButton').disabled = false;
             } catch (error) {
@@ -79,19 +98,23 @@
 
         function startListeningForEvents() {
             console.log('Starting to listen for events');
-            const filter = { kinds: [7000, 6050] };
+            const filter = { kinds: [7000] };  // Only listen for kind 7000 events
             console.log('Subscription filter:', filter);
 
             const subscription = ndk.subscribe(filter, (event) => {
-                console.log('Received event:', event);
-                console.log('Event tags:', event.tags);
+                console.log('Received event:', JSON.stringify(event, null, 2));
+                console.log('Event kind:', event.kind);
+                console.log('Event tags:', JSON.stringify(event.tags, null, 2));
+                console.log('Event content:', event.content);
 
-                // Process all events of kind 7000 and 6050
-                const kindLabel = event.kind === 7000 ? 'Feedback' : 'Response';
-                const li = document.createElement('li');
-                const status_tag = event.tags.find(tag => tag.startsWith('status:'));
-                li.textContent = `${kindLabel} from ${event.pubkey.slice(0, 8)}...: ${status_tag}`;
-                document.getElementById('responseList').appendChild(li);
+                if (event.kind === 7000) {
+                    console.log('Received a kind 7000 event');
+                    const li = document.createElement('li');
+                    li.textContent = `Feedback from ${event.pubkey.slice(0, 8)}...: ${event.content}`;
+                    document.getElementById('responseList').appendChild(li);
+                } else {
+                    console.log('Received an event with unexpected kind:', event.kind);
+                }
             });
 
             console.log('Subscription created:', subscription);
@@ -110,7 +133,11 @@
                 console.log('Event ID:', event.id);
 
                 const li = document.createElement('li');
-                li.textContent = `Published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
+                if (userProfile) {
+                    li.textContent = `${userProfile.name} published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
+                } else {
+                    li.textContent = `User published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
+                }
                 document.getElementById('responseList').appendChild(li);
 
             } catch (error) {
