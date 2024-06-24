@@ -16,7 +16,7 @@
             <button id="sendButton" class="btn btn-primary" disabled>Send Data Vending Machine Event</button>
         </div>
         <div id="responses" class="mt-4">
-            <h3>Responses:</h3>
+            <h3>Activity:</h3>
             <ul id="responseList"></ul>
         </div>
         <div id="relayStatus" class="mt-4">
@@ -46,21 +46,28 @@
         async function initNostr() {
             try {
                 console.log('NDK object:', NDK);
-                const signer = NDKPrivateKeySigner.generate();
+                const nip07signer = new NDKNip07Signer();
 
                 ndk = new NDK({
                     explicitRelayUrls: relays,
-                    signer: signer
+                    signer: nip07signer
                 });
 
                 console.log('NDK instance created:', ndk);
 
+                await nip07signer.user().then(async (user) => {
+                    if (!!user.npub) {
+                        console.log("Permission granted to read their public key:", user.npub);
+                        signer = nip07signer;
+                        startListeningForEvents();
+                    } else {
+                        console.log("Permission denied to read their public key");
+                    }
+                });
+
                 console.log('Connecting to NDK...');
                 await ndk.connect();
                 console.log('Connected to NDK');
-
-                user = signer.user();
-                console.log('User object:', user);
 
                 updateRelayStatus();
                 document.getElementById('sendButton').disabled = false;
@@ -68,6 +75,26 @@
                 console.error('Error initializing Nostr:', error);
                 document.getElementById('errorMessages').textContent = `Error initializing Nostr: ${error.message}`;
             }
+        }
+
+        function startListeningForEvents() {
+            console.log('Starting to listen for events');
+            const filter = { kinds: [7000, 6050] };
+            console.log('Subscription filter:', filter);
+
+            const subscription = ndk.subscribe(filter, (event) => {
+                console.log('Received event:', event);
+                console.log('Event tags:', event.tags);
+
+                // Process all events of kind 7000 and 6050
+                const kindLabel = event.kind === 7000 ? 'Feedback' : 'Response';
+                const li = document.createElement('li');
+                const status_tag = event.tags.find(tag => tag.startsWith('status:'));
+                li.textContent = `${kindLabel} from ${event.pubkey.slice(0, 8)}...: ${status_tag}`;
+                document.getElementById('responseList').appendChild(li);
+            });
+
+            console.log('Subscription created:', subscription);
         }
 
         async function sendEvent() {
@@ -79,22 +106,17 @@
 
                 await event.sign(signer);
                 await ndk.publish(event);
-                console.log('Data Vending Machine Event published:', event.id);
-                listenForResponses(event.id);
+                console.log('Data Vending Machine Event published:', event);
+                console.log('Event ID:', event.id);
+
+                const li = document.createElement('li');
+                li.textContent = `Published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
+                document.getElementById('responseList').appendChild(li);
+
             } catch (error) {
                 console.error('Failed to publish event:', error);
                 document.getElementById('errorMessages').textContent = `Failed to publish event: ${error.message}`;
             }
-        }
-
-        function listenForResponses(eventId) {
-            const filter = { kinds: [7000, 6050], '#e': [eventId] };
-            ndk.subscribe(filter, (event) => {
-                const li = document.createElement('li');
-                const kindLabel = event.kind === 7000 ? 'Feedback' : 'Response';
-                li.textContent = `${kindLabel} from ${event.pubkey.slice(0, 8)}...: ${event.content}`;
-                document.getElementById('responseList').appendChild(li);
-            });
         }
 
         function updateRelayStatus() {
