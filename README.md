@@ -22,6 +22,7 @@ Run Neo4j
 
 - See https://neo4j.com/docs/operations-manual/current/installation/
 - Once you have the tar file, you can run it with `./neo4j start`
+  - Or ` ~/bin/neo4j-community-5.20.0/bin/neo4j start`
 - Then check it's running in the web browser at `http://localhost:7474/`
 
 

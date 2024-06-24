@@ -1,0 +1,120 @@
+{% extends 'monitor/base.html' %}
+{% load static %}
+
+{% block title %}Playground{% endblock %}
+
+{% block extrahead %}
+    <script src="{% static 'js/bundle.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <div class="form-container">
+            <div class="form-group">
+                <textarea id="eventContent" class="form-control" rows="3" placeholder="Enter a message here"></textarea>
+            </div>
+            <button id="sendButton" class="btn btn-primary" disabled>Send Data Vending Machine Event</button>
+        </div>
+        <div id="responses" class="mt-4">
+            <h3>Responses:</h3>
+            <ul id="responseList"></ul>
+        </div>
+        <div id="relayStatus" class="mt-4">
+            <h3>Relay Statuses:</h3>
+        </div>
+        <div id="errorMessages" class="mt-4 text-danger"></div>
+    </div>
+
+    <script>
+        const relays = [
+            'wss://nostr-pub.wellorder.net',
+            'wss://relay.damus.io',
+            'wss://nos.lol',
+            'wss://relay.primal.net',
+            'wss://offchain.pub',
+            'wss://nostr.mom',
+            'wss://relay.nostr.bg',
+            'wss://nostr.oxtr.dev',
+            'wss://nostr-relay.nokotaro.com',
+            'wss://relay.nostr.wirednet.jp'
+        ];
+
+        let ndk;
+        let user;
+        let signer;
+
+        async function initNostr() {
+            try {
+                console.log('NDK object:', NDK);
+                const signer = NDKPrivateKeySigner.generate();
+
+                ndk = new NDK({
+                    explicitRelayUrls: relays,
+                    signer: signer
+                });
+
+                console.log('NDK instance created:', ndk);
+
+                console.log('Connecting to NDK...');
+                await ndk.connect();
+                console.log('Connected to NDK');
+
+                user = ndk.getUser({pubkey: await signer.getPublicKey()});
+                console.log('User object:', user);
+
+                updateRelayStatus();
+                document.getElementById('sendButton').disabled = false;
+            } catch (error) {
+                console.error('Error initializing Nostr:', error);
+                document.getElementById('errorMessages').textContent = `Error initializing Nostr: ${error.message}`;
+            }
+        }
+
+        async function sendEvent() {
+            const content = document.getElementById('eventContent').value;
+            try {
+                const event = new NDK.NDKEvent(ndk, {
+                    kind: 5050,
+                    content: content,
+                    tags: []
+                });
+                await event.sign(signer);
+                await ndk.publish(event);
+                console.log('Data Vending Machine Event published:', event.id);
+                listenForResponses(event.id);
+            } catch (error) {
+                console.error('Failed to publish event:', error);
+                document.getElementById('errorMessages').textContent = `Failed to publish event: ${error.message}`;
+            }
+        }
+
+        function listenForResponses(eventId) {
+            const filter = { kinds: [7000, 6050], '#e': [eventId] };
+            ndk.subscribe(filter, (event) => {
+                const li = document.createElement('li');
+                const kindLabel = event.kind === 7000 ? 'Feedback' : 'Response';
+                li.textContent = `${kindLabel} from ${event.pubkey.slice(0, 8)}...: ${event.content}`;
+                document.getElementById('responseList').appendChild(li);
+            });
+        }
+
+        function updateRelayStatus() {
+            const statusDiv = document.getElementById('relayStatus');
+            statusDiv.innerHTML = '<h3>Relay Statuses:</h3>';
+            ndk.pool.relays.forEach(relay => {
+                const status = relay.status;
+                const li = document.createElement('li');
+                li.textContent = `${relay.url}: ${status}`;
+                statusDiv.appendChild(li);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initNostr().catch(error => {
+                console.error('Error in DOMContentLoaded:', error);
+                document.getElementById('errorMessages').textContent = `Error in page load: ${error.message}`;
+            });
+            document.getElementById('sendButton').addEventListener('click', sendEvent);
+        });
+    </script>
+{% endblock %}

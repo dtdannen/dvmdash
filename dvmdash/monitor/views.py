@@ -773,3 +773,9 @@ def get_graph_data(request, request_event_id=""):
     }
 
     return JsonResponse(response_data, safe=False)
+
+
+def playground(request):
+    context = {}
+    template = loader.get_template("monitor/playground.html")
+    return HttpResponse(template.render(context, request))
