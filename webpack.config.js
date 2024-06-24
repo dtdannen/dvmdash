@@ -4,6 +4,6 @@ module.exports = {
   entry: './src/index.js',
   output: {
     filename: 'bundle.js',
-    path: path.resolve(__dirname, 'dvmdash/static/js'),
+    path: path.resolve(__dirname, 'dvmdash/monitor/static/js'),
   },
 };
