@@ -21,6 +21,7 @@ urlpatterns = [
         "api/graph/<str:request_event_id>", views.get_graph_data, name="get_graph_data"
     ),
     path("playground/", views.playground, name="playground"),
+    path("listen/", views.listen, name="listen"),
 ]
 
 handler404 = "monitor.views.custom_404"

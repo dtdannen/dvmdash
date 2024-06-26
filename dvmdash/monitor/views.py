@@ -779,3 +779,9 @@ def playground(request):
     context = {}
     template = loader.get_template("monitor/playground.html")
     return HttpResponse(template.render(context, request))
+
+
+def listen(request):
+    context = {}
+    template = loader.get_template("monitor/listen.html")
+    return HttpResponse(template.render(context, request))
