@@ -105,23 +105,33 @@
 
                 if (event.kind === 7000) {
                     if (isRelevant) {
+                        // print event tags
+                        console.log('event kind 7000 is relevant and has tags:', event.tags);
+
                         // check if the event has an amount tag
                         const amountTag = event.tags.find(tag => tag[0] === 'amount');
-                        console.log('amountTag:', amountTag);
+                        console.log('amount tag is:', amountTag);
 
                         // Extract amount and invoice from the amountTag if it exists
                         let amountValue = null;
                         let invoice = null;
                         if (amountTag) {
+                            console.log('amountTag:', amountTag);
                             amountValue = amountTag[1];
+                            console.log('amountValue:', amountValue);
+                            // divide amountValue by 1000
+                            amountValue = amountValue / 1000;
                             invoice = amountTag[2];
+                            console.log('invoice:', invoice);
                             const li = document.createElement('li');
-                            li.textContent = `Referenced Event: ${event.content} - Amount: ${amountValue} - Invoice: ${invoice}`;
+                            console.log('created li item:', li);
+                            li.innerHTML = `Referenced Event from ${event.pubkey}: ${event.content}. Please <a href="lightning:${invoice}"> pay this lnurl: </a> for ${amountValue} sats`;
+                            console.log('created inner html tag')
                             const responseList = document.getElementById('responseList');
                             responseList.insertBefore(li, responseList.firstChild);
                         } else {
                             const li = document.createElement('li');
-                            li.textContent = `Referenced Event: ${event.content}`;
+                            li.textContent = `Referenced Event from ${event.pubkey}: ${event.content}`;
                             const responseList = document.getElementById('responseList');
                             responseList.insertBefore(li, responseList.firstChild);
                         }
@@ -129,7 +139,7 @@
                 } else {
                     if (isRelevant) {
                         const li = document.createElement('li');
-                        li.textContent = `Referenced Event: ${event.content}`;
+                        li.textContent = `Referenced Event from ${event.pubkey}: ${event.content}`;
                         const responseList = document.getElementById('responseList');
                         responseList.insertBefore(li, responseList.firstChild);
                     } else {
@@ -159,6 +169,22 @@
                 const event = new NDKEvent(ndk);
                 event.kind = 5050;
                 event.content = content;
+
+                // Add relays tag
+                const relayUrls = [
+                    'wss://nostr-pub.wellorder.net',
+                    'wss://relay.damus.io',
+                    'wss://nos.lol',
+                    'wss://relay.primal.net',
+                    'wss://offchain.pub',
+                    'wss://nostr.mom',
+                    'wss://relay.nostr.bg',
+                    'wss://nostr.oxtr.dev',
+                    'wss://nostr-relay.nokotaro.com',
+                    'wss://relay.nostr.wirednet.jp'
+                ];
+
+                event.tags.push(["relays", ...relayUrls]);
 
                 await event.sign(signer);
                 await ndk.publish(event);
