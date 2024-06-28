@@ -23,14 +23,18 @@ https://dvmdash.live/
 
 ## How to run this locally
 
-Run Mongita or a MongoDB locally
+1. Run Mongita or a MongoDB locally
 
-Run Neo4j
+2. Run Neo4j
 
-- See https://neo4j.com/docs/operations-manual/current/installation/
-- Once you have the tar file, you can run it with `./neo4j start`
-  - Or ` ~/bin/neo4j-community-5.20.0/bin/neo4j start`
-- Then check it's running in the web browser at `http://localhost:7474/`
+   - See https://neo4j.com/docs/operations-manual/current/installation/
+   - Once you have the tar file, you can run it with `./neo4j start`
+     - Or ` ~/bin/neo4j-community-5.20.0/bin/neo4j start`
+   - Then check it's running in the web browser at `http://localhost:7474/`
+
+3. (Optional) Run a local DVM
+4. (Optional) Run a local relay, such as [bucket](https://github.com/coracle-social/bucket)
+   - this is helpful to test local dvms with the playground page, testing sending and receiving DVM events.
 
 
 ### APOC Extension
