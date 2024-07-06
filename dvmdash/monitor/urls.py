@@ -17,11 +17,15 @@ urlpatterns = [
     path("debug/", views.debug, name="debug"),
     path("debug/<str:event_id>/", views.debug, name="debug"),
     path("recent/", views.recent, name="recent"),
+    path("playground/", views.playground, name="playground"),
     path(
         "api/graph/<str:request_event_id>", views.get_graph_data, name="get_graph_data"
     ),
-    path("playground/", views.playground, name="playground"),
-    path("listen/", views.listen, name="listen"),
+    path(
+        "api/get_payment_request_total/",
+        views.get_payment_request_total,
+        name="get_payment_request_total",
+    ),
 ]
 
 handler404 = "monitor.views.custom_404"
