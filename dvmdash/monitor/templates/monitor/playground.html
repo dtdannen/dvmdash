@@ -1,28 +1,26 @@
 {% extends 'monitor/base.html' %}
 {% load static %}
 
-{% block title %}Playground{% endblock %}
+{% block title %}Listen{% endblock %}
 
 {% block extrahead %}
     <script src="{% static 'js/bundle.js' %}"></script>
 {% endblock %}
 
 {% block content %}
+
     <div class="container">
+        <h3 class="mt-4" id="logged_in_status">Not logged in</h3>
         <div class="form-container">
             <div class="form-group">
                 <textarea id="eventContent" class="form-control" rows="3" placeholder="Enter a message here"></textarea>
             </div>
-            <button id="sendButton" class="btn btn-primary" disabled>Send Data Vending Machine Event</button>
+            <button id="sendButton" class="btn btn-primary">Send Data Vending Machine Event</button>
         </div>
         <div id="responses" class="mt-4">
             <h3>Activity:</h3>
             <ul id="responseList"></ul>
         </div>
-        <div id="relayStatus" class="mt-4">
-            <h3>Relay Statuses:</h3>
-        </div>
-        <div id="errorMessages" class="mt-4 text-danger"></div>
     </div>
 
     <script>
@@ -36,33 +34,29 @@
             'wss://relay.nostr.bg',
             'wss://nostr.oxtr.dev',
             'wss://nostr-relay.nokotaro.com',
-            'wss://relay.nostr.wirednet.jp'
+            'wss://relay.nostr.wirednet.jp',
+            'localhost:4736',
         ];
 
         let ndk;
-        let user;
-        let signer;
         let userProfile;
+        let sentEventIds = [];
 
         async function initNostr() {
             console.log('Starting Nostr initialization');
             try {
-                console.log('NDK object:', NDK);
                 const nip07signer = new NDKNip07Signer();
-                console.log('NDKNip07Signer object:', nip07signer);
-
                 ndk = new NDK({
                     explicitRelayUrls: relays,
                     signer: nip07signer
                 });
 
+                console.log('Nip07-signer-relays are:', nip07signer.relays());
+
                 console.log('Connecting to NDK...');
                 await ndk.connect();
                 console.log('Connected to NDK');
 
-                console.log('NDK instance created:', ndk);
-
-                // start listening for events
                 startListeningForEvents();
 
                 console.log('About to call nip07signer.user()');
@@ -83,6 +77,9 @@
 
                     if (userProfile) {
                         console.log(`Fetched profile for ${userProfile.name || 'unnamed user'}`);
+                        // get the logged in h3 tag
+                        const loggedInStatus = document.getElementById('logged_in_status');
+                        loggedInStatus.textContent = `Logged in as ${userProfile.name || 'unnamed user'}`;
                     } else {
                         console.log('No profile found for user');
                     }
@@ -90,50 +87,78 @@
                     console.error('Error fetching user profile:', error);
                 }
 
-                updateRelayStatus();
-                document.getElementById('sendButton').disabled = false;
-                startListeningForEvents();
             } catch (error) {
                 console.error('Error initializing Nostr:', error);
-                document.getElementById('errorMessages').textContent = `Error initializing Nostr: ${error.message}`;
+                const errorMessagesDiv = document.createElement('div');
+                errorMessagesDiv.textContent = `Error initializing Nostr: ${error.message}`;
+                document.body.appendChild(errorMessagesDiv);
             }
         }
 
         function startListeningForEvents() {
             console.log('Starting to listen for events');
-            const filter = { kinds: [7000] };  // Only listen for kind 7000 events
+            const filter = { kinds: [5050, 6050, 7000] };
             console.log('Subscription filter:', filter);
 
             const subscription = ndk.subscribe(filter);
 
             subscription.on("event", (event) => {
-                console.log('Received event:', JSON.stringify(event, null, 2));
-                console.log('Event kind:', event.kind);
-                console.log('Event tags:', JSON.stringify(event.tags, null, 2));
-                console.log('Event content:', event.content);
+                // Check if the event has an 'e' tag with a value in sentEventIds
+                const eTags = event.tags.filter(tag => tag[0] === 'e');
+                const isRelevant = eTags.some(tag => sentEventIds.includes(tag[1]));
 
                 if (event.kind === 7000) {
-                    console.log('Received a kind 7000 event');
-                    const li = document.createElement('li');
-                    li.textContent = `Feedback from ${event.pubkey.slice(0, 8)}...: ${event.content}`;
-                    document.getElementById('responseList').appendChild(li);
+                    if (isRelevant) {
+                        // print event tags
+                        console.log('event kind 7000 is relevant and has tags:', event.tags);
+
+                        // check if the event has an amount tag
+                        const amountTag = event.tags.find(tag => tag[0] === 'amount');
+                        console.log('amount tag is:', amountTag);
+
+                        // Extract amount and invoice from the amountTag if it exists
+                        let amountValue = null;
+                        let invoice = null;
+                        if (amountTag) {
+                            console.log('amountTag:', amountTag);
+                            amountValue = amountTag[1];
+                            console.log('amountValue:', amountValue);
+                            // divide amountValue by 1000
+                            amountValue = amountValue / 1000;
+                            invoice = amountTag[2];
+                            console.log('invoice:', invoice);
+                            const li = document.createElement('li');
+                            console.log('created li item:', li);
+                            li.innerHTML = `Referenced Event from ${event.pubkey}: ${event.content}. Please <a href="lightning:${invoice}"> pay this lnurl: </a> for ${amountValue} sats`;
+                            console.log('created inner html tag')
+                            const responseList = document.getElementById('responseList');
+                            responseList.insertBefore(li, responseList.firstChild);
+                        } else {
+                            const li = document.createElement('li');
+                            li.textContent = `Referenced Event from ${event.pubkey}: ${event.content}`;
+                            const responseList = document.getElementById('responseList');
+                            responseList.insertBefore(li, responseList.firstChild);
+                        }
+                    }
                 } else {
-                    console.log('Received an event with unexpected kind:', event.kind);
+                    if (isRelevant) {
+                        const li = document.createElement('li');
+                        li.textContent = `Referenced Event from ${event.pubkey}: ${event.content}`;
+                        const responseList = document.getElementById('responseList');
+                        responseList.insertBefore(li, responseList.firstChild);
+                    } else {
+                    }
                 }
             });
 
+
             subscription.on("eose", () => {
-                console.log("All relays have reached the end of the event stream, about to try reconnecting");
-                // Restart the subscription if needed
-                setTimeout(startListeningForEvents, 5000); // Reconnect after 5 seconds
+                console.log("All relays have reached the end of the event stream");
             });
 
             subscription.on("close", () => {
                 console.log("Subscription closed");
             });
-
-            // Extend the subscription stop time to 5 minutes
-            setTimeout(() => subscription.stop(), 300000);
 
             console.log('Subscription created:', subscription);
         }
@@ -145,10 +170,28 @@
                 event.kind = 5050;
                 event.content = content;
 
+                // Add relays tag
+                const relayUrls = [
+                    'wss://nostr-pub.wellorder.net',
+                    'wss://relay.damus.io',
+                    'wss://nos.lol',
+                    'wss://relay.primal.net',
+                    'wss://offchain.pub',
+                    'wss://nostr.mom',
+                    'wss://relay.nostr.bg',
+                    'wss://nostr.oxtr.dev',
+                    'wss://nostr-relay.nokotaro.com',
+                    'wss://relay.nostr.wirednet.jp',
+                    'localhost:4736',
+                ];
+
+                event.tags.push(["relays", ...relayUrls]);
+
                 await event.sign(signer);
                 await ndk.publish(event);
                 console.log('Data Vending Machine Event published:', event);
                 console.log('Event ID:', event.id);
+                sentEventIds.push(event.id);
 
                 const li = document.createElement('li');
                 if (userProfile) {
@@ -156,7 +199,8 @@
                 } else {
                     li.textContent = `User published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
                 }
-                document.getElementById('responseList').appendChild(li);
+                const responseList = document.getElementById('responseList');
+                responseList.insertBefore(li, responseList.firstChild);
 
             } catch (error) {
                 console.error('Failed to publish event:', error);
@@ -164,21 +208,12 @@
             }
         }
 
-        function updateRelayStatus() {
-            const statusDiv = document.getElementById('relayStatus');
-            statusDiv.innerHTML = '<h3>Relay Statuses:</h3>';
-            ndk.pool.relays.forEach(relay => {
-                const status = relay.status;
-                const li = document.createElement('li');
-                li.textContent = `${relay.url}: ${status}`;
-                statusDiv.appendChild(li);
-            });
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             initNostr().catch(error => {
                 console.error('Error in DOMContentLoaded:', error);
-                document.getElementById('errorMessages').textContent = `Error in page load: ${error.message}`;
+                const errorMessagesDiv = document.createElement('div');
+                errorMessagesDiv.textContent = `Error in page load: ${error.message}`;
+                document.body.appendChild(errorMessagesDiv);
             });
             document.getElementById('sendButton').addEventListener('click', sendEvent);
         });
