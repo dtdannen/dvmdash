@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 
 from django.urls import path
 from . import views
+from . import api
 
 urlpatterns = [
     path("", views.about, name="about"),
@@ -23,7 +24,7 @@ urlpatterns = [
     ),
     path(
         "api/get_payment_request_total/",
-        views.get_payment_request_total,
+        api.get_payment_request_total,
         name="get_payment_request_total",
     ),
 ]
