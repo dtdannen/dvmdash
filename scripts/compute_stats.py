@@ -11,6 +11,7 @@ import loguru
 import dotenv
 from general.dvm import EventKind
 from nostr_sdk import Timestamp, LogLevel
+from tqdm import tqdm
 
 
 def setup_logging():
@@ -71,14 +72,25 @@ DB = setup_database()
 
 
 def compute_stats():
+    """
+    Stats to be computed:
+    - Total Number of requests
+    - Total Number of responses
+    - Total Number of request kinds
+    - Total Number of response kinds
+    - Total Number of DVM Pub Keys seen
+    - Total Number of Profiles (NIP-89) seen
+    - Most popular DVM - which DVM is responding the most?
+    - Most popular kind
+    """
     stats = {}
 
     # get the number of events in the database
-    num_dvm_events_in_db = DB["events"].count_documents({})
+    num_dvm_events_in_db = DB.events.count_documents({})
     stats["num_dvm_events_in_db"] = num_dvm_events_in_db
 
     # get the number of unique kinds of all events
-    all_dvm_events_cursor = DB["events"].find(
+    all_dvm_events_cursor = DB.events.find(
         {"kind": {"$gte": 5000, "$lte": 6999, "$nin": EventKind.get_bad_dvm_kinds()}}
     )
     all_dvm_events = list(all_dvm_events_cursor)
@@ -87,7 +99,7 @@ def compute_stats():
     memory_usage = sys.getsizeof(all_dvm_events)
     # Convert memory usage to megabytes
     memory_usage_mb = memory_usage / (1024 * 1024)
-    LOGGER.info(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
+    print(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
 
     dvm_nip89_profiles = {}
 
@@ -164,19 +176,20 @@ def compute_stats():
     # pub ids of all dvm requests - these are probably people?
     dvm_job_requests = {}
 
-    for dvm_event_i in all_dvm_events:
+    for dvm_event_i in tqdm(all_dvm_events):
         if "kind" in dvm_event_i:
             kind_num = dvm_event_i["kind"]
+            kind_num_as_str = str(kind_num)
 
             if (
                 5000 <= kind_num <= 5999
                 and kind_num not in EventKind.get_bad_dvm_kinds()
             ):
                 num_dvm_request_events += 1
-                if kind_num in request_kinds_counts:
-                    request_kinds_counts[kind_num] += 1
+                if kind_num_as_str in request_kinds_counts:
+                    request_kinds_counts[kind_num_as_str] += 1
                 else:
-                    request_kinds_counts[kind_num] = 1
+                    request_kinds_counts[kind_num_as_str] = 1
 
                 dvm_request_pub_key = dvm_event_i["pubkey"]
                 if dvm_request_pub_key in dvm_job_requests:
@@ -189,10 +202,10 @@ def compute_stats():
                 and kind_num not in EventKind.get_bad_dvm_kinds()
             ):
                 num_dvm_response_events += 1
-                if kind_num in response_kinds_counts:
-                    response_kinds_counts[kind_num] += 1
+                if kind_num_as_str in response_kinds_counts:
+                    response_kinds_counts[kind_num_as_str] += 1
                 else:
-                    response_kinds_counts[kind_num] = 1
+                    response_kinds_counts[kind_num_as_str] = 1
 
                 dvm_pub_key = dvm_event_i["pubkey"]
                 if dvm_pub_key in dvm_job_results:
@@ -215,7 +228,7 @@ def compute_stats():
 
     # replace dvm_job_results keys with names if available
     dvm_job_results_names = {}
-    for pub_key, count in dvm_job_results.items():
+    for pub_key, count in tqdm(dvm_job_results.items()):
         if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
             dvm_job_results_names[dvm_nip89_profiles[pub_key]["name"]] = count
             labels_to_pubkeys[dvm_nip89_profiles[pub_key]["name"]] = pub_key
@@ -294,16 +307,23 @@ def compute_stats():
 
 
 def save_stats_to_mongodb(stats):
-    collection = DB["stats"]
+    collection_name = "stats"
+    if collection_name not in DB.list_collection_names():
+        DB.create_collection(
+            collection_name,
+            timeseries={
+                "timeField": "timestamp",
+                "metaField": "metadata",
+                "granularity": "minutes",
+            },
+        )
+
+    collection = DB[collection_name]
 
     current_time = datetime.now()
     stats_document = {"timestamp": current_time, **stats}
 
-    LOGGER.info(f"About to saving stats to MongoDB: {stats}")
-
     collection.insert_one(stats_document)
-
-    LOGGER.info(f"Stats saved to MongoDB: {stats_document}")
 
 
 if __name__ == "__main__":
