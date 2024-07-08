@@ -303,6 +303,46 @@ def compute_stats():
 
     LOGGER.info(f"Setting var num_dvm_kinds to {stats['num_dvm_kinds']}")
 
+    query = {
+        "kind": 7000,
+        "tags": {
+            "$all": [["status", "payment-required"]],
+        },
+    }
+
+    payment_requests = list(DB.events.find(query))
+
+    total_number_of_payments_requests = len(payment_requests)
+    total_amount_millisats = 0
+    average_amount_millisats = 0
+
+    for payment_request in payment_requests:
+        try:
+            tags = payment_request["tags"]
+            for tag in tags:
+                if tag[0] == "amount":
+                    total_amount_millisats += int(tag[1])
+                    break
+        except (ValueError, SyntaxError) as e:
+            print(f"Error parsing tags for record {payment_request['id']}: {str(e)}")
+            # Skip processing tags for this record and continue with the next one
+
+    if total_number_of_payments_requests > 0:
+        average_amount_millisats = (
+            total_amount_millisats / total_number_of_payments_requests
+        )
+
+    total_amount_sats = total_amount_millisats / 1000
+    average_amount_sats = average_amount_millisats / 1000
+
+    print(f"Total number of payment requests: {total_number_of_payments_requests}")
+    print(f"Total amount (sats): {total_amount_sats}")
+    print(f"Average amount (sats): {average_amount_sats}")
+
+    stats["total_number_of_payments_requests"] = total_number_of_payments_requests
+    stats["total_amount_sats"] = total_amount_sats
+    stats["average_amount_sats"] = average_amount_sats
+
     return stats
 
 

@@ -132,37 +132,28 @@
     <div class="container mt-5">
     <div class="row">
         <div class="col-md-4">
-            <div class="card text-white bg-darkmediumpurple mb-3"
-                 hx-get="{% url 'get_payment_request_total' %}?metric=total_requests"
-                 hx-trigger="load"
-                 hx-target="this">
+            <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Total Payment Requests</h5>
-                    <p class="card-text display-4">Loading...</p>
+                    <p class="card-text display-4">{{ total_number_of_payments_requests }}</p>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card text-white bg-darkmediumpurple mb-3"
-                 hx-get="{% url 'get_payment_request_total' %}?metric=total_amount"
-                 hx-trigger="load"
-                 hx-target="this">
+            <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Total Amount (Sats)</h5>
-                    <p class="card-text display-4">Loading...</p>
+                    <p class="card-text display-4">{{ total_amount_sats }}</p>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card text-white bg-darkmediumpurple mb-3"
-                 hx-get="{% url 'get_payment_request_total' %}?metric=average_amount"
-                 hx-trigger="load"
-                 hx-target="this">
+            <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Average Amount (Sats)</h5>
-                    <p class="card-text display-4">Loading...</p>
+                    <p class="card-text display-4">{{ average_amount_sats }}</p>
                 </div>
             </div>
         </div>
