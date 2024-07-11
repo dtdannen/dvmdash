@@ -1,4 +1,5 @@
 {% extends 'monitor/base.html' %}
+{%  load humanize %}
 
 
 
@@ -17,7 +18,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Requests</h5>
-                    <p class="card-text display-4">{{ num_dvm_request_events }}</p>
+                    <p class="card-text display-4">{{ num_dvm_request_events|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -26,7 +27,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Responses</h5>
-                    <p class="card-text display-4">{{ num_dvm_response_events }}</p>
+                    <p class="card-text display-4">{{ num_dvm_response_events|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -35,7 +36,7 @@
             <div class="card text-white bg-mediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Request Kinds Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_request_kinds }}</p>
+                    <p class="card-text display-4">{{ num_dvm_request_kinds|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -44,7 +45,7 @@
             <div class="card text-white bg-mediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Response Kinds Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_response_kinds }}</p>
+                    <p class="card-text display-4">{{ num_dvm_response_kinds|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -56,7 +57,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Pub Keys Seen</h5>
-                    <p class="card-text display-4">{{ dvm_pub_keys }}</p>
+                    <p class="card-text display-4">{{ dvm_pub_keys|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -65,7 +66,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Profiles (NIP-89) Seen </h5>
-                    <p class="card-text display-4">{{ dvm_nip_89s }}</p>
+                    <p class="card-text display-4">{{ dvm_nip_89s|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -83,7 +84,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Most Popular Kind</h5>
-                    <p class="card-text display-4">{{ most_popular_kind }}</p>
+                    <p class="card-text display-4">{{ most_popular_kind|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -95,7 +96,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">(24 hr) DVM Tasks</h5>
-                    <p class="card-text display-4">{{ num_dvm_tasks_24h }}</p>
+                    <p class="card-text display-4">{{ num_dvm_tasks_24h|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -104,7 +105,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">(24 hr) DVM Results</h5>
-                    <p class="card-text display-4">{{ num_dvm_results_24h }}</p>
+                    <p class="card-text display-4">{{ num_dvm_results_24h|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -113,7 +114,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">(1 week) DVM Tasks</h5>
-                    <p class="card-text display-4">{{ num_dvm_tasks_1week }}</p>
+                    <p class="card-text display-4">{{ num_dvm_tasks_1week|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -122,7 +123,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">(1 week) DVM Results</h5>
-                    <p class="card-text display-4">{{ num_dvm_results_1week }}</p>
+                    <p class="card-text display-4">{{ num_dvm_results_1week|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -135,7 +136,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Total Payment Requests</h5>
-                    <p class="card-text display-4">{{ total_number_of_payments_requests }}</p>
+                    <p class="card-text display-4">{{ total_number_of_payments_requests|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -143,8 +144,8 @@
         <div class="col-md-4">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">Total Amount (Sats)</h5>
-                    <p class="card-text display-4">{{ total_amount_sats }}</p>
+                    <h5 class="card-title">Total Payment Receipts</h5>
+                    <p class="card-text display-4">{{ total_number_of_payment_receipts|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -152,8 +153,17 @@
         <div class="col-md-4">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">Average Amount (Sats)</h5>
-                    <p class="card-text display-4">{{ average_amount_sats }}</p>
+                    <h5 class="card-title">Sum Payments Requested from DVMs (Sats)</h5>
+                    <p class="card-text display-4">{{ total_amount_dvm_requested_sats|intcomma }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Sum Payments Paid to DVMs (Sats)</h5>
+                    <p class="card-text display-4">{{ total_amount_dvm_paid_sats|intcomma }}</p>
                 </div>
             </div>
         </div>

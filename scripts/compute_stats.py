@@ -12,6 +12,7 @@ import dotenv
 from general.dvm import EventKind
 from nostr_sdk import Timestamp, LogLevel
 from tqdm import tqdm
+import re
 
 
 def setup_logging():
@@ -332,16 +333,94 @@ def compute_stats():
             total_amount_millisats / total_number_of_payments_requests
         )
 
-    total_amount_sats = total_amount_millisats / 1000
-    average_amount_sats = average_amount_millisats / 1000
+    total_amount_sats = int(total_amount_millisats / 1000)
+    average_amount_sats = int(average_amount_millisats / 1000)
 
     print(f"Total number of payment requests: {total_number_of_payments_requests}")
     print(f"Total amount (sats): {total_amount_sats}")
     print(f"Average amount (sats): {average_amount_sats}")
 
     stats["total_number_of_payments_requests"] = total_number_of_payments_requests
-    stats["total_amount_sats"] = total_amount_sats
-    stats["average_amount_sats"] = average_amount_sats
+    stats["total_amount_dvm_requested_sats"] = total_amount_sats
+    stats["average_amount_dvm_requested_sats"] = average_amount_sats
+
+    # get all zap receipts to calculate how much money has actually been paid to DVMs
+
+    zap_receipts = list(DB.events.find({"kind": 9735}))
+
+    total_amount_paid_millisats = 0
+    total_number_of_payment_receipts = 0
+    bolt11_invoice_amount_regex_pattern = r"lnbc(\d+)"
+    for zap_receipt in zap_receipts:
+        try:
+            tags = zap_receipt["tags"]
+            has_bolt11_invoice = False
+            amount_millisats = -1
+            amount_from_bolt_invoice = -1
+            has_preimage = False
+            for tag in tags:
+                # check that the tag has a bolt11 invoice
+                # print(f"tag is {tag}")
+                if tag[0] == "bolt11":
+                    has_bolt11_invoice = True
+
+                    invoice_str = tag[1]
+
+                    # get the amount from the bolt 11 invoice:
+                    match = re.search(bolt11_invoice_amount_regex_pattern, invoice_str)
+                    if match:
+                        amount_from_bolt_invoice = int(match.group(1))
+                        print(f"Amount from bolt invoice: {amount_from_bolt_invoice}")
+                elif tag[0] == "description":
+                    # this should point to a new event that is the zap request
+                    zap_request = json.loads(tag[1])
+                    if "kind" in zap_request and zap_request["kind"] == 9734:
+                        # this is a zap request
+                        # check if the zap request has a bolt11 invoice
+                        zap_request_tags = zap_request["tags"]
+                        for zap_request_tag in zap_request_tags:
+                            if zap_request_tag[0] == "amount":
+                                amount_millisats = int(zap_request_tag[1])
+                                break
+                elif tag[0] == "preimage":
+                    has_preimage = True
+
+            if not has_bolt11_invoice:
+                print(f"Zap receipt {zap_receipt['id']} does not have a bolt11 invoice")
+                continue
+
+            if not has_preimage:
+                print(f"Zap receipt {zap_receipt['id']} does not have a preimage")
+                continue
+
+            if amount_millisats < 0 and amount_from_bolt_invoice < 0:
+                print(
+                    f"Zap receipt {zap_receipt['id']} is missing amount or does not have a valid amount"
+                )
+                continue
+
+            # if we get here, we have a valid zap receipt
+            print(f"Zap receipt {zap_receipt['id']} has a valid bolt11 invoice")
+            if amount_from_bolt_invoice > 0:
+                total_amount_paid_millisats += amount_from_bolt_invoice * 100
+            else:
+                total_amount_paid_millisats += amount_millisats
+            total_number_of_payment_receipts += 1
+
+        except (ValueError, SyntaxError) as e:
+            print(f"Error parsing tags for record {zap_receipt['id']}: {str(e)}")
+            # Skip processing tags for this record and continue with the next one
+        except Exception as e:
+            print(f"Error processing zap receipt {zap_receipt['id']}: {str(e)}")
+            import traceback
+
+            print(f"Traceback: {traceback.format_exc()}")
+
+    stats["total_amount_dvm_paid_sats"] = int(total_amount_paid_millisats / 1000)
+    stats["total_number_of_payment_receipts"] = total_number_of_payment_receipts
+    stats["total_average_amount_dvm_paid_sats"] = int(
+        total_amount_paid_millisats / 1000 / total_number_of_payment_receipts
+    )
 
     return stats
 
