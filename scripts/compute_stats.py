@@ -52,7 +52,7 @@ setup_environment()
 
 def setup_database():
     # connect to db
-    mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True)
+    mongo_client = MongoClient(os.getenv("MONGO_URI"))
     db = mongo_client["dvmdash"]
 
     try:

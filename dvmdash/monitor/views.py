@@ -31,7 +31,7 @@ if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like s
     print("Connected to local mongo db using MONGITA")
 else:
     # connect to db
-    mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True)
+    mongo_client = MongoClient(os.getenv("MONGO_URI"))
     db = mongo_client["dvmdash"]
 
     try:

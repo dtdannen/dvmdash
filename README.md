@@ -25,6 +25,9 @@ https://dvmdash.live/
 
 1. Run Mongita or a MongoDB locally
 
+    - for example, run mongo locally:
+      - `./mongod --dbpath ~/mongodb/data/db`
+
 2. Run Neo4j
 
    - See https://neo4j.com/docs/operations-manual/current/installation/
