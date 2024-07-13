@@ -1,7 +1,7 @@
 import json
 
 import neo4j
-
+import uuid
 from general import helpers
 from general.dvm import EventKind
 from tqdm import tqdm
@@ -19,6 +19,12 @@ class GraphDBSync:
         self.request_events = {}  # key is event id, value is event
         self.feedback_events = {}  # key is event id, value is event
         self.response_events = {}  # key is event id, value is event
+        self.feedback_event_invoices = (
+            {}
+        )  # key is a feedback event id, value is a json dict of invoice details
+        self.invoices = (
+            {}
+        )  # key is the lnbc string, value is the json data excluding the lnbc string
 
     def get_all_dvm_nip89_profiles(self):
         """
@@ -74,6 +80,24 @@ class GraphDBSync:
 
         for event in tqdm(feedback_events_ls):
             self.feedback_events[event["id"]] = event
+
+            # create an invoice node
+            invoice_json_data = {}
+            if "tags" in event:
+                for tag in event["tags"]:
+                    if tag[0] == "amount" and len(tag) >= 3:
+                        if tag[2].startswith("lnbc"):
+                            tag_data = tag
+                            invoice_json_data["amount"] = tag[1]
+                            invoice_json_data["invoice"] = tag[2]
+                            # now add the author as an extra field too
+                            invoice_json_data["creator_pubkey"] = event["pubkey"]
+                            invoice_json_data["feedback_event_id"] = event["id"]
+
+                            self.feedback_event_invoices[
+                                event["id"]
+                            ] = invoice_json_data
+                            break
 
         self.logger.debug(
             f"Loaded {len(self.feedback_events)} feedback events from mongo"
@@ -292,6 +316,39 @@ class GraphDBSync:
         else:
             self.logger.debug(
                 f"Node {node.id} was created with the 'Event' label for npub_hex: {original_event['pubkey']}"
+            )
+
+        return True
+
+    def _create_invoice_node(self, session, invoice_json_data):
+        # create the invoice node
+        # create a uuid for neo4j
+        lnbc_str = invoice_json_data["invoice"]
+
+        query = """
+        MERGE (n:Invoice {id: $lnbc_str})
+        ON CREATE SET n += apoc.convert.fromJsonMap($json)
+        ON MATCH SET n += apoc.convert.fromJsonMap($json)
+        RETURN n
+        """
+
+        params = {
+            "lnbc_str": lnbc_str,
+            "json": invoice_json_data,
+        }
+
+        # Execute the query
+        result = session.run(query, params)
+
+        # Check if the created node has the expected label
+        node = result.single()["n"]
+        if "Invoice" not in node.labels:
+            self.logger.warning(
+                f"Node {node.id} was created !without! the 'Invoice' label for invoice: {lnbc_str}"
+            )
+        else:
+            self.logger.debug(
+                f"Node {node.id} was created with the 'Invoice' label for invoice: {lnbc_str}"
             )
 
         return True
