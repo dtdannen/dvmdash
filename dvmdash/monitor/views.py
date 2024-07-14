@@ -486,7 +486,7 @@ def _get_row_data_from_event_dict(event_dict):
 
         event_dict[
             "quick_details"
-        ] = f'Invoice from {creator_pubkey_str} for {amount_millisats / 1000 :.2f} sats (<a href="lightning:${invoice_str}">Click to Pay</a>)'
+        ] = f'Invoice for {amount_millisats / 1000 :.2f} sats (<a href="lightning:${invoice_str}">Click to Pay</a>)'
         already_processed_quick_details = True
 
     if already_processed_quick_details:
