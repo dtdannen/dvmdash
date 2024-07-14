@@ -29,7 +29,6 @@ else:
     print("Connected to cloud mongo db")
 
 
-@cache_page(5)
 def get_payment_request_total_metric(request):
     """
     Get the total number, amount, average, median of all payment requests

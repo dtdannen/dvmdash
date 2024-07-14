@@ -1,7 +1,6 @@
 {% extends 'monitor/base.html' %}
 
 {% block extrahead %}
-<script src="https://d3js.org/d3.v6.min.js"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
 
@@ -175,19 +174,23 @@ document.addEventListener("DOMContentLoaded", function() {
       // Sort tableNodes by created_at in ascending order
       tableNodes.sort((a, b) => a.created_at - b.created_at);
 
-      // Populate the table with data from 'eventNodes'
-      const tableBody = d3.select("#dataTable tbody");
-      tableBody.selectAll("tr")
-        .data(tableNodes)
-        .enter()
-        .append("tr")
-        .html(d => `
-          <td><a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a></td>
-          <td>${d.kind}</td>
-          <td>${d.quick_details}</td>
-          <td><a href="${d.url}" target="_blank">View</a></td>
-          <td>${formatTimestamp(d.created_at)}</td>
-        `);
+      const tableBody = document.querySelector("#dataTable tbody");
+
+        // Clear existing table rows
+        tableBody.innerHTML = '';
+
+        // Populate the table with data from 'tableNodes'
+        tableNodes.forEach(d => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a></td>
+            <td>${d.kind}</td>
+            <td>${d.quick_details}</td>
+            <td><a href="${d.url}" target="_blank">View</a></td>
+            <td>${formatTimestamp(d.created_at)}</td>
+          `;
+          tableBody.appendChild(row);
+        });
 
 
         function getLastChars(str) {
@@ -259,8 +262,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 return "purple";
             } else if (!node.kind && node.node_type === "DVM") {
                 return "orange";
+            } else if (!node.kind && node.node_type === "Invoice") {
+                return "yellow"
+            }else {
+                return "#999999";
             }
-            return "#999999";
         }
 
         function getLinkColor(link) {
@@ -270,8 +276,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 return "orange";
             } else if (link.label === "MADE_EVENT") {
                 return "black";
+            } else if (link.label === "INVOICE_FROM") {
+                return "yellow"
+            } else {
+                return "black";
             }
-            return "black";
         }
 
         function printGraphData(nodes, links) {

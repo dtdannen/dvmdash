@@ -457,7 +457,7 @@ def _get_row_data_from_event_dict(event_dict):
             already_processed_quick_details = True
 
     # as a last resort, try the 'i' tag
-    if not already_processed_quick_details:
+    if not already_processed_quick_details and "tags" in event_dict:
         tags_str = event_dict["tags"]
         try:
             tags = ast.literal_eval(tags_str)
@@ -471,6 +471,23 @@ def _get_row_data_from_event_dict(event_dict):
             print(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
             # Skip processing tags for this record and continue with the next one
             pass
+
+    # for invoices, use a message with the amount and a clickable lighting invoice for quick details
+    if (
+        not already_processed_quick_details
+        and "amount" in event_dict
+        and "invoice" in event_dict
+        and "creator_pubkey" in event_dict
+    ):
+        amount_millisats = int(event_dict["amount"])
+        invoice_str = event_dict["invoice"]
+        creator_pubkey_str = event_dict["creator_pubkey"]
+        event_dict["pubkey"] = creator_pubkey_str
+
+        event_dict[
+            "quick_details"
+        ] = f'Invoice from {creator_pubkey_str} for {amount_millisats / 1000 :.2f} sats (<a href="lightning:${invoice_str}">Click to Pay</a>)'
+        already_processed_quick_details = True
 
     if already_processed_quick_details:
         # check to see if the value is a link and if so, make a url

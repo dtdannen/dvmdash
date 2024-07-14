@@ -97,6 +97,8 @@ class GraphDBSync:
                             self.feedback_event_invoices[
                                 event["id"]
                             ] = invoice_json_data
+
+                            self.invoices[tag[2]] = invoice_json_data
                             break
 
         self.logger.debug(
@@ -320,10 +322,19 @@ class GraphDBSync:
 
         return True
 
-    def _create_invoice_node(self, session, invoice_json_data):
+    def create_invoice_nodes(self):
+        self.logger.info("Creating User nodes...")
+        with self.neo4j_driver.session() as session:
+            for invoice_lnbc_str, json_data in tqdm(self.invoices.items()):
+                # add debugging url
+                json_data["url"] = f"https://dvmdash.live/event/{invoice_lnbc_str}"
+
+                self._create_invoice_node(session, invoice_lnbc_str, json_data)
+
+    def _create_invoice_node(self, session, lnbc_str, invoice_json_data):
         # create the invoice node
         # create a uuid for neo4j
-        lnbc_str = invoice_json_data["invoice"]
+        assert lnbc_str == invoice_json_data["invoice"]
 
         query = """
         MERGE (n:Invoice {id: $lnbc_str})
@@ -332,9 +343,11 @@ class GraphDBSync:
         RETURN n
         """
 
+        json_string = json.dumps(invoice_json_data)
+
         params = {
             "lnbc_str": lnbc_str,
-            "json": invoice_json_data,
+            "json": json_string,
         }
 
         # Execute the query
@@ -473,6 +486,33 @@ class GraphDBSync:
                     f" for Request event {request_orig_event_id}"
                 )
 
+                # next, create relationship form invoice to feedback, if the feedback has an invoice
+                if event["id"] in self.feedback_event_invoices:
+                    invoice_data = self.feedback_event_invoices[event["id"]]
+                    invoice_id = invoice_data["invoice"]
+                    query = """
+                        MATCH (i:Invoice {id: $invoice_id})
+                        MATCH (f:Event {id: $event_id})
+                        MERGE (i)-[rel:INVOICE_FROM]->(f)
+                        RETURN rel
+                    """
+
+                    result = session.run(
+                        query, invoice_id=invoice_id, event_id=event["id"]
+                    )
+                    record = result.single()
+
+                    if record is None:
+                        self.logger.error(
+                            f"Failed to create INVOICE_FROM relationship between"
+                            f" Feedback {event['id']} and Request event {invoice_id}"
+                        )
+
+                    self.logger.debug(
+                        f"Invoice {invoice_id} successfully has a INVOICE_FROM relationship"
+                        f" for Feedback event {event['id']}"
+                    )
+
     def create_dvm_response_relations(self):
         with self.neo4j_driver.session() as session:
             for event in tqdm(self.response_events.values()):
@@ -564,6 +604,7 @@ class GraphDBSync:
         self.get_all_user_npubs()
         self.create_dvm_nodes()
         self.create_user_nodes()
+        self.create_invoice_nodes()
 
         # start creating relations
         self.logger.info("Creating relations...")
