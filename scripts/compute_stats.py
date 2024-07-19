@@ -1,5 +1,7 @@
 import sys
 from datetime import datetime, timedelta
+import random
+
 import nostr_sdk
 import pymongo
 from pymongo import MongoClient
@@ -312,10 +314,23 @@ def compute_stats():
     }
 
     payment_requests = list(DB.events.find(query))
+    feedback_event_lnbc_invoice_strs = set()
 
     total_number_of_payments_requests = len(payment_requests)
     total_amount_millisats = 0
     average_amount_millisats = 0
+
+    # TODO - for each DVM request, track which DVMs issued a payment request and then check which DVMs authored a
+    #  corresponding DVM result
+    # for each DVM request (5xxx) check to see if there is a feedback request (7xxx) saying payment-required and has an amount tag
+    # then check to see if there is a corresponding 6xxx tag from the same DVM that published the feedback event
+
+    # steps:
+    # 1. create a dict of all dvm requests, where the key is the request id (what would be in an 'e' tag) and the value is a dict
+    # this inner dict will have a list of dvm and feedback events
+    # 2.
+
+    # actually I think it's probably better as a neo4j query....
 
     for payment_request in payment_requests:
         try:
@@ -323,10 +338,19 @@ def compute_stats():
             for tag in tags:
                 if tag[0] == "amount":
                     total_amount_millisats += int(tag[1])
+
+                    if len(tag) > 2 and tag[2].startswith("lnbc"):
+                        feedback_event_lnbc_invoice_strs.add(tag[2])
                     break
         except (ValueError, SyntaxError) as e:
             print(f"Error parsing tags for record {payment_request['id']}: {str(e)}")
             # Skip processing tags for this record and continue with the next one
+
+    print(
+        f"There are {len(feedback_event_lnbc_invoice_strs)} invoice strs from feedback events, and one example is: "
+        f"{random.choice(list(feedback_event_lnbc_invoice_strs))}"
+    )
+    time.sleep(1)
 
     if total_number_of_payments_requests > 0:
         average_amount_millisats = (
@@ -351,70 +375,20 @@ def compute_stats():
     total_amount_paid_millisats = 0
     total_number_of_payment_receipts = 0
     bolt11_invoice_amount_regex_pattern = r"lnbc(\d+)"
-    for zap_receipt in zap_receipts:
-        try:
-            tags = zap_receipt["tags"]
-            has_bolt11_invoice = False
-            amount_millisats = -1
-            amount_from_bolt_invoice = -1
-            has_preimage = False
-            for tag in tags:
-                # check that the tag has a bolt11 invoice
-                # print(f"tag is {tag}")
-                if tag[0] == "bolt11":
-                    has_bolt11_invoice = True
 
-                    invoice_str = tag[1]
+    zap_receipts_with_parsing_errors = 0
+    zap_receipts_to_a_dvm_invoice = 0
+    zap_receipts_not_to_a_dvm = 0
+    missing_invoice = 0
+    missing_preimage = 0
+    missing_amount = 0
 
-                    # get the amount from the bolt 11 invoice:
-                    match = re.search(bolt11_invoice_amount_regex_pattern, invoice_str)
-                    if match:
-                        amount_from_bolt_invoice = int(match.group(1))
-                        print(f"Amount from bolt invoice: {amount_from_bolt_invoice}")
-                elif tag[0] == "description":
-                    # this should point to a new event that is the zap request
-                    zap_request = json.loads(tag[1])
-                    if "kind" in zap_request and zap_request["kind"] == 9734:
-                        # this is a zap request
-                        # check if the zap request has a bolt11 invoice
-                        zap_request_tags = zap_request["tags"]
-                        for zap_request_tag in zap_request_tags:
-                            if zap_request_tag[0] == "amount":
-                                amount_millisats = int(zap_request_tag[1])
-                                break
-                elif tag[0] == "preimage":
-                    has_preimage = True
-
-            if not has_bolt11_invoice:
-                print(f"Zap receipt {zap_receipt['id']} does not have a bolt11 invoice")
-                continue
-
-            if not has_preimage:
-                print(f"Zap receipt {zap_receipt['id']} does not have a preimage")
-                continue
-
-            if amount_millisats < 0 and amount_from_bolt_invoice < 0:
-                print(
-                    f"Zap receipt {zap_receipt['id']} is missing amount or does not have a valid amount"
-                )
-                continue
-
-            # if we get here, we have a valid zap receipt
-            print(f"Zap receipt {zap_receipt['id']} has a valid bolt11 invoice")
-            if amount_from_bolt_invoice > 0:
-                total_amount_paid_millisats += amount_from_bolt_invoice * 100
-            else:
-                total_amount_paid_millisats += amount_millisats
-            total_number_of_payment_receipts += 1
-
-        except (ValueError, SyntaxError) as e:
-            print(f"Error parsing tags for record {zap_receipt['id']}: {str(e)}")
-            # Skip processing tags for this record and continue with the next one
-        except Exception as e:
-            print(f"Error processing zap receipt {zap_receipt['id']}: {str(e)}")
-            import traceback
-
-            print(f"Traceback: {traceback.format_exc()}")
+    print(f"zap_receipts_with_parsing_errors = {zap_receipts_with_parsing_errors}")
+    print(f"zap_receipts_to_a_dvm_invoice = {zap_receipts_to_a_dvm_invoice}")
+    print(f"zap_receipts_not_to_a_dvm = {zap_receipts_not_to_a_dvm}")
+    print(f"missing_invoice = {missing_invoice}")
+    print(f"missing_preimage = {missing_preimage}")
+    print(f"missing_amount = {missing_amount}")
 
     stats["total_amount_dvm_paid_sats"] = int(total_amount_paid_millisats / 1000)
     stats["total_number_of_payment_receipts"] = total_number_of_payment_receipts

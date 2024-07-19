@@ -299,13 +299,45 @@ class GraphDBSync:
 
         json_string = json.dumps(neo4j_event)
 
-        # create the event node
-        query = """
-        MERGE (n:Event {id: $event_id})
-        ON CREATE SET n = apoc.convert.fromJsonMap($json)
-        ON MATCH SET n += apoc.convert.fromJsonMap($json)
-        RETURN n
-        """
+        # create different events based on the kind
+        additional_event_labels = []
+        if 5000 <= neo4j_event["kind"] < 6000:
+            additional_event_labels = ["DVMRequest"]
+        elif 6000 <= neo4j_event["kind"] < 6999:
+            additional_event_labels = ["DVMResult"]
+        elif neo4j_event["kind"] == 7000:
+            additional_event_labels.append("Feedback")
+            # check the tags
+            if "tags" in neo4j_event:
+                tags = neo4j_event["tags"]
+                for tag in tags:
+                    if (
+                        tag[0] == "status"
+                        and len(tag) > 1
+                        and tag[1] == "payment-required"
+                    ):
+                        additional_event_labels.append("FeedbackPaymentRequest")
+
+        if additional_event_labels:
+            # create the event node
+            query = (
+                """
+            MERGE (n:Event:"""
+                + ":".join(additional_event_labels)
+                + """ {id: $event_id})
+            ON CREATE SET n = apoc.convert.fromJsonMap($json)
+            ON MATCH SET n += apoc.convert.fromJsonMap($json)
+            RETURN n
+            """
+            )
+        else:
+            # create the event node
+            query = """
+            MERGE (n:Event {id: $event_id})
+            ON CREATE SET n = apoc.convert.fromJsonMap($json)
+            ON MATCH SET n += apoc.convert.fromJsonMap($json)
+            RETURN n
+            """
 
         result = session.run(query, event_id=neo4j_event["id"], json=json_string)
 
