@@ -60,9 +60,17 @@ def dvm(request, pub_key=""):
 
     if pub_key == "":
         # get all dvm pub keys
-        # TODO - update this to ignore bad dvm event kinds
         dvm_pub_keys = list(
-            db.events.distinct("pubkey", {"kind": {"$gte": 5000, "$lte": 6999}})
+            db.events.distinct(
+                "pubkey",
+                {
+                    "kind": {
+                        "$gte": 5000,
+                        "$lte": 6999,
+                        "$nin": EventKind.get_bad_dvm_kinds(),
+                    }
+                },
+            )
         )
 
         # get all dvm pub key names from nip 89s
@@ -96,37 +104,43 @@ def dvm(request, pub_key=""):
         template = loader.get_template("monitor/dvm.html")
         return HttpResponse(template.render(context, request))
 
-    # get profile information for this dvm
-    # check to see if there is a nip89 profile, if so grab the latest one
-    dvm_nip89_profile_latest = db.events.find_one(
-        {"kind": 31990, "pubkey": pub_key},
-        sort=[("created_at", -1)],
-    )
+    else:  # we have a specific dvm to return information for
+        # get profile information for this dvm
+        # check to see if there is a nip89 profile, if so grab the latest one
+        dvm_nip89_profile_latest = db.events.find_one(
+            {"kind": 31990, "pubkey": pub_key},
+            sort=[("created_at", -1)],
+        )
 
-    if dvm_nip89_profile_latest is not None:
-        context["dvm_nip89_profile"] = json.loads(dvm_nip89_profile_latest["content"])
+        if dvm_nip89_profile_latest is not None:
+            context["dvm_nip89_profile"] = json.loads(
+                dvm_nip89_profile_latest["content"]
+            )
 
-    # get all events from this dvm_pub_key
-    dvm_events = list(db.events.find({"pubkey": pub_key}))
+        # get all events from this dvm_pub_key
+        dvm_events = list(db.events.find({"pubkey": pub_key}).sort("created_at"))
 
-    memory_usage = sys.getsizeof(dvm_events)
-    print(f"Memory usage of dvm_events: {memory_usage}")
+        # get all feedback payment requests events for jobs that were performed
 
-    num_dvm_events = len(dvm_events)
+        # compute the number of results
+        memory_usage = sys.getsizeof(dvm_events)
+        print(f"Memory usage of dvm_events: {memory_usage}")
 
-    # compute that number of events per day for the last 30 days
-    # get the current time
-    current_timestamp = Timestamp.now()
-    current_secs = current_timestamp.as_secs()
+        num_dvm_events = len(dvm_events)
 
-    num_events_per_day = {}
+        # compute that number of events per day for the last 30 days
+        # get the current time
+        current_timestamp = Timestamp.now()
+        current_secs = current_timestamp.as_secs()
 
-    context["num_dvm_events"] = num_dvm_events
-    context["dvm_pub_key"] = pub_key
-    context["num_events_per_day"] = num_events_per_day
+        num_events_per_day = {}
 
-    template = loader.get_template("monitor/dvm.html")
-    return HttpResponse(template.render(context, request))
+        context["num_dvm_events"] = num_dvm_events
+        context["dvm_pub_key"] = pub_key
+        context["num_events_per_day"] = num_events_per_day
+
+        template = loader.get_template("monitor/dvm.html")
+        return HttpResponse(template.render(context, request))
 
 
 def kind(request, kind_num=""):

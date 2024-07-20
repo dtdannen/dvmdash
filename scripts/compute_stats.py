@@ -105,6 +105,71 @@ def setup_database():
 DB, NEO4J_DRIVER = setup_database()
 
 
+# use this class to track all stats for a given DVM
+class DVM:
+    def __init__(self, npub_hex):
+        self.npub_hex = npub_hex
+        self.sats_received = []
+        self.job_response_times = []
+
+    def add_sats_received_from_job(self, sats_received: int):
+        self.sats_received.append(sats_received)
+
+    def add_job_response_time_data_point(self, job_response_time: float):
+        self.job_response_times.append(job_response_time)
+
+    def compute_stats(self):
+        stats = {
+            "total_sats_received": sum(self.sats_received),
+            "average_sats_received_per_job": sum(self.sats_received)
+            / len(self.sats_received),
+            "median_sats_received_per_job": median(self.sats_received),
+            "number_jobs_completed": len(self.job_response_times),
+            "average_job_response_time": sum(self.job_response_times)
+            / len(self.job_response_times),
+            "median_job_response_time": median(self.job_response_times),
+        }
+
+        return stats
+
+
+class Kind:
+    def __init__(self, kind_number: int):
+        self.kind_number = kind_number
+        self.total_sats_paid_to_dvms = 0
+        self.job_response_times = []
+        self.dvm_npubs = {}
+        self.job_response_times_per_dvm = (
+            {}
+        )  # key is dvm, value is array of tuples (job_response_time, sats_payment)
+
+    def add_job_done_by_dvm(
+        self, dvm_npub: str, job_response_time: float, sats_received: int
+    ):
+        self.dvm_npubs.add(dvm_npub)
+        self.job_response_times.append(job_response_time)
+        if dvm_npub not in self.job_response_times_per_dvm.keys():
+            self.job_response_times_per_dvm[dvm_npub] = [
+                (job_response_time, sats_received)
+            ]
+        else:
+            self.job_response_times_per_dvm[dvm_npub].append(
+                (job_response_time, sats_received)
+            )
+
+        self.total_sats_paid_to_dvms += sats_received
+
+    def compute_stats(self):
+        stats = {
+            "total_jobs_performed": len(self.job_response_times),
+            "number_of_dvms": len(self.dvm_npubs),
+            "total_sats_paid_to_dvms": self.total_sats_paid_to_dvms,
+            "average_job_response_time": sum(self.job_response_times)
+            / len(self.job_response_times),
+            "median_job_response_time": median(self.job_response_times),
+        }
+
+
 def compute_stats():
     """
     Stats to be computed:

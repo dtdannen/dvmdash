@@ -59,91 +59,70 @@
             <pre><code>{{ dvm_nip89_profile|json_script }}</code></pre>
         {% endif %}
 
-        {% if num_dvm_events %}
+        {% if dvm_metrics %}
             <div class="container mt-5">
                 <div class="row">
                     <div class="col-md-3">
                         <div class="card text-white bg-darkmediumpurple mb-3">
                             <div class="card-body">
-                                <h5 class="card-title">Events Served</h5>
-                                <p class="card-text display-4">{{ num_dvm_events }}</p>
+                                <h5 class="card-title">Jobs Performed</h5>
+                                <p class="card-text display-4">{{ num_dvm_responses }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="card text-white bg-darkmediumpurple mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Average Response Time</h5>
+                                <p class="card-text display-4">{{ average_response_time }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="card text-white bg-darkmediumpurple mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Sats Earned</h5>
+                                <p class="card-text display-4">{{ total_sats_earned }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="card text-white bg-darkmediumpurple mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Average Job Cost</h5>
+                                <p class="card-text display-4">{{ average_job_cost }}</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         {% endif %}
-
-    <div id="plotly-bar-chart-events-per-day"></div>
-
     {% endif %}
 
-    {% if dvm_pub_keys_and_names %}
-        <script>
-            $(document).ready(function() {
-                $('.select2').select2({
-                    placeholder: 'Start typing the pub key, hex, or nip-89 name of the dvm....',
-                    minimumInputLength: 1,
-                    allowClear: true
-                });
-            });
-        </script>
-        <script>
-            document.getElementById('dvm-form').addEventListener('submit', function (event) {
-                event.preventDefault();
-                var selectedValue = document.getElementById('dvm-select').value;
-                if (selectedValue) {
-                    window.location.href = "{% url 'dvm' %}" + selectedValue + "/";
-                }
-            });
-        </script>
-    {% endif %}
-
-    {% if dvm_pub_key %}
-    <script>
-    // Create arrays from Django dictionary
-    var x_data = [{% for date in num_events_per_day.keys %}"{{ date }}",{% endfor %}];
-    var y_data = [{% for count in num_events_per_day.values %}{{ count }},{% endfor %}];
-
-    var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
-
-    var barColors = [];
-    for (var i = 0; i < x_data.length; i++) {
-        barColors.push(colors[i % colors.length]);
-    }
-
-    var layout = {
-        title: 'Number of Events per Day',
-        xaxis: {
-            title: 'Date',
-            type: 'date',
-            gridcolor: '#444',
-            zerolinecolor: '#444'
-        },
-        yaxis: {
-            title: 'Number of Events',
-            gridcolor: '#444',
-            zerolinecolor: '#444'
-        },
-        paper_bgcolor: '#2a2a2a',
-        plot_bgcolor: '#333333',
-        font: {
-            color: '#eaeaea'
-        }
-    };
-
-    var data = [{
-        type: 'bar',
-        x: x_data,
-        y: y_data,
-        marker: {
-            color: barColors
-        }
-    }];
-
-    // Plot the chart
-    Plotly.newPlot('plotly-bar-chart-events-per-day', data, layout);
-</script>
+    {% if recent_dvm_events %}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th scope="col">Time of Request</th>
+          <th scope="col">Kind</th>
+          <th scope="col">Event ID Link</th>
+            <th scope="col">Debug Link</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in recent_dvm_events %}
+        <tr>
+          <td>{{ e.created_at|naturaltime }}</td>
+          <td>{{ e.kind }}</td>
+          <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
+            <td><a href="{% url 'debug' event_id=e.id %}">Debug this DVM Chain</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     {% endif %}
 
 {% endblock %}
