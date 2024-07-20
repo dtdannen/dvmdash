@@ -1,7 +1,10 @@
+import ast
 import sys
 from datetime import datetime, timedelta
 import random
-
+from neo4j import (
+    GraphDatabase,
+)
 import nostr_sdk
 import pymongo
 from pymongo import MongoClient
@@ -68,10 +71,38 @@ def setup_database():
 
     LOGGER.info("Connected to cloud mongo db")
 
-    return db
+    if os.getenv("USE_LOCAL_NEO4J", "False") != "False":
+        # use local
+        URI = os.getenv("NEO4J_LOCAL_URI")
+        AUTH = (os.getenv("NEO4J_LOCAL_USERNAME"), os.getenv("NEO4J_LOCAL_PASSWORD"))
+
+        neo4j_driver = GraphDatabase.driver(
+            URI,
+            auth=AUTH,
+            # encrypted=True,
+            # trust=TRUST_SYSTEM_CA_SIGNED_CERTIFICATES,
+        )
+
+        neo4j_driver.verify_connectivity()
+        LOGGER.info("Verified connectivity to local Neo4j")
+    else:
+        URI = os.getenv("NEO4J_URI")
+        AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
+
+        neo4j_driver = GraphDatabase.driver(
+            URI,
+            auth=AUTH,
+            # encrypted=True,
+            # trust=TRUST_SYSTEM_CA_SIGNED_CERTIFICATES,
+        )
+
+        neo4j_driver.verify_connectivity()
+        LOGGER.info("Verified connectivity to cloud Neo4j")
+
+    return db, neo4j_driver
 
 
-DB = setup_database()
+DB, NEO4J_DRIVER = setup_database()
 
 
 def compute_stats():
@@ -320,18 +351,6 @@ def compute_stats():
     total_amount_millisats = 0
     average_amount_millisats = 0
 
-    # TODO - for each DVM request, track which DVMs issued a payment request and then check which DVMs authored a
-    #  corresponding DVM result
-    # for each DVM request (5xxx) check to see if there is a feedback request (7xxx) saying payment-required and has an amount tag
-    # then check to see if there is a corresponding 6xxx tag from the same DVM that published the feedback event
-
-    # steps:
-    # 1. create a dict of all dvm requests, where the key is the request id (what would be in an 'e' tag) and the value is a dict
-    # this inner dict will have a list of dvm and feedback events
-    # 2.
-
-    # actually I think it's probably better as a neo4j query....
-
     for payment_request in payment_requests:
         try:
             tags = payment_request["tags"]
@@ -350,7 +369,6 @@ def compute_stats():
         f"There are {len(feedback_event_lnbc_invoice_strs)} invoice strs from feedback events, and one example is: "
         f"{random.choice(list(feedback_event_lnbc_invoice_strs))}"
     )
-    time.sleep(1)
 
     if total_number_of_payments_requests > 0:
         average_amount_millisats = (
@@ -368,33 +386,36 @@ def compute_stats():
     stats["total_amount_dvm_requested_sats"] = total_amount_sats
     stats["average_amount_dvm_requested_sats"] = average_amount_sats
 
-    # get all zap receipts to calculate how much money has actually been paid to DVMs
-
-    zap_receipts = list(DB.events.find({"kind": 9735}))
+    # Estimate how many sats have been paid to DVMs based on them doing work after requesting payment
 
     total_amount_paid_millisats = 0
-    total_number_of_payment_receipts = 0
-    bolt11_invoice_amount_regex_pattern = r"lnbc(\d+)"
 
-    zap_receipts_with_parsing_errors = 0
-    zap_receipts_to_a_dvm_invoice = 0
-    zap_receipts_not_to_a_dvm = 0
-    missing_invoice = 0
-    missing_preimage = 0
-    missing_amount = 0
+    neo4j_query_feedback_events = """
+        MATCH (u:User)-[:MADE_EVENT]->(nr:Event:DVMRequest)
+        MATCH (d:DVM)-[:MADE_EVENT]->(ns:Event:DVMResult)-[:RESULT_FOR]->(nr)
+        MATCH (d:DVM)-[:MADE_EVENT]->(f:FeedbackPaymentRequest)-[:FEEDBACK_FOR]->(nr)
+        RETURN f
+    """
 
-    print(f"zap_receipts_with_parsing_errors = {zap_receipts_with_parsing_errors}")
-    print(f"zap_receipts_to_a_dvm_invoice = {zap_receipts_to_a_dvm_invoice}")
-    print(f"zap_receipts_not_to_a_dvm = {zap_receipts_not_to_a_dvm}")
-    print(f"missing_invoice = {missing_invoice}")
-    print(f"missing_preimage = {missing_preimage}")
-    print(f"missing_amount = {missing_amount}")
+    # run the query
+    with NEO4J_DRIVER.session() as session:
+        result = session.run(neo4j_query_feedback_events)
 
-    stats["total_amount_dvm_paid_sats"] = int(total_amount_paid_millisats / 1000)
-    stats["total_number_of_payment_receipts"] = total_number_of_payment_receipts
-    stats["total_average_amount_dvm_paid_sats"] = int(
-        total_amount_paid_millisats / 1000 / total_number_of_payment_receipts
-    )
+        for record in result:
+            feedback_event = record["f"]
+            # Accessing properties (assuming 'id' and 'content' are properties of the FeedbackPaymentRequest node)
+            event_id = feedback_event["id"]
+            event_content = feedback_event["content"]
+            tags = ast.literal_eval(feedback_event["tags"])
+
+            # check to see the amount in the feedback event
+            for tag in tags:
+                if tag[0] == "amount" and len(tag) > 1:
+                    total_amount_paid_millisats += int(tag[1])
+
+    print(f"Total number of sats paid to dvms: {total_amount_paid_millisats / 1000}")
+
+    stats["total_amount_paid_sats"] = int(total_amount_paid_millisats / 1000)
 
     return stats
 
