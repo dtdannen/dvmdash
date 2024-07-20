@@ -1,5 +1,5 @@
 import json
-
+import ast
 import neo4j
 import uuid
 from general import helpers
@@ -164,7 +164,7 @@ class GraphDBSync:
                         if len(str(profile[k]).encode("utf-8")) > self.MAX_FIELD_SIZE:
                             profile[
                                 k
-                            ] = "<data not shown b/c too big, see original event>"
+                            ] = '"<data not shown b/c too big, see original event>"'
 
                     node_data.update(profile)
 
@@ -217,7 +217,7 @@ class GraphDBSync:
                         if len(str(profile[k]).encode("utf-8")) > self.MAX_FIELD_SIZE:
                             profile[
                                 k
-                            ] = "<data not shown b/c too big, see original event>"
+                            ] = '"<data not shown b/c too big, see original event>"'
 
                     node_data.update(profile)  # TODO - add attempt to get profile data
 
@@ -287,7 +287,7 @@ class GraphDBSync:
                 continue
 
             if len(str(original_event[k]).encode("utf-8")) > self.MAX_FIELD_SIZE:
-                neo4j_event[k] = "<data not shown b/c too big, see original event>"
+                neo4j_event[k] = '"<data not shown b/c too big, see original event>"'
             else:
                 neo4j_event[k] = original_event[k]
 
@@ -306,17 +306,20 @@ class GraphDBSync:
         elif 6000 <= neo4j_event["kind"] < 6999:
             additional_event_labels = ["DVMResult"]
         elif neo4j_event["kind"] == 7000:
+            # print("event is kind 7000")
             additional_event_labels.append("Feedback")
             # check the tags
             if "tags" in neo4j_event:
-                tags = neo4j_event["tags"]
+                tags = ast.literal_eval(neo4j_event["tags"])
                 for tag in tags:
+                    # print(f"\ttag is {tag}")
                     if (
                         tag[0] == "status"
                         and len(tag) > 1
                         and tag[1] == "payment-required"
                     ):
                         additional_event_labels.append("FeedbackPaymentRequest")
+                        # print("\tadding the label FeedbackPaymentRequest")
 
         if additional_event_labels:
             # create the event node
