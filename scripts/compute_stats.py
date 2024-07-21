@@ -109,13 +109,59 @@ DB, NEO4J_DRIVER = setup_database()
 
 class GlobalStats:
     dvm_requests = 0
-    dvm_responses = 0
+    dvm_results = 0
     dvm_requests_24_hrs = 0
-    dvm_responses_24_hrs = 0
+    dvm_results_24_hrs = 0
     dvm_requests_1_week = 0
-    dvm_responses_1_week = 0
-    most_popular_dvm = ""
+    dvm_results_1_week = 0
+    request_kinds_counts = {}  # key is kind, value is number of requests made by users
+    result_kinds_counts = {}  # key is kind, value is number of DVM responses
+    dvm_results_counts = {}  # key is dvm npub hex, value is number of times called
     dvm_nip89_profiles = {}
+
+    @classmethod
+    def compute_stats(cls):
+        stats = {}
+        stats["num_dvm_kinds"] = len(list(GlobalStats.request_kinds_counts.keys()))
+        stats["num_dvm_feedback_kinds"] = len(list(response_kinds_counts.keys()))
+        stats["zap_counts"] = zap_counts
+        stats["dm_counts"] = dm_counts
+        stats["uncategorized_counts"] = uncategorized_counts
+        stats["num_dvm_request_kinds"] = len(
+            [
+                k
+                for k in list(request_kinds_counts.keys())
+                if k not in EventKind.get_bad_dvm_kinds()
+            ]
+        )
+        stats["num_dvm_response_kinds"] = len(
+            [
+                k
+                for k in list(response_kinds_counts.keys())
+                if k not in EventKind.get_bad_dvm_kinds()
+            ]
+        )
+        stats["request_kinds_counts"] = request_kinds_counts
+        stats["response_kinds_counts"] = response_kinds_counts
+        stats["num_dvm_request_events"] = num_dvm_request_events
+        stats["num_dvm_response_events"] = num_dvm_response_events
+        stats["dvm_job_results"] = {
+            k: v for k, v in dvm_job_results_names.items() if v > 100
+        }
+        stats["dvm_pub_keys"] = len(list(dvm_job_results.keys()))
+        stats["dvm_nip_89s"] = len(list(dvm_nip89_profiles.keys()))
+
+        most_popular_dvm_npub = max(dvm_job_results, key=dvm_job_results.get)
+        if (
+                most_popular_dvm_npub in dvm_nip89_profiles
+                and "name" in dvm_nip89_profiles[most_popular_dvm_npub]
+        ):
+            stats["most_popular_dvm"] = dvm_nip89_profiles[most_popular_dvm_npub]["name"]
+
+        stats["most_popular_kind"] = max(request_kinds_counts, key=request_kinds_counts.get)
+
+
+
 
 
 # use this class to track all stats for a given DVM
@@ -256,7 +302,7 @@ def compute_stats():
     max_time_24hr = current_secs - (24 * 60 * 60)
     max_time_1week = current_secs - (7 * 24 * 60 * 60)
 
-    for dvm_event in all_dvm_events:
+    for dvm_event in tqdm(all_dvm_events):
         if dvm_event["kind"] == EventKind.DVM_FEEDBACK:
 
         elif dvm_event["kind"] == EventKind.DVM_NIP89_ANNOUNCEMENT:
@@ -265,67 +311,44 @@ def compute_stats():
                     dvm_event["content"]
                 )
             except Exception as e:
-                LOGGER.error(f"Could not process NIP 89 announcement for event: {dvm_event}")
+                LOGGER.error(f"Could not process NIP 89 announcement event: {dvm_event}")
         elif EventKind.DVM_REQUEST_RANGE_START <= dvm_event["kind"] <= EventKind.DVM_REQUEST_RANGE_END:
             try:
-                if dvm_event["created_at"] >= max_time_24hr.as_secs():
-                    # do work
+                if dvm_event["created_at"] >= max_time_1week:
+                    GlobalStats.dvm_requests_1_week += 1
+                    GlobalStats.dvm_requests_24_hrs += 1
+                elif dvm_event["created_at"] >= max_time_24hr:
+                    GlobalStats.dvm_requests_24_hrs += 1
+
+                if dvm_event["kind"] not in GlobalStats.request_kinds_counts.keys():
+                    GlobalStats.request_kinds_counts[dvm_event["kind"]] = 1
+                else:
+                    GlobalStats.request_kinds_counts[dvm_event["kind"]] += 1
+
+                GlobalStats.dvm_requests += 1
+            except Exception as e:
+                LOGGER.error(f"Could not process dvm request event: {dvm_event}")
         elif EventKind.DVM_RESULT_RANGE_START <= dvm_event["kind"] <= EventKind.DVM_RESULT_RANGE_END:
+            try:
+                if dvm_event["created_at"] >= max_time_1week:
+                    GlobalStats.dvm_results_1_week += 1
+                    GlobalStats.dvm_results_24_hrs += 1
+                elif dvm_event["created_at"] >= max_time_24hr:
+                    GlobalStats.dvm_results_24_hrs += 1
 
+                if dvm_event["kind"] not in GlobalStats.result_kinds_counts.keys():
+                    GlobalStats.result_kinds_counts[dvm_event["kind"]] = 1
+                else:
+                    GlobalStats.result_kinds_counts[dvm_event["kind"]] += 1
 
+                if dvm_event["kind"] not in GlobalStats.dvm_results_counts:
+                    GlobalStats.dvm_results_counts[dvm_event["kind"]] = 1
+                else:
+                    GlobalStats.result_kinds_counts[dvm_event["kind"]] += 1
 
-
-    request_kinds_counts = {}
-    response_kinds_counts = {}
-    zap_counts = 0
-    dm_counts = 0
-    uncategorized_counts = 0
-    num_dvm_request_events = 0
-    num_dvm_response_events = 0
-
-    current_timestamp = Timestamp.now()
-    current_secs = current_timestamp.as_secs()
-
-    max_time_24hr = Timestamp.from_secs(current_secs - (24 * 60 * 60))
-    max_time_1week = Timestamp.from_secs(current_secs - (7 * 24 * 60 * 60))
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    dvm_tasks_24h = DB["events"].count_documents(
-        {
-            "created_at": {"$gte": max_time_24hr.as_secs()},
-            "kind": {"$gte": 5000, "$lte": 5999},
-        }
-    )
-    stats["num_dvm_tasks_24h"] = dvm_tasks_24h
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    dvm_results_24h = DB["events"].count_documents(
-        {
-            "created_at": {"$gte": max_time_24hr.as_secs()},
-            "kind": {"$gte": 6000, "$lte": 6999},
-        }
-    )
-    stats["num_dvm_results_24h"] = dvm_results_24h
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    dvm_tasks_1week = DB["events"].count_documents(
-        {
-            "created_at": {"$gte": max_time_1week.as_secs()},
-            "kind": {"$gte": 5000, "$lte": 5999},
-        }
-    )
-    stats["num_dvm_tasks_1week"] = dvm_tasks_1week
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    # TODO - by computing in the loop
-    dvm_results_1week = DB["events"].events.count_documents(
-        {
-            "created_at": {"$gte": max_time_1week.as_secs()},
-            "kind": {"$gte": 6000, "$lte": 6999},
-        }
-    )
-
-    stats["num_dvm_results_1week"] = dvm_results_1week
+                GlobalStats.dvm_results += 1
+            except Exception as e:
+                LOGGER.error(f"Could not process dvm request event: {dvm_event}")
 
     # pub ids of all dvms
     dvm_job_results = {}
@@ -393,43 +416,6 @@ def compute_stats():
             dvm_job_results_names[pub_key[:6]] = count
             labels_to_pubkeys[pub_key[:6]] = pub_key
 
-    stats["num_dvm_kinds"] = len(list(request_kinds_counts.keys()))
-    stats["num_dvm_feedback_kinds"] = len(list(response_kinds_counts.keys()))
-    stats["zap_counts"] = zap_counts
-    stats["dm_counts"] = dm_counts
-    stats["uncategorized_counts"] = uncategorized_counts
-    stats["num_dvm_request_kinds"] = len(
-        [
-            k
-            for k in list(request_kinds_counts.keys())
-            if k not in EventKind.get_bad_dvm_kinds()
-        ]
-    )
-    stats["num_dvm_response_kinds"] = len(
-        [
-            k
-            for k in list(response_kinds_counts.keys())
-            if k not in EventKind.get_bad_dvm_kinds()
-        ]
-    )
-    stats["request_kinds_counts"] = request_kinds_counts
-    stats["response_kinds_counts"] = response_kinds_counts
-    stats["num_dvm_request_events"] = num_dvm_request_events
-    stats["num_dvm_response_events"] = num_dvm_response_events
-    stats["dvm_job_results"] = {
-        k: v for k, v in dvm_job_results_names.items() if v > 100
-    }
-    stats["dvm_pub_keys"] = len(list(dvm_job_results.keys()))
-    stats["dvm_nip_89s"] = len(list(dvm_nip89_profiles.keys()))
-
-    most_popular_dvm_npub = max(dvm_job_results, key=dvm_job_results.get)
-    if (
-        most_popular_dvm_npub in dvm_nip89_profiles
-        and "name" in dvm_nip89_profiles[most_popular_dvm_npub]
-    ):
-        stats["most_popular_dvm"] = dvm_nip89_profiles[most_popular_dvm_npub]["name"]
-
-    stats["most_popular_kind"] = max(request_kinds_counts, key=request_kinds_counts.get)
 
     # get the top 15 dvm job requests pub ids
     # first sort dictionary by value
