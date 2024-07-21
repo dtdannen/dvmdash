@@ -18,6 +18,7 @@ from general.dvm import EventKind
 from nostr_sdk import Timestamp, LogLevel
 from tqdm import tqdm
 import re
+from statistics import median
 
 
 def setup_logging():
@@ -105,12 +106,27 @@ def setup_database():
 DB, NEO4J_DRIVER = setup_database()
 
 
+class GlobalStats:
+    def __init__(self):
+        self.dvm_requests = 0
+        self.dvm_responses = 0
+        self.dvm_requests_24_hrs = 0
+        self.dvm_responses_24_hrs = 0
+        self.dvm_requests_1_week = 0
+        self.dvm_responses_1_week = 0
+        self.most_popular_dvm = ""
+
+
 # use this class to track all stats for a given DVM
 class DVM:
+    instances = {}
+
     def __init__(self, npub_hex):
         self.npub_hex = npub_hex
         self.sats_received = []
         self.job_response_times = []
+
+        DVM.instances[npub_hex] = self
 
     def add_sats_received_from_job(self, sats_received: int):
         self.sats_received.append(sats_received)
@@ -132,8 +148,20 @@ class DVM:
 
         return stats
 
+    @classmethod
+    def get_instance(cls, npub_hex):
+        return cls.instances.get(npub_hex)
+
+    @classmethod
+    def get_all_stats(cls):
+        return {
+            npub_hex: dvm.compute_stats() for npub_hex, dvm in cls.instances.items()
+        }
+
 
 class Kind:
+    instances = {}
+
     def __init__(self, kind_number: int):
         self.kind_number = kind_number
         self.total_sats_paid_to_dvms = 0
@@ -142,6 +170,8 @@ class Kind:
         self.job_response_times_per_dvm = (
             {}
         )  # key is dvm, value is array of tuples (job_response_time, sats_payment)
+
+        Kind.instances[kind_number] = self
 
     def add_job_done_by_dvm(
         self, dvm_npub: str, job_response_time: float, sats_received: int
@@ -163,10 +193,23 @@ class Kind:
         stats = {
             "total_jobs_performed": len(self.job_response_times),
             "number_of_dvms": len(self.dvm_npubs),
-            "total_sats_paid_to_dvms": self.total_sats_paid_to_dvms,
             "average_job_response_time": sum(self.job_response_times)
             / len(self.job_response_times),
             "median_job_response_time": median(self.job_response_times),
+            "total_sats_paid_to_dvms": self.total_sats_paid_to_dvms,
+        }
+
+        return stats
+
+    @classmethod
+    def get_instance(cls, kind_number):
+        return cls.instances.get(kind_number)
+
+    @classmethod
+    def get_all_stats(cls):
+        return {
+            kind_number: kind.compute_stats()
+            for kind_number, kind in cls.instances.items()
         }
 
 
@@ -485,8 +528,8 @@ def compute_stats():
     return stats
 
 
-def save_stats_to_mongodb(stats):
-    collection_name = "stats"
+def save_global_stats_to_mongodb(stats):
+    collection_name = "global_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
             collection_name,
@@ -501,6 +544,54 @@ def save_stats_to_mongodb(stats):
 
     current_time = datetime.now()
     stats_document = {"timestamp": current_time, **stats}
+
+    collection.insert_one(stats_document)
+
+
+def save_dvm_stats_to_mongodb(dvm_npub_hex, stats):
+    collection_name = "dvm_stats"
+    if collection_name not in DB.list_collection_names():
+        DB.create_collection(
+            collection_name,
+            timeseries={
+                "timeField": "timestamp",
+                "metaField": "metadata",
+                "granularity": "minutes",
+            },
+        )
+
+    collection = DB[collection_name]
+
+    current_time = datetime.now()
+    stats_document = {
+        "timestamp": current_time,
+        "metadata": {"dvm_npub_hex": dvm_npub_hex},
+        **stats,
+    }
+
+    collection.insert_one(stats_document)
+
+
+def save_kind_stats_to_mongodb(kind_number, stats):
+    collection_name = "kind_stats"
+    if collection_name not in DB.list_collection_names():
+        DB.create_collection(
+            collection_name,
+            timeseries={
+                "timeField": "timestamp",
+                "metaField": "metadata",
+                "granularity": "minutes",
+            },
+        )
+
+    collection = DB[collection_name]
+
+    current_time = datetime.now()
+    stats_document = {
+        "timestamp": current_time,
+        "metatdata": {"kind_number": kind_number},
+        **stats,
+    }
 
     collection.insert_one(stats_document)
 
