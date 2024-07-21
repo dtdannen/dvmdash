@@ -19,6 +19,7 @@ from nostr_sdk import Timestamp, LogLevel
 from tqdm import tqdm
 import re
 from statistics import median
+import traceback
 
 
 def setup_logging():
@@ -107,14 +108,14 @@ DB, NEO4J_DRIVER = setup_database()
 
 
 class GlobalStats:
-    def __init__(self):
-        self.dvm_requests = 0
-        self.dvm_responses = 0
-        self.dvm_requests_24_hrs = 0
-        self.dvm_responses_24_hrs = 0
-        self.dvm_requests_1_week = 0
-        self.dvm_responses_1_week = 0
-        self.most_popular_dvm = ""
+    dvm_requests = 0
+    dvm_responses = 0
+    dvm_requests_24_hrs = 0
+    dvm_responses_24_hrs = 0
+    dvm_requests_1_week = 0
+    dvm_responses_1_week = 0
+    most_popular_dvm = ""
+    dvm_nip89_profiles = {}
 
 
 # use this class to track all stats for a given DVM
@@ -225,15 +226,21 @@ def compute_stats():
     - Most popular DVM - which DVM is responding the most?
     - Most popular kind
     """
-    stats = {}
-
-    # get the number of events in the database
-    num_dvm_events_in_db = DB.events.count_documents({})
-    stats["num_dvm_events_in_db"] = num_dvm_events_in_db
 
     # get the number of unique kinds of all events
     all_dvm_events_cursor = DB.events.find(
-        {"kind": {"$gte": 5000, "$lte": 6999, "$nin": EventKind.get_bad_dvm_kinds()}}
+        {
+            "$or": [
+                {
+                    "kind": {
+                        "$gte": 5000,
+                        "$lte": 7000,
+                        "$nin": EventKind.get_bad_dvm_kinds(),
+                    }
+                },
+                {"kind": 31990},
+            ]
+        }
     )
     all_dvm_events = list(all_dvm_events_cursor)
 
@@ -241,24 +248,32 @@ def compute_stats():
     memory_usage = sys.getsizeof(all_dvm_events)
     # Convert memory usage to megabytes
     memory_usage_mb = memory_usage / (1024 * 1024)
-    print(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
+    LOGGER.info(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
 
-    dvm_nip89_profiles = {}
+    current_timestamp = Timestamp.now()
+    current_secs = current_timestamp.as_secs()
 
-    for nip89_event in DB["events"].find({"kind": 31990}):
-        if "pubkey" in nip89_event:
+    max_time_24hr = current_secs - (24 * 60 * 60)
+    max_time_1week = current_secs - (7 * 24 * 60 * 60)
+
+    for dvm_event in all_dvm_events:
+        if dvm_event["kind"] == EventKind.DVM_FEEDBACK:
+
+        elif dvm_event["kind"] == EventKind.DVM_NIP89_ANNOUNCEMENT:
             try:
-                dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
-                    nip89_event["content"]
+                GlobalStats.dvm_nip89_profiles[dvm_event["pubkey"]] = json.loads(
+                    dvm_event["content"]
                 )
-                # print(
-                #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
-                # )
             except Exception as e:
-                # print(f"Error loading json from {nip89_event['content']}")
-                # print(f"Content is: {nip89_event['content']}")
-                # print(e)
-                pass
+                LOGGER.error(f"Could not process NIP 89 announcement for event: {dvm_event}")
+        elif EventKind.DVM_REQUEST_RANGE_START <= dvm_event["kind"] <= EventKind.DVM_REQUEST_RANGE_END:
+            try:
+                if dvm_event["created_at"] >= max_time_24hr.as_secs():
+                    # do work
+        elif EventKind.DVM_RESULT_RANGE_START <= dvm_event["kind"] <= EventKind.DVM_RESULT_RANGE_END:
+
+
+
 
     request_kinds_counts = {}
     response_kinds_counts = {}
