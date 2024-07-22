@@ -7,7 +7,7 @@ from neo4j import (
 )
 import nostr_sdk
 import pymongo
-from pymongo import MongoClient
+from pymongo import MongoClient, InsertOne
 import json
 import os
 import time
@@ -205,6 +205,8 @@ class DVM:
 
     @classmethod
     def get_instance(cls, npub_hex):
+        if npub_hex not in cls.instances:
+            cls.instances[npub_hex] = cls(npub_hex)
         return cls.instances.get(npub_hex)
 
     @classmethod
@@ -316,14 +318,14 @@ def compute_all_stats():
                     GlobalStats.total_number_of_payments_requests += 1
                     GlobalStats.total_amount_millisats += payment_amount
             except Exception as e:
-                LOGGER.error(f"Could not process feedback event {dvm_event}: {e}")
+                LOGGER.debug(f"Could not process feedback event {dvm_event}: {e}")
         elif dvm_event["kind"] == EventKind.DVM_NIP89_ANNOUNCEMENT.value:
             try:
                 GlobalStats.dvm_nip89_profiles[dvm_event["pubkey"]] = json.loads(
                     dvm_event["content"]
                 )
             except Exception as e:
-                LOGGER.error(
+                LOGGER.debug(
                     f"Could not process NIP 89 announcement event {dvm_event}: {e}"
                 )
         elif (
@@ -350,7 +352,7 @@ def compute_all_stats():
 
                 GlobalStats.dvm_requests += 1
             except Exception as e:
-                LOGGER.error(f"Could not process dvm request event {dvm_event}: {e}")
+                LOGGER.debug(f"Could not process dvm request event {dvm_event}: {e}")
         elif (
             EventKind.DVM_RESULT_RANGE_START.value
             <= dvm_event["kind"]
@@ -375,25 +377,36 @@ def compute_all_stats():
 
                 GlobalStats.dvm_results += 1
             except Exception as e:
-                LOGGER.error(f"Could not process dvm request event {dvm_event}: {e}")
+                LOGGER.debug(f"Could not process dvm request event {dvm_event}: {e}")
 
     # Estimate how many sats have been paid to DVMs based on them doing work after requesting payment
-    def process_feedback_event(feedback_event):
+    def process_feedback_event(feedback_event, dvm_node, response_event, result_event):
         print("Processing feedback event: {}".format(feedback_event))
-        tags = feedback_event.get("tags", [])
-        if isinstance(tags, str):
+        feedback_tags = feedback_event.get("tags", [])
+        if isinstance(feedback_tags, str):
             try:
-                tags = ast.literal_eval(tags)
+                feedback_tags = ast.literal_eval(feedback_tags)
             except (ValueError, SyntaxError) as e:
                 LOGGER.error(f"Failed to parse tags: {e}")
                 return
 
-        for tag in tags:
+        dvm_npub = dvm_node.get("npub")  # Assuming the DVM node has an 'npub' property
+        dvm_instance = DVM.get_instance(dvm_npub)
+        request_created_at = response_event.get("created_at")
+        result_created_at = result_event.get("created_at")
+
+        if request_created_at and result_created_at:
+            # calculate the response time for the job to be done
+            response_time_secs = result_created_at - request_created_at
+            dvm_instance.add_job_response_time_data_point(response_time_secs)
+
+        for tag in feedback_tags:
             print(f"tag is: {tag}")
             if tag[0] == "amount" and len(tag) > 1:
                 try:
                     amount = int(tag[1])
                     GlobalStats.total_amount_paid_to_dvm_millisats += amount
+                    dvm_instance.add_sats_received_from_job(amount)
                 except ValueError as e:
                     LOGGER.error(f"Invalid amount value: {tag[1]}, Error: {e}")
 
@@ -401,7 +414,7 @@ def compute_all_stats():
             MATCH (u:User)-[:MADE_EVENT]->(nr:Event:DVMRequest)
             MATCH (d:DVM)-[:MADE_EVENT]->(ns:Event:DVMResult)-[:RESULT_FOR]->(nr)
             MATCH (d:DVM)-[:MADE_EVENT]->(f:FeedbackPaymentRequest)-[:FEEDBACK_FOR]->(nr)
-            RETURN f
+            RETURN f, d, nr, ns
         """
 
     with NEO4J_DRIVER.session() as session:
@@ -412,8 +425,13 @@ def compute_all_stats():
 
             for record in result:
                 feedback_event = record.get("f")
-                if feedback_event:
-                    process_feedback_event(feedback_event)
+                dvm_node = record.get("d")
+                request_event = record.get("nr")
+                result_event = record.get("ns")
+                if feedback_event and dvm_node and request_event and result_event:
+                    process_feedback_event(
+                        feedback_event, dvm_node, request_event, result_event
+                    )
                 else:
                     LOGGER.warning("Record missing 'f' key")
         except Exception as e:
@@ -441,7 +459,7 @@ def save_global_stats_to_mongodb():
     collection.insert_one(stats_document)
 
 
-def save_dvm_stats_to_mongodb(dvm_npub_hex, stats):
+def save_dvm_stats_to_mongodb():
     collection_name = "dvm_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
@@ -456,13 +474,22 @@ def save_dvm_stats_to_mongodb(dvm_npub_hex, stats):
     collection = DB[collection_name]
 
     current_time = datetime.now()
-    stats_document = {
-        "timestamp": current_time,
-        "metadata": {"dvm_npub_hex": dvm_npub_hex},
-        **stats,
-    }
+    bulk_operations = []
 
-    collection.insert_one(stats_document)
+    for dvm in DVM.instances.values():
+        stats = dvm.compute_stats()
+        stats_document = {
+            "timestamp": current_time,
+            "metadata": {"dvm_npub": dvm.npub_hex},
+            **stats,
+        }
+        bulk_operations.append(InsertOne(stats_document))
+
+    if bulk_operations:
+        result = collection.bulk_write(bulk_operations)
+        print(f"Inserted {result.inserted_count} DVM stat documents")
+    else:
+        print("No DVM stats to insert")
 
 
 def save_kind_stats_to_mongodb(kind_number, stats):
@@ -497,6 +524,7 @@ if __name__ == "__main__":
         start_time = datetime.now()
         compute_all_stats()
         save_global_stats_to_mongodb()
+        save_dvm_stats_to_mongodb()
         LOGGER.info(
             f"Stats computed and saved to MongoDB. Took {datetime.now() - start_time} seconds."
         )
