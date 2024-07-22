@@ -1,5 +1,6 @@
 {% extends 'monitor/base.html' %}
-
+{% load humanize %}
+{% load custom_template_filters %}
 {% block extrahead %}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -42,7 +43,7 @@
 
 {% block content %}
     {% if dvm_pub_keys_and_names %}
-        <form id="dvm-form">
+        <form id="dvm-form" onsubmit="return redirectToDVM();">
             <select id="dvm-select" name="selected_item" class="select2" style="width: 100%;">
                 <option value="">Start typing the pub key, hex, or nip-89 name of the dvm....</option>
                 {% for key, value in dvm_pub_keys_and_names.items %}
@@ -54,52 +55,86 @@
     {% endif %}
 
     {% if dvm_pub_key %}
-        {% if dvm_nip89_profile %}
-            <!-- show raw profile info -->
-            <pre><code>{{ dvm_nip89_profile|json_script }}</code></pre>
-        {% endif %}
 
-        {% if dvm_metrics %}
-            <div class="container mt-5">
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="card text-white bg-darkmediumpurple mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Jobs Performed</h5>
-                                <p class="card-text display-4">{{ num_dvm_responses }}</p>
-                            </div>
-                        </div>
-                    </div>
+        <div class="container mt-5">
 
-                    <div class="col-md-3">
-                        <div class="card text-white bg-darkmediumpurple mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Average Response Time</h5>
-                                <p class="card-text display-4">{{ average_response_time }}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-3">
-                        <div class="card text-white bg-darkmediumpurple mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Sats Earned</h5>
-                                <p class="card-text display-4">{{ total_sats_earned }}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-3">
-                        <div class="card text-white bg-darkmediumpurple mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Average Job Cost</h5>
-                                <p class="card-text display-4">{{ average_job_cost }}</p>
+            <!-- Profile Card -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card bg-darkmediumpurple text-white">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 text-center">
+                                    <img src="{{ profile.image }}" alt="{{ profile.name }}" class="img-fluid rounded-circle mb-3" style="max-width: 200px;">
+                                    <h3 class="card-title">{{ profile.name }}</h3>
+                                </div>
+                                <div class="col-md-9">
+                                    <h5>About:</h5>
+                                    <p>{{ profile.about }}</p>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p><strong>Encryption Supported:</strong> {{ profile.encryptionSupported|yesno:"Yes,No" }}</p>
+                                            <p><strong>Cashu Accepted:</strong> {{ profile.cashuAccepted|yesno:"Yes,No" }}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h5>NIP90 Parameters:</h5>
+                                            {% for param, details in profile.nip90Params.items %}
+                                                <p><strong>{{ param|title }}:</strong>
+                                                {% if details.values %}
+                                                    {{ details.values|join:", " }}
+                                                {% else %}
+                                                    Not specified
+                                                {% endif %}
+                                                (Required: {{ details.required|yesno:"Yes,No" }})</p>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        {% endif %}
+
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card text-white bg-darkmediumpurple mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Jobs Performed</h5>
+                            <p class="card-text display-4">{{ number_jobs_completed|intcomma }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card text-white bg-darkmediumpurple mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Average Response Time</h5>
+                            <p class="card-text display-6">{{ average_job_response_time|precise_naturaldelta }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card text-white bg-darkmediumpurple mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Sats Earned</h5>
+                            <p class="card-text display-4">{{ total_sats_received|intcomma }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card text-white bg-darkmediumpurple mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Average Job Cost in Sats</h5>
+                            <p class="card-text display-4">{{ average_sats_received_per_job|intcomma }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     {% endif %}
 
     {% if recent_dvm_events %}
@@ -115,7 +150,7 @@
       <tbody>
         {% for e in recent_dvm_events %}
         <tr>
-          <td>{{ e.created_at|naturaltime }}</td>
+          <td>{{ e.created_at }}</td>
           <td>{{ e.kind }}</td>
           <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
             <td><a href="{% url 'debug' event_id=e.id %}">Debug this DVM Chain</a></td>
@@ -124,5 +159,16 @@
       </tbody>
     </table>
     {% endif %}
+
+    <script>
+function redirectToDVM() {
+    var selectedValue = document.getElementById('dvm-select').value;
+    if (selectedValue) {
+        window.location.href = '/dvm/' + selectedValue;
+        return false; // Prevent the form from submitting normally
+    }
+    return false; // If no value is selected, don't submit the form
+}
+</script>
 
 {% endblock %}

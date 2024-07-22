@@ -180,6 +180,8 @@ class DVM:
         self.npub_hex = npub_hex
         self.sats_received = []
         self.job_response_times = []
+        self.nip_89_profile = None
+        self.profile_created_at = None
 
         DVM.instances[npub_hex] = self
 
@@ -189,17 +191,46 @@ class DVM:
     def add_job_response_time_data_point(self, job_response_time: float):
         self.job_response_times.append(job_response_time)
 
+    def add_nip89_profile(self, profile, created_at):
+        if (
+            self.nip_89_profile
+            and self.profile_created_at
+            and self.profile_created_at > created_at
+        ):
+            # do nothing because we already have a more recent nip89 profile
+            return
+
+        self.nip_89_profile = profile
+        self.profile_created_at = created_at
+
     def compute_stats(self):
         stats = {
-            "total_sats_received": sum(self.sats_received),
-            "average_sats_received_per_job": sum(self.sats_received)
-            / len(self.sats_received),
-            "median_sats_received_per_job": median(self.sats_received),
+            "total_sats_received": int(sum(self.sats_received)),
             "number_jobs_completed": len(self.job_response_times),
-            "average_job_response_time": sum(self.job_response_times)
-            / len(self.job_response_times),
-            "median_job_response_time": median(self.job_response_times),
         }
+
+        if stats["total_sats_received"] > 0:
+            stats["total_sats_received"] = int(sum(self.sats_received) / 1000)
+            stats["average_sats_received_per_job"] = int(
+                (sum(self.sats_received) / len(self.sats_received)) / 1000
+            )
+            stats["median_sats_received_per_job"] = median(self.sats_received) / 1000
+        else:
+            stats["total_sats_received"] = 0
+            stats["average_sats_received_per_job"] = -1
+            stats["median_sats_received_per_job"] = -1
+
+        if stats["number_jobs_completed"] > 0:
+            stats["average_job_response_time"] = int(
+                sum(self.job_response_times) / len(self.job_response_times)
+            )
+            stats["median_job_response_time"] = median(self.job_response_times)
+        else:
+            stats["average_job_response_time"] = -1
+            stats["median_job_response_time"] = -1
+
+        if self.nip_89_profile:
+            stats["profile"] = self.nip_89_profile
 
         return stats
 
@@ -250,11 +281,17 @@ class Kind:
         stats = {
             "total_jobs_performed": len(self.job_response_times),
             "number_of_dvms": len(self.dvm_npubs),
-            "average_job_response_time": sum(self.job_response_times)
-            / len(self.job_response_times),
-            "median_job_response_time": median(self.job_response_times),
-            "total_sats_paid_to_dvms": self.total_sats_paid_to_dvms,
+            "total_sats_paid_to_dvms": int(self.total_sats_paid_to_dvms / 1000),
         }
+
+        if stats["total_jobs_performed"] > 0:
+            stats["average_job_response_time"] = int(
+                sum(self.job_response_times) / len(self.job_response_times)
+            )
+            stats["median_job_response_time"] = median(self.job_response_times)
+        else:
+            stats["average_job_response_time"] = -1
+            stats["median_job_response_time"] = -1
 
         return stats
 
@@ -321,9 +358,12 @@ def compute_all_stats():
                 LOGGER.debug(f"Could not process feedback event {dvm_event}: {e}")
         elif dvm_event["kind"] == EventKind.DVM_NIP89_ANNOUNCEMENT.value:
             try:
-                GlobalStats.dvm_nip89_profiles[dvm_event["pubkey"]] = json.loads(
-                    dvm_event["content"]
-                )
+                if "content" in dvm_event and len(dvm_event["content"]) > 0:
+                    nip89_profile = json.loads(dvm_event["content"])
+                    GlobalStats.dvm_nip89_profiles[dvm_event["pubkey"]] = nip89_profile
+                    DVM.get_instance(dvm_event["pubkey"]).add_nip89_profile(
+                        nip89_profile, dvm_event["created_at"]
+                    )
             except Exception as e:
                 LOGGER.debug(
                     f"Could not process NIP 89 announcement event {dvm_event}: {e}"
@@ -381,7 +421,6 @@ def compute_all_stats():
 
     # Estimate how many sats have been paid to DVMs based on them doing work after requesting payment
     def process_feedback_event(feedback_event, dvm_node, response_event, result_event):
-        print("Processing feedback event: {}".format(feedback_event))
         feedback_tags = feedback_event.get("tags", [])
         if isinstance(feedback_tags, str):
             try:
@@ -390,8 +429,10 @@ def compute_all_stats():
                 LOGGER.error(f"Failed to parse tags: {e}")
                 return
 
-        dvm_npub = dvm_node.get("npub")  # Assuming the DVM node has an 'npub' property
-        dvm_instance = DVM.get_instance(dvm_npub)
+        dvm_npub_hex = dvm_node.get(
+            "npub_hex"
+        )  # Assuming the DVM node has an 'npub' property
+        dvm_instance = DVM.get_instance(dvm_npub_hex)
         request_created_at = response_event.get("created_at")
         result_created_at = result_event.get("created_at")
 
@@ -401,7 +442,6 @@ def compute_all_stats():
             dvm_instance.add_job_response_time_data_point(response_time_secs)
 
         for tag in feedback_tags:
-            print(f"tag is: {tag}")
             if tag[0] == "amount" and len(tag) > 1:
                 try:
                     amount = int(tag[1])
@@ -480,7 +520,7 @@ def save_dvm_stats_to_mongodb():
         stats = dvm.compute_stats()
         stats_document = {
             "timestamp": current_time,
-            "metadata": {"dvm_npub": dvm.npub_hex},
+            "metadata": {"dvm_npub_hex": dvm.npub_hex},
             **stats,
         }
         bulk_operations.append(InsertOne(stats_document))

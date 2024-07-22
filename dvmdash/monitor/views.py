@@ -105,39 +105,22 @@ def dvm(request, pub_key=""):
         return HttpResponse(template.render(context, request))
 
     else:  # we have a specific dvm to return information for
-        # get profile information for this dvm
-        # check to see if there is a nip89 profile, if so grab the latest one
-        dvm_nip89_profile_latest = db.events.find_one(
-            {"kind": 31990, "pubkey": pub_key},
-            sort=[("created_at", -1)],
-        )
-
-        if dvm_nip89_profile_latest is not None:
-            context["dvm_nip89_profile"] = json.loads(
-                dvm_nip89_profile_latest["content"]
-            )
-
         # get all events from this dvm_pub_key
-        dvm_events = list(db.events.find({"pubkey": pub_key}).sort("created_at"))
-
-        # get all feedback payment requests events for jobs that were performed
+        dvm_events = list(
+            db.events.find({"pubkey": pub_key}).sort("created_at").limit(100)
+        )
 
         # compute the number of results
         memory_usage = sys.getsizeof(dvm_events)
         print(f"Memory usage of dvm_events: {memory_usage}")
 
-        num_dvm_events = len(dvm_events)
-
-        # compute that number of events per day for the last 30 days
-        # get the current time
-        current_timestamp = Timestamp.now()
-        current_secs = current_timestamp.as_secs()
-
-        num_events_per_day = {}
-
-        context["num_dvm_events"] = num_dvm_events
         context["dvm_pub_key"] = pub_key
-        context["num_events_per_day"] = num_events_per_day
+
+        most_recent_stats = db.dvm_stats.find_one(
+            {"metadata.dvm_npub_hex": pub_key}, sort=[("timestamp", -1)]
+        )
+
+        context.update(most_recent_stats)
 
         template = loader.get_template("monitor/dvm.html")
         return HttpResponse(template.render(context, request))
