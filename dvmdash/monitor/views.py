@@ -139,24 +139,26 @@ def kind(request, kind_num=""):
         template = loader.get_template("monitor/kind.html")
         return HttpResponse(template.render(context, request))
 
-    # get all events of this kind
-    kind_events = list(db.events.find({"kind": int(kind_num)}))
+    else:
+        # load the data for this specific kind
+        kind_num = int(kind_num)
+        context["kind"] = kind_num
 
-    # get all unique dvms that have this kind of event, and get the counts for number of events per dvm
-    # TODO - fix this
-    # dvm_pub_keys = list(db.events.distinct("pubkey", {"kind": int(kind_num)}))
+        most_recent_stats = db.kind_stats.find_one(
+            {"metadata.kind_number": kind_num}, sort=[("timestamp", -1)]
+        )
 
-    memory_usage = sys.getsizeof(kind_events)
-    print(f"Memory usage of kind_events: {memory_usage}")
+        context.update(most_recent_stats)
 
-    num_kind_events = len(kind_events)
+        # get most recent events
+        recent_events = list(
+            db.events.find({"kind": int(kind_num)}).sort("created_at").limit(100)
+        )
 
-    context["kind"] = kind_num
-    context["num_kind_events"] = num_kind_events
-    context["kind_num"] = kind_num
+        context["recent_events"] = recent_events
 
-    template = loader.get_template("monitor/kind.html")
-    return HttpResponse(template.render(context, request))
+        template = loader.get_template("monitor/kind.html")
+        return HttpResponse(template.render(context, request))
 
 
 def see_event(request, event_id=""):

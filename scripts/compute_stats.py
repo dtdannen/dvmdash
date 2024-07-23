@@ -253,18 +253,17 @@ class Kind:
     def __init__(self, kind_number: int):
         self.kind_number = kind_number
         self.total_sats_paid_to_dvms = 0
+        self.job_requests = 0
         self.job_response_times = []
-        self.dvm_npubs = {}
         self.job_response_times_per_dvm = (
             {}
-        )  # key is dvm, value is array of tuples (job_response_time, sats_payment)
+        )  # key is dvm npub hex, value is array of tuples (job_response_time, sats_payment)
 
         Kind.instances[kind_number] = self
 
     def add_job_done_by_dvm(
         self, dvm_npub: str, job_response_time: float, sats_received: int
     ):
-        self.dvm_npubs.add(dvm_npub)
         self.job_response_times.append(job_response_time)
         if dvm_npub not in self.job_response_times_per_dvm.keys():
             self.job_response_times_per_dvm[dvm_npub] = [
@@ -278,17 +277,46 @@ class Kind:
         self.total_sats_paid_to_dvms += sats_received
 
     def compute_stats(self):
+        # first compute the average response time of each dvm
+        avg_data_per_dvm = (
+            {}
+        )  # key is dvm npub hex, value is a single tuple containing avg and median response time and payment
+        for dvm_npub_hex, data in self.job_response_times_per_dvm.items():
+            response_times, sats_received_values = [], []
+            for job_response_time, sats_received in data:
+                response_times.append(job_response_time)
+                sats_received_values.append(sats_received)
+
+            avg_data_per_dvm[dvm_npub_hex] = {}
+
+            # calculate the average and median
+            avg_data_per_dvm[dvm_npub_hex]["avg_response_time"] = int(
+                sum(response_times) / len(data)
+            )
+            avg_data_per_dvm[dvm_npub_hex]["avg_sats_received"] = int(
+                (sum(sats_received_values) / 1000) / len(data)
+            )
+            avg_data_per_dvm[dvm_npub_hex]["median_response_time"] = int(
+                median(response_times)
+            )
+            avg_data_per_dvm[dvm_npub_hex]["median_sats_received"] = int(
+                median(sats_received_values) / 1000
+            )
+
         stats = {
+            "total_jobs_requested": self.job_requests,
             "total_jobs_performed": len(self.job_response_times),
-            "number_of_dvms": len(self.dvm_npubs),
+            "number_of_dvms": len(list(avg_data_per_dvm.keys())),
             "total_sats_paid_to_dvms": int(self.total_sats_paid_to_dvms / 1000),
+            "dvm_npubs": list(avg_data_per_dvm.keys()),
+            "data_per_dvm": avg_data_per_dvm,
         }
 
         if stats["total_jobs_performed"] > 0:
             stats["average_job_response_time"] = int(
                 sum(self.job_response_times) / len(self.job_response_times)
             )
-            stats["median_job_response_time"] = median(self.job_response_times)
+            stats["median_job_response_time"] = int(median(self.job_response_times))
         else:
             stats["average_job_response_time"] = -1
             stats["median_job_response_time"] = -1
@@ -297,6 +325,15 @@ class Kind:
 
     @classmethod
     def get_instance(cls, kind_number):
+        # we will use the request kind number for all data related to the request and the result
+        if (
+            EventKind.DVM_RESULT_RANGE_START.value
+            <= kind_number
+            <= EventKind.DVM_RESULT_RANGE_END.value
+        ):
+            kind_number = kind_number - 1000  # this gives us the request kind number
+        if kind_number not in cls.instances:
+            cls.instances[kind_number] = cls(kind_number)
         return cls.instances.get(kind_number)
 
     @classmethod
@@ -390,6 +427,8 @@ def compute_all_stats():
                 else:
                     GlobalStats.user_request_counts[dvm_event["pubkey"]] += 1
 
+                Kind.get_instance(dvm_event["kind"]).job_requests += 1
+
                 GlobalStats.dvm_requests += 1
             except Exception as e:
                 LOGGER.debug(f"Could not process dvm request event {dvm_event}: {e}")
@@ -435,7 +474,9 @@ def compute_all_stats():
         dvm_instance = DVM.get_instance(dvm_npub_hex)
         request_created_at = response_event.get("created_at")
         result_created_at = result_event.get("created_at")
+        kind_number = result_event.get("kind")
 
+        response_time_secs = None
         if request_created_at and result_created_at:
             # calculate the response time for the job to be done
             response_time_secs = result_created_at - request_created_at
@@ -447,8 +488,17 @@ def compute_all_stats():
                     amount = int(tag[1])
                     GlobalStats.total_amount_paid_to_dvm_millisats += amount
                     dvm_instance.add_sats_received_from_job(amount)
+                    if response_time_secs is None:
+                        raise Exception(
+                            f"response time is missing for kind {kind_number}."
+                        )
+                    Kind.get_instance(kind_number).add_job_done_by_dvm(
+                        dvm_npub_hex, response_time_secs, amount
+                    )
                 except ValueError as e:
                     LOGGER.error(f"Invalid amount value: {tag[1]}, Error: {e}")
+                except Exception as e:
+                    LOGGER.error(f"Error processing neo4j feedback event: {e}")
 
     neo4j_query_feedback_events = """
             MATCH (u:User)-[:MADE_EVENT]->(nr:Event:DVMRequest)
@@ -532,7 +582,7 @@ def save_dvm_stats_to_mongodb():
         print("No DVM stats to insert")
 
 
-def save_kind_stats_to_mongodb(kind_number, stats):
+def save_kind_stats_to_mongodb():
     collection_name = "kind_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
@@ -545,15 +595,22 @@ def save_kind_stats_to_mongodb(kind_number, stats):
         )
 
     collection = DB[collection_name]
-
     current_time = datetime.now()
-    stats_document = {
-        "timestamp": current_time,
-        "metatdata": {"kind_number": kind_number},
-        **stats,
-    }
+    bulk_operations = []
+    for kind in Kind.instances.values():
+        stats = kind.compute_stats()
+        stats_document = {
+            "timestamp": current_time,
+            "metadata": {"kind_number": kind.kind_number},
+            **stats,
+        }
+        bulk_operations.append(InsertOne(stats_document))
 
-    collection.insert_one(stats_document)
+    if bulk_operations:
+        result = collection.bulk_write(bulk_operations)
+        print(f"Inserted {result.inserted_count} KIND stat documents")
+    else:
+        print("No KIND stats to insert")
 
 
 if __name__ == "__main__":
@@ -565,6 +622,7 @@ if __name__ == "__main__":
         compute_all_stats()
         save_global_stats_to_mongodb()
         save_dvm_stats_to_mongodb()
+        save_kind_stats_to_mongodb()
         LOGGER.info(
             f"Stats computed and saved to MongoDB. Took {datetime.now() - start_time} seconds."
         )
