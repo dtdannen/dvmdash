@@ -1,3 +1,4 @@
+import asyncio
 import random
 import sys
 from datetime import datetime, timedelta
@@ -28,7 +29,7 @@ from nostr_sdk import (
 )
 from neo4j import AsyncGraphDatabase
 import motor.motor_asyncio
-import pymongo # used only to create new collections if they don't exist
+import pymongo  # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
 
@@ -70,7 +71,6 @@ setup_environment()
 
 def setup_database():
     LOGGER.debug("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
-
 
     # connect to db synchronously
     sync_mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
@@ -149,14 +149,14 @@ def get_relevant_kinds():
         known_kinds
         + list(
             range(
-                EventKind.DVM_RANGE_START.value,
-                EventKind.DVM_RANGE_END.value,
+                EventKind.DVM_REQUEST_RANGE_START.value,
+                EventKind.DVM_REQUEST_RANGE_END.value,
             )
         )
         + list(
             range(
-                EventKind.DVM_FEEDBACK_RANGE_START.value,
-                EventKind.DVM_FEEDBACK_RANGE_END.value,
+                EventKind.DVM_RESULT_RANGE_START.value,
+                EventKind.DVM_RESULT_RANGE_END.value,
             )
         )
     )
@@ -174,7 +174,7 @@ RELEVANT_KINDS = get_relevant_kinds()
 def write_events_to_db(events):
     if events:
         try:
-            result = DB["events"].insert_many(events, ordered=False)
+            result = SYNC_MONGO_DB["events"].insert_many(events, ordered=False)
             LOGGER.info(
                 f"Finished writing events to db with result: {len(result.inserted_ids)}"
             )
@@ -325,9 +325,66 @@ def new_async_main():
     LOGGER.info("Starting async listen for events script")
     create_test_events_collection()
     # count the number of events in the mongo db
-    async def count_mongo_db_items():
-        )
+    docs = []
+
+    async def get_some_docs():
+        cursor = ASYNC_MONGO_DB.events.find({})
+        # Modify the query before iterating
+        cursor.limit(5)
+        async for document in cursor:
+            docs.append(document)
+        return docs
+
+    async def write_test_docs():
+        result = await ASYNC_MONGO_DB.test_events.insert_many(docs, ordered=False)
+        LOGGER.info("inserted %d docs" % (len(result.inserted_ids),))
+
+    async def create_test_nodes_in_neo4j():
+        query = """
+        MERGE (n:TestEvent {id: $event_id})
+        ON CREATE SET n += apoc.convert.fromJsonMap($json)
+        ON MATCH SET n += apoc.convert.fromJsonMap($json)
+        RETURN n
+        """
+
+        async with NEO4J_DRIVER.session() as session:
+            for doc in docs:
+                event_id = str(doc.get("id"))  # Assuming 'id' is the unique identifier
+                doc_copy = doc.copy()  # Create a copy of the document
+                doc_copy.pop("_id", None)  # Remove '_id' from the copy if it exists
+                doc_copy.pop("tags", None)
+                json_data = json.dumps(
+                    doc_copy
+                )  # Convert the modified document to a JSON string
+
+                try:
+                    result = await session.run(query, event_id=event_id, json=json_data)
+                    summary = await result.consume()
+                    LOGGER.info(
+                        f"Created/Updated node for event {event_id}. "
+                        f"Nodes created: {summary.counters.nodes_created}, "
+                        f"Properties set: {summary.counters.properties_set}"
+                    )
+                except Exception as e:
+                    LOGGER.error(
+                        f"Error creating/updating node for event {event_id}: {str(e)}"
+                    )
+
+        LOGGER.info("Finished creating test nodes in Neo4j")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(get_some_docs())
+
+    LOGGER.info(f"docs now has length {len(docs)}")
+    for doc in docs:
+        LOGGER.info(f"doc is {doc}")
+
+    loop.run_until_complete(create_test_nodes_in_neo4j())
+
+    LOGGER.info(f"after neo4j, docs now has length {len(docs)}")
+
+    loop.run_until_complete(write_test_docs())
 
 
 if __name__ == "__main__":
-
+    new_async_main()
