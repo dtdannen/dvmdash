@@ -2,8 +2,6 @@ import random
 import sys
 from datetime import datetime, timedelta
 import nostr_sdk
-import pymongo
-from pymongo import MongoClient
 import json
 import os
 import time
@@ -28,6 +26,9 @@ from nostr_sdk import (
     Options,
     Event,
 )
+from neo4j import AsyncGraphDatabase
+import motor.motor_asyncio
+import pymongo # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
 
@@ -70,38 +71,58 @@ setup_environment()
 def setup_database():
     LOGGER.debug("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
 
-    if (
-        os.getenv("USE_MONGITA", "False") != "False"
-    ):  # use a local mongo db, like sqlite
-        LOGGER.debug(
-            "os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False)
+
+    # connect to db synchronously
+    sync_mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
+    sync_db = sync_mongo_client["dvmdash"]
+
+    # connect to async db
+    async_mongo_client = motor.motor_asyncio.AsyncIOMotorClient(os.getenv("MONGO_URI"))
+    async_db = async_mongo_client["dvmdash"]
+
+    try:
+        result = async_db["events"].count_documents({})
+        LOGGER.info(f"There are {result} documents in events collection")
+    except Exception as e:
+        LOGGER.error("Could not count documents in async_db")
+        import traceback
+
+        traceback.print_exc()
+
+    LOGGER.info("Connected to cloud mongo async_db")
+
+    if os.getenv("USE_LOCAL_NEO4J", "False") != "False":
+        # use local
+        URI = os.getenv("NEO4J_LOCAL_URI")
+        AUTH = (os.getenv("NEO4J_LOCAL_USERNAME"), os.getenv("NEO4J_LOCAL_PASSWORD"))
+
+        neo4j_driver = AsyncGraphDatabase.driver(
+            URI,
+            auth=AUTH,
+            # encrypted=True,
+            # trust=TRUST_SYSTEM_CA_SIGNED_CERTIFICATES,
         )
-        LOGGER.info("Using mongita")
-        from mongita import MongitaClientDisk
 
-        mongo_client = MongitaClientDisk()
-        db = mongo_client.dvmdash
-        LOGGER.info("Connected to local mongo db using MONGITA")
+        neo4j_driver.verify_connectivity()
+        LOGGER.info("Verified connectivity to local Neo4j")
     else:
-        # connect to db
-        mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True)
-        db = mongo_client["dvmdash"]
+        URI = os.getenv("NEO4J_URI")
+        AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 
-        try:
-            result = db["events"].count_documents({})
-            LOGGER.info(f"There are {result} documents in events collection")
-        except Exception as e:
-            LOGGER.error("Could not count documents in db")
-            import traceback
+        neo4j_driver = AsyncGraphDatabase.driver(
+            URI,
+            auth=AUTH,
+            # encrypted=True,
+            # trust=TRUST_SYSTEM_CA_SIGNED_CERTIFICATES,
+        )
 
-            traceback.print_exc()
+        neo4j_driver.verify_connectivity()
+        LOGGER.info("Verified connectivity to cloud Neo4j")
 
-        LOGGER.info("Connected to cloud mongo db")
-
-    return db
+    return sync_db, async_db, neo4j_driver
 
 
-DB = setup_database()
+SYNC_MONGO_DB, ASYNC_MONGO_DB, NEO4J_DRIVER = setup_database()
 
 
 def get_relays():
@@ -255,7 +276,7 @@ def run_nostr_client(run_time_limit_minutes=10, look_back_minutes=120):
     nostr_dvm_thread.join()  # Wait for the thread to finish
 
 
-if __name__ == "__main__":
+def old_main():
     # get the limits from sys.args
     if len(sys.argv) == 4:
         RUNTIME_LIMIT = int(sys.argv[1])
@@ -291,3 +312,22 @@ if __name__ == "__main__":
             WAIT_LIMIT
         )  # Sleep for a short time before restarting in case of an exception
         LOGGER.info("Goodbye!")
+
+
+def create_test_events_collection():
+    # create the index if it doesn't exist already
+    collection_name = "test_events"
+    if collection_name not in SYNC_MONGO_DB.list_collection_names():
+        SYNC_MONGO_DB.create_collection(collection_name)
+
+
+def new_async_main():
+    LOGGER.info("Starting async listen for events script")
+    create_test_events_collection()
+    # count the number of events in the mongo db
+    async def count_mongo_db_items():
+        )
+
+
+if __name__ == "__main__":
+
