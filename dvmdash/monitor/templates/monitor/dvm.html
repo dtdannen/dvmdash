@@ -109,15 +109,6 @@
                 <div class="col-md-3">
                     <div class="card text-white bg-darkmediumpurple mb-3">
                         <div class="card-body">
-                            <h5 class="card-title">Average Response Time</h5>
-                            <p class="card-text display-6">{{ average_job_response_time|precise_naturaldelta }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-3">
-                    <div class="card text-white bg-darkmediumpurple mb-3">
-                        <div class="card-body">
                             <h5 class="card-title">Sats Earned</h5>
                             <p class="card-text display-4">{{ total_sats_received|intcomma }}</p>
                         </div>
@@ -129,6 +120,17 @@
                         <div class="card-body">
                             <h5 class="card-title">Average Job Cost in Sats</h5>
                             <p class="card-text display-4">{{ average_sats_received_per_job|intcomma }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card text-white bg-darkmediumpurple mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Average Response Time</h5>
+                            <p class="card-text display-6">{{ average_job_response_time|precise_naturaldelta }}</p>
                         </div>
                     </div>
                 </div>

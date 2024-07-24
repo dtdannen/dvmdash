@@ -9,6 +9,9 @@ def precise_naturaldelta(seconds):
     if not isinstance(seconds, (int, float)):
         return seconds  # Return unchanged if not a number
 
+    if seconds < 0:
+        return "N/A"
+
     delta = timedelta(seconds=seconds)
     days = delta.days
     hours, remainder = divmod(delta.seconds, 3600)

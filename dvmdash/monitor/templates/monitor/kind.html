@@ -1,5 +1,6 @@
 {% extends 'monitor/base.html' %}
 {% load humanize %}
+{% load custom_template_filters %}
 {% block extrahead %}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -42,7 +43,7 @@
 
 {% block content %}
     {% if kinds %}
-        <form id="kind-form">
+        <form id="kind-form" onsubmit="return redirectToKIND();">
             <select id="kind-select" name="selected_item" class="select2" style="width: 100%;">
                 <option value="">Start typing the kind num...</option>
                 {% for kind_num in kinds %}
@@ -54,13 +55,30 @@
     {% endif %}
 
     {% if kind %}
+
         <div class="container mt-5">
+
+             <!-- Profile Card -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card bg-darkmediumpurple text-white">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 text-left">
+                                    <h3 class="card-title">Kind {{ kind }}</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="row">
                 <div class="col-md-3">
                     <div class="card text-white bg-darkmediumpurple mb-3">
                         <div class="card-body">
-                            <h5 class="card-title">Jobs Request</h5>
-                            <p class="card-text display-4">{{ total_jobs_requested }}</p>
+                            <h5 class="card-title">Jobs Requested</h5>
+                            <p class="card-text display-4">{{ total_jobs_requested|intcomma }}</p>
                         </div>
                     </div>
                 </div>
@@ -69,7 +87,7 @@
                     <div class="card text-white bg-darkmediumpurple mb-3">
                         <div class="card-body">
                             <h5 class="card-title">Jobs Finished</h5>
-                            <p class="card-text display-4">{{ total_jobs_performed }}</p>
+                            <p class="card-text display-4">{{ total_jobs_performed|intcomma }}</p>
                         </div>
                     </div>
                 </div>
@@ -78,7 +96,7 @@
                     <div class="card text-white bg-darkmediumpurple mb-3">
                         <div class="card-body">
                             <h5 class="card-title">Number of DVMs</h5>
-                            <p class="card-text display-4">{{ number_of_dvms }}</p>
+                            <p class="card-text display-4">{{ number_of_dvms|intcomma }}</p>
                         </div>
                     </div>
                 </div>
@@ -87,34 +105,43 @@
                     <div class="card text-white bg-darkmediumpurple mb-3">
                         <div class="card-body">
                             <h5 class="card-title">Total Sats Paid to DVMs</h5>
-                            <p class="card-text display-4">{{ total_sats_paid_to_dvms }}</p>
+                            <p class="card-text display-4">{{ total_sats_paid_to_dvms|intcomma }}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <div class="card text-white bg-darkmediumpurple mb-3">
                         <div class="card-body">
                             <h5 class="card-title">Average Job Response Time</h5>
-                            <p class="card-text display-4">{{ average_job_response_time|intcomma }}</p>
+                            <p class="card-text display-6">{{ average_job_response_time|precise_naturaldelta }}</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <div class="card text-white bg-darkmediumpurple mb-3">
                         <div class="card-body">
                             <h5 class="card-title">Median Job Response Time</h5>
-                            <p class="card-text display-4">{{ median_job_response_time }}</p>
+                            <p class="card-text display-6">{{ median_job_response_time|precise_naturaldelta }}</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-
     {% endif %}
+
+    <script>
+function redirectToKIND() {
+    var selectedValue = document.getElementById('kind-select').value;
+    if (selectedValue) {
+        window.location.href = '/kind/' + selectedValue;
+        return false; // Prevent the form from submitting normally
+    }
+    return false; // If no value is selected, don't submit the form
+}
+</script>
 
 {% endblock %}

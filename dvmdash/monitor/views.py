@@ -58,54 +58,50 @@ def dvm(request, pub_key=""):
     print(f"Calling dvm with dvm_pub_key: {pub_key}")
     context = {}
 
-    if pub_key == "":
-        # get all dvm pub keys
-        dvm_pub_keys = list(
-            db.events.distinct(
-                "pubkey",
-                {
-                    "kind": {
-                        "$gte": 5000,
-                        "$lte": 6999,
-                        "$nin": EventKind.get_bad_dvm_kinds(),
-                    }
-                },
-            )
+    # get all dvm pub keys
+    dvm_pub_keys = list(
+        db.events.distinct(
+            "pubkey",
+            {
+                "kind": {
+                    "$gte": 6000,
+                    "$lte": 6999,
+                    "$nin": EventKind.get_bad_dvm_kinds(),
+                }
+            },
         )
+    )
 
-        # get all dvm pub key names from nip 89s
-        dvm_nip89_profiles = {}
+    # get all dvm pub key names from nip 89s
+    dvm_nip89_profiles = {}
 
-        for nip89_event in db.events.find({"kind": 31990}):
-            if "pubkey" in nip89_event:
-                try:
-                    dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
-                        nip89_event["content"]
-                    )
-                    # print(
-                    #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
-                    # )
-                except Exception as e:
-                    # print(f"Error loading json from {nip89_event['content']}")
-                    # print(f"Content is: {nip89_event['content']}")
-                    # print(e)
-                    pass
+    for nip89_event in db.events.find({"kind": 31990}):
+        if "pubkey" in nip89_event:
+            try:
+                dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
+                    nip89_event["content"]
+                )
+                # print(
+                #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
+                # )
+            except Exception as e:
+                # print(f"Error loading json from {nip89_event['content']}")
+                # print(f"Content is: {nip89_event['content']}")
+                # print(e)
+                pass
 
-        dvm_pub_keys_and_names = {}  # key is pub key or dvm name, value is pub key
+    dvm_pub_keys_and_names = {}  # key is pub key or dvm name, value is pub key
 
-        for pub_key in dvm_pub_keys:
-            dvm_pub_keys_and_names[pub_key] = pub_key
-            dvm_pub_keys_and_names[helpers.hex_to_npub(pub_key)] = pub_key
-            if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
-                dvm_pub_keys_and_names[dvm_nip89_profiles[pub_key]["name"]] = pub_key
+    for pub_key_i in dvm_pub_keys:
+        dvm_pub_keys_and_names[pub_key_i] = pub_key_i
+        dvm_pub_keys_and_names[helpers.hex_to_npub(pub_key_i)] = pub_key_i
+        if pub_key_i in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key_i]:
+            dvm_pub_keys_and_names[dvm_nip89_profiles[pub_key_i]["name"]] = pub_key_i
 
-        context["dvm_pub_keys_and_names"] = dvm_pub_keys_and_names
+    context["dvm_pub_keys_and_names"] = dvm_pub_keys_and_names
 
-        template = loader.get_template("monitor/dvm.html")
-        return HttpResponse(template.render(context, request))
-
-    else:  # we have a specific dvm to return information for
-        # get all events from this dvm_pub_key
+    if len(pub_key) > 0:
+        print(f"len of pub_key is: {len(pub_key)}")
         dvm_events = list(
             db.events.find({"pubkey": pub_key}).sort("created_at").limit(100)
         )
@@ -122,24 +118,26 @@ def dvm(request, pub_key=""):
 
         context.update(most_recent_stats)
 
-        template = loader.get_template("monitor/dvm.html")
-        return HttpResponse(template.render(context, request))
+    template = loader.get_template("monitor/dvm.html")
+    return HttpResponse(template.render(context, request))
 
 
 def kind(request, kind_num=""):
     print(f"Calling kind with kind_num: {kind_num}")
     context = {}
 
-    if kind_num == "":
-        # get all kinds
-        kinds = list(db.events.distinct("kind"))
+    # get all kinds
+    kinds = [
+        k
+        for k in list(db.events.distinct("kind"))
+        if EventKind.DVM_REQUEST_RANGE_START.value
+        <= k
+        <= EventKind.DVM_REQUEST_RANGE_END.value
+    ]
 
-        context["kinds"] = kinds
+    context["kinds"] = kinds
 
-        template = loader.get_template("monitor/kind.html")
-        return HttpResponse(template.render(context, request))
-
-    else:
+    if len(kind_num) > 0:
         # load the data for this specific kind
         kind_num = int(kind_num)
         context["kind"] = kind_num
@@ -157,8 +155,8 @@ def kind(request, kind_num=""):
 
         context["recent_events"] = recent_events
 
-        template = loader.get_template("monitor/kind.html")
-        return HttpResponse(template.render(context, request))
+    template = loader.get_template("monitor/kind.html")
+    return HttpResponse(template.render(context, request))
 
 
 def see_event(request, event_id=""):
