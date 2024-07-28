@@ -171,24 +171,10 @@ def get_relevant_kinds():
 
 # ugly, but we want it to be global, and only set once
 RELEVANT_KINDS = get_relevant_kinds()
+# RELEVANT_KINDS = [Kind(1)]
 
-
-def write_events_to_db(events):
-    if events:
-        try:
-            result = SYNC_MONGO_DB["events"].insert_many(events, ordered=False)
-            LOGGER.info(
-                f"Finished writing events to db with result: {len(result.inserted_ids)}"
-            )
-        except BulkWriteError as e:
-            # If you want to log the details of the duplicates or other errors
-            num_duplicates_found = len(e.details["writeErrors"])
-            LOGGER.warning(
-                f"Ignoring {num_duplicates_found} / {len(events)} duplicate events...",
-                end="",
-            )
-        except Exception as e:
-            LOGGER.error(f"Error inserting events into database: {e}")
+GLOBAL_STOP = False
+RESTART_THRESHOLD = 0.2
 
 
 class NotificationHandler(HandleNotification):
@@ -196,10 +182,47 @@ class NotificationHandler(HandleNotification):
         self.event_queue = Queue()
         self.max_batch_size = max_batch_size
         self.max_wait_time = max_wait_time
+        self.bin_size_seconds = 15  # seconds
+        self.seen_events_bin = [
+            (0, 0.0)
+        ]  # (v1, v2) where v1 is the number of seen events in that bin and v2 is the difference (%) from the last bin
+        self.last_bin_created_at_time = Timestamp.now()
+
+    def count_new_seen_event(self):
+        # check if we are in the current bin or need to create a new bin
+        current_time = Timestamp.now()
+        last_bin_event_count = self.seen_events_bin[-1][0]
+
+        # we need to create a new bin, counting this new single event
+        if current_time - self.last_bin_created_at_time > self.bin_size_seconds:
+            ## check if the last bin was lower than the restart threshold
+            if self.seen_events_bin[-1][1] < RESTART_THRESHOLD:
+                GLOBAL_STOP = True
+
+            self.last_bin_created_at_time = current_time
+
+            if last_bin_event_count == 0:
+                last_bin_delta_percent = 1.0
+            else:
+                last_bin_delta_percent = 1 / last_bin_event_count
+
+            self.seen_events_bin.append((1, last_bin_delta_percent))
+        else:
+            # add 1 to the current event counter and update the delta
+            new_event_count = self.seen_events_bin[-1][0] + 1
+
+            if last_bin_event_count == 0:
+                last_bin_delta_percent = 1.0 * new_event_count
+            else:
+                last_bin_delta_percent = new_event_count / last_bin_event_count
+
+            self.seen_events_bin[-1] = (new_event_count, last_bin_delta_percent)
 
     async def handle(self, relay_url, subscription_id, event: Event):
+        self.count_new_seen_event()
         if event.kind() in RELEVANT_KINDS:
             await self.event_queue.put(json.loads(event.as_json()))
+
         LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
 
     async def handle_msg(self, relay_url: str, message: str):
@@ -310,26 +333,6 @@ async def nostr_client():
     process_events_task = asyncio.create_task(notification_handler.process_events())
     await client.handle_notifications(notification_handler)
     return client  # Return the client for potential cleanup
-
-
-def run_nostr_client(run_time_limit_minutes=10, look_back_minutes=120):
-    current_timestamp = Timestamp.now()
-    current_secs = current_timestamp.as_secs()
-
-    max_run_time = Timestamp.from_secs(current_secs + int(run_time_limit_minutes * 60))
-    look_back_time = Timestamp.from_secs(current_secs - int(look_back_minutes * 60))
-
-    env_path = Path(".env")
-    if env_path.is_file():
-        LOGGER.info(f"loading environment from {env_path.resolve()}")
-        dotenv.load_dotenv(env_path, verbose=True, override=True)
-    else:
-        LOGGER.error(f".env file not found at {env_path} ")
-        raise FileNotFoundError(f".env file not found at {env_path} ")
-
-    nostr_dvm_thread = Thread(target=nostr_client, args=(look_back_time, max_run_time))
-    nostr_dvm_thread.start()
-    nostr_dvm_thread.join()  # Wait for the thread to finish
 
 
 def old_main():
@@ -445,6 +448,9 @@ def async_db_tests():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     client = loop.run_until_complete(nostr_client())
+    # TODO - get async to end if GLOBAL_STOP is true.... probably just need to use an asyncio function to get
+    #  the current loop and end all tasks on it
+    #  THEN wrap all this code in the main function so it gets called again EXCEPT if there is a keyboard interrupt
     try:
         loop.run_forever()
     except KeyboardInterrupt:
