@@ -141,8 +141,8 @@ RELAYS = get_relays()
 def get_relevant_kinds():
     # Kinds to listen to
     known_kinds = [
-        EventKind.DM.value,
-        EventKind.ZAP.value,
+        # EventKind.DM.value,
+        # EventKind.ZAP.value,
         EventKind.DVM_NIP89_ANNOUNCEMENT.value,
         EventKind.DVM_FEEDBACK.value,
     ]
@@ -220,6 +220,8 @@ class NotificationHandler(HandleNotification):
                 while len(batch) < self.max_batch_size and not self.event_queue.empty():
                     batch.append(self.event_queue.get_nowait())
 
+                # LOGGER.info(f"Batch size is now {len(batch)}")
+
             except asyncio.TimeoutError:
                 # If no events received within max_wait_time, continue to next iteration
                 continue
@@ -229,18 +231,24 @@ class NotificationHandler(HandleNotification):
                 await self.async_write_to_neo4j_db(batch)
 
             # Mark tasks as done
+            number_of_events_marked_done = 0
             for _ in range(len(batch)):
                 self.event_queue.task_done()
+                number_of_events_marked_done += 1
+            LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
+            # LOGGER.info(f"Number of events marked done: {number_of_events_marked_done}")
+            # LOGGER.info(f"Remaining items in queue: {remaining_items}")
 
     async def async_write_to_mongo_db(self, events):
+        LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
         if len(events) > 0:
             try:
                 result = await ASYNC_MONGO_DB.test_events.insert_many(
                     events, ordered=False
                 )
-                LOGGER.info(
-                    f"Finished writing events to db with result: {len(result.inserted_ids)}"
-                )
+                # LOGGER.info(
+                #     f"Finished writing events to db with result: {len(result.inserted_ids)}"
+                # )
             except BulkWriteError as e:
                 # If you want to log the details of the duplicates or other errors
                 num_duplicates_found = len(e.details["writeErrors"])
@@ -252,42 +260,36 @@ class NotificationHandler(HandleNotification):
                 LOGGER.error(f"Error inserting events into database: {e}")
 
     async def async_write_to_neo4j_db(self, events):
-        if len(events) > 0:
-            query = """
-                    MERGE (n:Event {id: $event_id})
-                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
-                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
-                    RETURN n
-                    """
+        LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
+        if not events:
+            return
 
-            async with NEO4J_DRIVER.session() as session:
-                for doc in events:
-                    event_id = str(
-                        doc.get("id")
-                    )  # Assuming 'id' is the unique identifier
-                    doc_copy = doc.copy()  # Create a copy of the document
-                    doc_copy.pop("_id", None)  # Remove '_id' from the copy if it exists
-                    doc_copy.pop("tags", None)
-                    json_data = json.dumps(
-                        doc_copy
-                    )  # Convert the modified document to a JSON string
+        query = """
+        UNWIND $batch AS event
+        MERGE (n:TestEvent {id: event.id})
+        SET n += event.properties
+        """
 
-                    try:
-                        result = await session.run(
-                            query, event_id=event_id, json=json_data
-                        )
-                        summary = await result.consume()
-                        LOGGER.info(
-                            f"Created/Updated node for event {event_id}. "
-                            f"Nodes created: {summary.counters.nodes_created}, "
-                            f"Properties set: {summary.counters.properties_set}"
-                        )
-                    except Exception as e:
-                        LOGGER.error(
-                            f"Error creating/updating node for event {event_id}: {str(e)}"
-                        )
+        batch = []
+        for doc in events:
+            doc_copy = doc.copy()
+            doc_copy.pop("_id", None)
+            doc_copy.pop("tags", None)
+            batch.append({"id": str(doc.get("id")), "properties": doc_copy})
 
-            LOGGER.info("Finished creating test nodes in Neo4j")
+        async with NEO4J_DRIVER.session() as session:
+            try:
+                result = await session.run(query, batch=batch)
+                summary = await result.consume()
+                # LOGGER.info(
+                #     f"Bulk operation completed. "
+                #     f"Nodes created: {summary.counters.nodes_created}, "
+                #     f"Properties set: {summary.counters.properties_set}"
+                # )
+            except Exception as e:
+                LOGGER.error(f"Error in bulk write to Neo4j: {str(e)}")
+
+        # LOGGER.info("Finished creating/updating nodes in Neo4j")
 
 
 async def nostr_client():
