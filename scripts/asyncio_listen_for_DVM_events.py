@@ -1,4 +1,6 @@
 import asyncio
+from asyncio import Queue
+from collections import deque
 import random
 import sys
 from datetime import datetime, timedelta
@@ -190,70 +192,122 @@ def write_events_to_db(events):
 
 
 class NotificationHandler(HandleNotification):
-    def __init__(self):
-        self.events = []
-        self.lock = Lock()
-        self.flush_interval = 10  # Flush every 10 seconds, adjust as needed
-        self.stop_requested = False  # Flag to signal thread to stop
+    def __init__(self, max_batch_size=100, max_wait_time=5):
+        self.event_queue = Queue()
+        self.max_batch_size = max_batch_size
+        self.max_wait_time = max_wait_time
 
-        # Start a thread to flush events periodically
-        self.flush_thread = Thread(target=self.flush_events_periodically)
-        self.flush_thread.start()
-
-    def handle(self, relay_url, subscription_id, event: Event):
+    async def handle(self, relay_url, subscription_id, event: Event):
         if event.kind() in RELEVANT_KINDS:
-            with self.lock:
-                self.events.append(json.loads(event.as_json()))
+            await self.event_queue.put(json.loads(event.as_json()))
+        LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
 
-    def flush_events(self):
-        with self.lock:
-            if self.events:
-                LOGGER.debug("locking to write to db...", end="")
-                LOGGER.debug(f"...writing {len(self.events)} to db...", end="")
-                write_events_to_db(self.events)
-                self.events.clear()
-                LOGGER.debug("...unlocking write to db")
+    async def handle_msg(self, relay_url: str, message: str):
+        # Implement this method
+        pass
 
-    def flush_events_periodically(self):
-        while not self.stop_requested:
-            time.sleep(self.flush_interval)
-            self.flush_events()
+    async def process_events(self):
+        while True:
+            batch = []
+            try:
+                # Wait for the first event or until max_wait_time
+                event = await asyncio.wait_for(
+                    self.event_queue.get(), timeout=self.max_wait_time
+                )
+                batch.append(event)
 
-    def request_stop(self):
-        self.stop_requested = True
+                # Collect more events if available, up to max_batch_size
+                while len(batch) < self.max_batch_size and not self.event_queue.empty():
+                    batch.append(self.event_queue.get_nowait())
 
-    def handle_msg(self, relay_url, msg):
-        return
+            except asyncio.TimeoutError:
+                # If no events received within max_wait_time, continue to next iteration
+                continue
+
+            if batch:
+                await self.async_write_to_mongo_db(batch)
+                await self.async_write_to_neo4j_db(batch)
+
+            # Mark tasks as done
+            for _ in range(len(batch)):
+                self.event_queue.task_done()
+
+    async def async_write_to_mongo_db(self, events):
+        if len(events) > 0:
+            try:
+                result = await ASYNC_MONGO_DB.test_events.insert_many(
+                    events, ordered=False
+                )
+                LOGGER.info(
+                    f"Finished writing events to db with result: {len(result.inserted_ids)}"
+                )
+            except BulkWriteError as e:
+                # If you want to log the details of the duplicates or other errors
+                num_duplicates_found = len(e.details["writeErrors"])
+                LOGGER.warning(
+                    f"Ignoring {num_duplicates_found} / {len(events)} duplicate events...",
+                    end="",
+                )
+            except Exception as e:
+                LOGGER.error(f"Error inserting events into database: {e}")
+
+    async def async_write_to_neo4j_db(self, events):
+        if len(events) > 0:
+            query = """
+                    MERGE (n:Event {id: $event_id})
+                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                    RETURN n
+                    """
+
+            async with NEO4J_DRIVER.session() as session:
+                for doc in events:
+                    event_id = str(
+                        doc.get("id")
+                    )  # Assuming 'id' is the unique identifier
+                    doc_copy = doc.copy()  # Create a copy of the document
+                    doc_copy.pop("_id", None)  # Remove '_id' from the copy if it exists
+                    doc_copy.pop("tags", None)
+                    json_data = json.dumps(
+                        doc_copy
+                    )  # Convert the modified document to a JSON string
+
+                    try:
+                        result = await session.run(
+                            query, event_id=event_id, json=json_data
+                        )
+                        summary = await result.consume()
+                        LOGGER.info(
+                            f"Created/Updated node for event {event_id}. "
+                            f"Nodes created: {summary.counters.nodes_created}, "
+                            f"Properties set: {summary.counters.properties_set}"
+                        )
+                    except Exception as e:
+                        LOGGER.error(
+                            f"Error creating/updating node for event {event_id}: {str(e)}"
+                        )
+
+            LOGGER.info("Finished creating test nodes in Neo4j")
 
 
-def nostr_client(since_when_timestamp: Timestamp, runtime_limit: Timestamp):
+async def nostr_client():
     keys = Keys.generate()
     pk = keys.public_key()
     LOGGER.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
     signer = NostrSigner.keys(keys)
     client = Client(signer)
     for relay in RELAYS:
-        client.add_relay(relay)
-    client.connect()
+        await client.add_relay(relay)
+    await client.connect()
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(since_when_timestamp)
-    client.subscribe([dvm_filter], None)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS)
+    await client.subscribe([dvm_filter])
 
-    handler = NotificationHandler()
-    client.handle_notifications(handler)
-
-    while Timestamp.now().as_secs() < runtime_limit.as_secs():
-        LOGGER.debug(
-            f"There are this many seconds left: {runtime_limit.as_secs() - Timestamp.now().as_secs()}"
-        )
-        delay = 10
-        LOGGER.debug(f"About to sleep for {delay} seconds...", end="")
-        time.sleep(delay)
-        LOGGER.debug(f"waking up...")
-
-    LOGGER.info("Time is up. Requesting stop.")
-    client.disconnect()
-    handler.request_stop()
+    # Your existing code without the while True loop
+    notification_handler = NotificationHandler()
+    process_events_task = asyncio.create_task(notification_handler.process_events())
+    await client.handle_notifications(notification_handler)
+    return client  # Return the client for potential cleanup
 
 
 def run_nostr_client(run_time_limit_minutes=10, look_back_minutes=120):
@@ -321,7 +375,7 @@ def create_test_events_collection():
         SYNC_MONGO_DB.create_collection(collection_name)
 
 
-def new_async_main():
+def async_db_tests():
     LOGGER.info("Starting async listen for events script")
     create_test_events_collection()
     # count the number of events in the mongo db
@@ -387,4 +441,12 @@ def new_async_main():
 
 
 if __name__ == "__main__":
-    new_async_main()
+    loop = asyncio.get_event_loop()
+    client = loop.run_until_complete(nostr_client())
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.run_until_complete(client.disconnect())
+        loop.close()
