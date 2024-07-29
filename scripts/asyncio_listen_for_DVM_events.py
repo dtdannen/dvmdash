@@ -364,7 +364,9 @@ async def nostr_client():
         await client.add_relay(relay)
     await client.connect()
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(Timestamp.now())
+    prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
+
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(prev_24hr_timestamp)
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
