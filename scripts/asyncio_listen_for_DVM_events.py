@@ -192,12 +192,17 @@ class NotificationHandler(HandleNotification):
         # check if we are in the current bin or need to create a new bin
         current_time = Timestamp.now()
         last_bin_event_count = self.seen_events_bin[-1][0]
+        last_bin_event_delta = self.seen_events_bin[-1][1]
 
         # we need to create a new bin, counting this new single event
         if current_time - self.last_bin_created_at_time > self.bin_size_seconds:
             ## check if the last bin was lower than the restart threshold
-            if self.seen_events_bin[-1][1] < RESTART_THRESHOLD:
-                GLOBAL_STOP = True
+            LOGGER.info(
+                f"Creating a new bin, last one's delta was: {last_bin_event_delta}"
+            )
+            # if self.seen_events_bin[-1][1] < RESTART_THRESHOLD:
+            #     global GLOBAL_STOP
+            #     GLOBAL_STOP = True
 
             self.last_bin_created_at_time = current_time
 
@@ -219,7 +224,7 @@ class NotificationHandler(HandleNotification):
             self.seen_events_bin[-1] = (new_event_count, last_bin_delta_percent)
 
     async def handle(self, relay_url, subscription_id, event: Event):
-        self.count_new_seen_event()
+        # self.count_new_seen_event()
         if event.kind() in RELEVANT_KINDS:
             await self.event_queue.put(json.loads(event.as_json()))
 
@@ -314,6 +319,40 @@ class NotificationHandler(HandleNotification):
 
         # LOGGER.info("Finished creating/updating nodes in Neo4j")
 
+    async def async_write_single_event_to_neo4j_db(self, event):
+        event_kind = int(event.get("kind"))
+
+        query = """
+                MERGE (n:TestEvent {id: $event_id})
+                ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                RETURN n
+                """
+
+        event_id = str(event.get("id"))  # Assuming 'id' is the unique identifier
+        doc_copy = event.copy()  # Create a copy of the document
+        doc_copy.pop("_id", None)  # Remove '_id' from the copy if it exists
+        doc_copy.pop("tags", None)
+        json_data = json.dumps(
+            doc_copy
+        )  # Convert the modified document to a JSON string
+
+        async with NEO4J_DRIVER.session() as session:
+            try:
+                result = await session.run(query, event_id=event_id, json=json_data)
+                summary = await result.consume()
+                LOGGER.info(
+                    f"Created/Updated node for event {event_id}. "
+                    f"Nodes created: {summary.counters.nodes_created}, "
+                    f"Properties set: {summary.counters.properties_set}"
+                )
+            except Exception as e:
+                LOGGER.error(
+                    f"Error creating/updating node for event {event_id}: {str(e)}"
+                )
+
+        LOGGER.info("Finished creating test nodes in Neo4j")
+
 
 async def nostr_client():
     keys = Keys.generate()
@@ -325,7 +364,7 @@ async def nostr_client():
         await client.add_relay(relay)
     await client.connect()
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(Timestamp.now())
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
