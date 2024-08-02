@@ -613,13 +613,267 @@ def save_kind_stats_to_mongodb():
         print("No KIND stats to insert")
 
 
+def global_stats_via_big_mongo_query():
+    stats = {}
+
+    current_timestamp = int(time.time())
+    max_time_24hr = current_timestamp - (24 * 60 * 60)
+    max_time_1week = current_timestamp - (7 * 24 * 60 * 60)
+    max_time_1month = current_timestamp - (30 * 24 * 60 * 60)
+
+    pipeline = [
+        {
+            "$match": {
+                "$or": [
+                    {
+                        "kind": {
+                            "$gte": 5000,
+                            "$lte": 7000,
+                            "$nin": EventKind.get_bad_dvm_kinds(),
+                        }
+                    },
+                    {"kind": 31990},
+                ]
+            }
+        },
+        {
+            "$facet": {
+                "event_counts": [
+                    {"$group": {"_id": "$kind", "count": {"$sum": 1}}},
+                    {
+                        "$project": {
+                            "_id": 0,  # Exclude the _id field
+                            "kind": "$_id",  # Rename _id to kind
+                            "count": 1,  # Include the count field
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "details": {"$push": "$$ROOT"},
+                            "sum_5000_5999": {
+                                "$sum": {
+                                    "$cond": [
+                                        {
+                                            "$and": [
+                                                {"$gte": ["$kind", 5000]},
+                                                {"$lte": ["$kind", 5999]},
+                                            ]
+                                        },
+                                        "$count",
+                                        0,
+                                    ]
+                                }
+                            },
+                            "sum_6000_6999": {
+                                "$sum": {
+                                    "$cond": [
+                                        {
+                                            "$and": [
+                                                {"$gte": ["$kind", 6000]},
+                                                {"$lte": ["$kind", 6999]},
+                                            ]
+                                        },
+                                        "$count",
+                                        0,
+                                    ]
+                                }
+                            },
+                        }
+                    },
+                    {
+                        "$project": {
+                            "details": 1,
+                            "range_sums": {
+                                "5000_5999": "$sum_5000_5999",
+                                "6000_6999": "$sum_6000_6999",
+                            },
+                        }
+                    },
+                ],  # end event_counts facet
+                "time_based_counts": [
+                    {
+                        "$match": {
+                            "created_at": {
+                                "$gte": max_time_1month
+                            }  # Changed from max_time_1week to include 1 month
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "last_month": {
+                                "$sum": 1
+                            },  # Count all events within the last month
+                            "last_week": {
+                                "$sum": {
+                                    "$cond": [
+                                        {"$gte": ["$created_at", max_time_1week]},
+                                        1,
+                                        0,
+                                    ]
+                                }
+                            },
+                            "last_24hrs": {
+                                "$sum": {
+                                    "$cond": [
+                                        {"$gte": ["$created_at", max_time_24hr]},
+                                        1,
+                                        0,
+                                    ]
+                                }
+                            },
+                        }
+                    },
+                ],  # end time_based_counts facet
+                "unique_users": [
+                    {"$match": {"kind": {"$gte": 5000, "$lt": 6000}}},
+                    {
+                        "$group": {
+                            "_id": "$kind",
+                            "unique_users": {"$addToSet": "$pubkey"},
+                        }
+                    },
+                    {
+                        "$project": {
+                            "kind": "$_id",
+                            "unique_user_count": {"$size": "$unique_users"},
+                            "unique_users": 1,
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "per_kind_stats": {
+                                "$push": {
+                                    "kind": "$kind",
+                                    "unique_user_count": "$unique_user_count",
+                                }
+                            },
+                            "all_users": {"$push": "$unique_users"},
+                        }
+                    },
+                    {
+                        "$project": {
+                            "per_kind_stats": 1,
+                            "total_unique_users": {
+                                "$size": {
+                                    "$reduce": {
+                                        "input": "$all_users",
+                                        "initialValue": [],
+                                        "in": {"$setUnion": ["$$value", "$$this"]},
+                                    }
+                                }
+                            },
+                        }
+                    },
+                ],
+                # "payment_stats": [
+                #     {
+                #         "$match": {
+                #             "kind": EventKind.DVM_FEEDBACK.value,
+                #             "tags": {
+                #                 "$elemMatch": {
+                #                     "$and": [
+                #                         {
+                #                             "$eq": [
+                #                                 {"$arrayElemAt": ["$$this", 0]},
+                #                                 "status",
+                #                             ]
+                #                         },
+                #                         {
+                #                             "$eq": [
+                #                                 {"$arrayElemAt": ["$$this", 1]},
+                #                                 "payment-required",
+                #                             ]
+                #                         },
+                #                     ]
+                #                 }
+                #             },
+                #         }
+                #     },
+                #     {"$unwind": "$tags"},
+                #     {"$match": {"tags.0": "amount"}},
+                #     {
+                #         "$group": {
+                #             "_id": None,
+                #             "total_payments": {"$sum": 1},
+                #             "total_amount": {
+                #                 "$sum": {"$toInt": {"$arrayElemAt": ["$tags", 1]}}
+                #             },
+                #         }
+                #     },
+                # ],
+            }
+        },
+    ]
+
+    results = DB.events.aggregate(pipeline)
+
+    # Since $facet returns a single document, we take the first (and only) result
+    facet_results = next(results, None)
+
+    if facet_results is not None:
+        for facet_name, facet_data in facet_results.items():
+            print(f"Facet: {facet_name}")
+            print(json.dumps(facet_data, indent=2))
+            print("---")
+
+        # To access specific facets:
+        event_counts = facet_results.get("event_counts", [])
+        time_based_counts = facet_results.get("time_based_counts", [])
+
+        # Process event_counts
+        for count_data in event_counts[0]["details"]:
+            print(f"Kind: {count_data['kind']}, Count: {count_data['count']}")
+
+        # Process time_based_counts
+        if time_based_counts:
+            print(f"Last 24 hours: {time_based_counts[0].get('last_24hrs', 0)}")
+            stats["dvm_requests_24_hrs"] = time_based_counts[0].get("last_24hrs")
+            print(f"Last week: {time_based_counts[0].get('last_week', 0)}")
+            stats["dvm_requests_1_week"] = time_based_counts[0].get("last_week")
+            print(f"Last month: {time_based_counts[0].get('last_month', 0)}")
+            stats["dvm_requests_1_month"] = time_based_counts[0].get("last_month")
+
+        unique_users_data = facet_results.get("unique_users", [])
+        if unique_users_data:
+            per_kind_stats = unique_users_data[0].get("per_kind_stats", [])
+            total_unique_users = unique_users_data[0].get("total_unique_users", 0)
+
+            print("Unique users per kind:")
+            for stat in per_kind_stats:
+                print(f"Kind {stat['kind']}: {stat['unique_user_count']} unique users")
+
+            print(f"\nTotal unique users across all kinds: {total_unique_users}")
+
+    else:
+        print("No results found")
+
+
 if __name__ == "__main__":
     """Usage: python compute_stats.py"""
+
+    # compare compute_stats with the mongo db query version
+
+    fast_stats_start_time = datetime.now()
+    fast_stats = global_stats_via_big_mongo_query()
+    print(f"fast_stats took {datetime.now() - fast_stats_start_time}")
+    sys.exit()
+    slow_stats_start_time = datetime.now()
+    compute_all_stats()
+    slow_stats = GlobalStats.compute_stats()
+    print(f"slow_stats took {datetime.now()}")
+
+    for k, v in slow_stats.items():
+        if k not in fast_stats.keys():
+            print(f"slow[{k}] = {v} | <missing in fast_stats>")
+        else:
+            print(f"slow[{k}] = {v} | fast[{k}] = {fast_stats[k]}")
 
     try:
         LOGGER.info(f"Starting compute stats process")
         start_time = datetime.now()
-        compute_all_stats()
         save_global_stats_to_mongodb()
         save_dvm_stats_to_mongodb()
         save_kind_stats_to_mongodb()

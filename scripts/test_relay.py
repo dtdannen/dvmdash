@@ -82,9 +82,9 @@ class NotificationHandler(HandleNotification):
                 event.created_at().as_secs()
                 - listening_client_creation_timestamp.as_secs()
             )
-            print(
-                f"\tEvent {event_id} was created {difference}s after we started listening"
-            )
+            # print(
+            #     f"\tEvent {event_id} was created {difference}s after we started listening"
+            # )
             events_seen_after_listening_client_created.append(event)
         if event_id in events_broadcasted:
             print(f"\t!!Found an event that we broad casted!: {event_id}")
