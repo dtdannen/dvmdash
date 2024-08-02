@@ -824,8 +824,23 @@ def global_stats_via_big_mongo_query():
         time_based_counts = facet_results.get("time_based_counts", [])
 
         # Process event_counts
+        max_kind = event_counts[0]["details"][0]["kind"]
+        max_kind_count = event_counts[0]["details"][0]["count"]
+        num_unique_request_kinds = 0
+        num_unique_result_kinds = 0
         for count_data in event_counts[0]["details"]:
             print(f"Kind: {count_data['kind']}, Count: {count_data['count']}")
+            if count_data["count"] > max_kind_count:
+                max_kind_count = count_data["count"]
+                max_kind = count_data["kind"]
+            if 5000 <= count_data["kind"] <= 5999:
+                num_unique_request_kinds += 1
+            elif 6000 <= count_data["kind"] <= 6999:
+                num_unique_result_kinds += 1
+
+        stats["num_dvm_request_kinds"] = num_unique_request_kinds
+        stats["num_dvm_result_kinds"] = num_unique_result_kinds
+        stats["most_popular_kind"] = max_kind
 
         # Process time_based_counts
         if time_based_counts:
@@ -846,9 +861,12 @@ def global_stats_via_big_mongo_query():
                 print(f"Kind {stat['kind']}: {stat['unique_user_count']} unique users")
 
             print(f"\nTotal unique users across all kinds: {total_unique_users}")
+            stats["unique_users_of_dvms"] = total_unique_users
 
     else:
         print("No results found")
+
+    return stats
 
 
 if __name__ == "__main__":
@@ -859,17 +877,19 @@ if __name__ == "__main__":
     fast_stats_start_time = datetime.now()
     fast_stats = global_stats_via_big_mongo_query()
     print(f"fast_stats took {datetime.now() - fast_stats_start_time}")
-    sys.exit()
+
     slow_stats_start_time = datetime.now()
     compute_all_stats()
     slow_stats = GlobalStats.compute_stats()
-    print(f"slow_stats took {datetime.now()}")
+    print(f"slow_stats took {datetime.now() - slow_stats_start_time}")
 
     for k, v in slow_stats.items():
         if k not in fast_stats.keys():
             print(f"slow[{k}] = {v} | <missing in fast_stats>")
         else:
             print(f"slow[{k}] = {v} | fast[{k}] = {fast_stats[k]}")
+
+    sys.exit()
 
     try:
         LOGGER.info(f"Starting compute stats process")
