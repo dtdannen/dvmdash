@@ -135,7 +135,7 @@ class GlobalStats:
             "dvm_requests_1_week": GlobalStats.dvm_requests_1_week,
             "dvm_results_1_week": GlobalStats.dvm_results_1_week,
             "num_dvm_request_kinds": len(GlobalStats.request_kinds_counts.keys()),
-            "num_dvm_response_kinds": len(GlobalStats.result_kinds_counts.keys()),
+            "num_dvm_result_kinds": len(GlobalStats.result_kinds_counts.keys()),
             "dvm_nip_89s": len(GlobalStats.dvm_nip89_profiles.keys()),
             "dvm_pub_keys": len(GlobalStats.dvm_results_counts.keys()),
             "total_number_of_payments_requests": GlobalStats.total_number_of_payments_requests,
@@ -616,12 +616,13 @@ def save_kind_stats_to_mongodb():
 def global_stats_via_big_mongo_query():
     stats = {}
 
-    current_timestamp = int(time.time())
+    current_timestamp = int(Timestamp.now().as_secs())
     max_time_24hr = current_timestamp - (24 * 60 * 60)
     max_time_1week = current_timestamp - (7 * 24 * 60 * 60)
     max_time_1month = current_timestamp - (30 * 24 * 60 * 60)
 
     pipeline = [
+        # we do a big global match, so we can process everything at once
         {
             "$match": {
                 "$or": [
@@ -639,6 +640,7 @@ def global_stats_via_big_mongo_query():
         {
             "$facet": {
                 "event_counts": [
+                    # create the counts per kind mapping
                     {"$group": {"_id": "$kind", "count": {"$sum": 1}}},
                     {
                         "$project": {
@@ -650,7 +652,7 @@ def global_stats_via_big_mongo_query():
                     {
                         "$group": {
                             "_id": None,
-                            "details": {"$push": "$$ROOT"},
+                            "kind_counts": {"$push": "$$ROOT"},
                             "sum_5000_5999": {
                                 "$sum": {
                                     "$cond": [
@@ -681,31 +683,21 @@ def global_stats_via_big_mongo_query():
                             },
                         }
                     },
-                    {
-                        "$project": {
-                            "details": 1,
-                            "range_sums": {
-                                "5000_5999": "$sum_5000_5999",
-                                "6000_6999": "$sum_6000_6999",
-                            },
-                        }
-                    },
                 ],  # end event_counts facet
-                "time_based_counts": [
+                "time_based_request_counts": [
                     {
                         "$match": {
-                            "created_at": {
-                                "$gte": max_time_1month
-                            }  # Changed from max_time_1week to include 1 month
+                            "created_at": {"$gte": max_time_1month},
+                            "kind": {"$gte": 5000, "$lte": 5999},
                         }
                     },
                     {
                         "$group": {
                             "_id": None,
-                            "last_month": {
+                            "last_month_requests": {
                                 "$sum": 1
                             },  # Count all events within the last month
-                            "last_week": {
+                            "last_week_requests": {
                                 "$sum": {
                                     "$cond": [
                                         {"$gte": ["$created_at", max_time_1week]},
@@ -714,7 +706,7 @@ def global_stats_via_big_mongo_query():
                                     ]
                                 }
                             },
-                            "last_24hrs": {
+                            "last_24hrs_requests": {
                                 "$sum": {
                                     "$cond": [
                                         {"$gte": ["$created_at", max_time_24hr]},
@@ -725,7 +717,7 @@ def global_stats_via_big_mongo_query():
                             },
                         }
                     },
-                ],  # end time_based_counts facet
+                ],
                 "unique_users": [
                     {"$match": {"kind": {"$gte": 5000, "$lt": 6000}}},
                     {
@@ -768,42 +760,27 @@ def global_stats_via_big_mongo_query():
                         }
                     },
                 ],
-                # "payment_stats": [
-                #     {
-                #         "$match": {
-                #             "kind": EventKind.DVM_FEEDBACK.value,
-                #             "tags": {
-                #                 "$elemMatch": {
-                #                     "$and": [
-                #                         {
-                #                             "$eq": [
-                #                                 {"$arrayElemAt": ["$$this", 0]},
-                #                                 "status",
-                #                             ]
-                #                         },
-                #                         {
-                #                             "$eq": [
-                #                                 {"$arrayElemAt": ["$$this", 1]},
-                #                                 "payment-required",
-                #                             ]
-                #                         },
-                #                     ]
-                #                 }
-                #             },
-                #         }
-                #     },
-                #     {"$unwind": "$tags"},
-                #     {"$match": {"tags.0": "amount"}},
-                #     {
-                #         "$group": {
-                #             "_id": None,
-                #             "total_payments": {"$sum": 1},
-                #             "total_amount": {
-                #                 "$sum": {"$toInt": {"$arrayElemAt": ["$tags", 1]}}
-                #             },
-                #         }
-                #     },
-                # ],
+                "payment_stats": [
+                    {
+                        "$match": {
+                            "kind": EventKind.DVM_FEEDBACK.value,
+                            "tags": {
+                                "$elemMatch": {"$eq": ["status", "payment-required"]}
+                            },
+                        }
+                    },
+                    {"$unwind": "$tags"},
+                    {"$match": {"tags.0": "amount"}},
+                    {
+                        "$group": {
+                            "_id": None,
+                            "total_number_of_payments_requests": {"$sum": 1},
+                            "total_amount_dvm_requested_sats": {
+                                "$sum": {"$toInt": {"$arrayElemAt": ["$tags", 1]}}
+                            },
+                        }
+                    },
+                ],
             }
         },
     ]
@@ -821,7 +798,7 @@ def global_stats_via_big_mongo_query():
 
         # To access specific facets:
         event_counts = facet_results.get("event_counts", [])
-        time_based_counts = facet_results.get("time_based_counts", [])
+        time_based_counts = facet_results.get("time_based_request_counts", [])
 
         # Process event_counts
         max_kind = event_counts[0]["details"][0]["kind"]
@@ -830,17 +807,21 @@ def global_stats_via_big_mongo_query():
         num_unique_result_kinds = 0
         for count_data in event_counts[0]["details"]:
             print(f"Kind: {count_data['kind']}, Count: {count_data['count']}")
-            if count_data["count"] > max_kind_count:
-                max_kind_count = count_data["count"]
-                max_kind = count_data["kind"]
             if 5000 <= count_data["kind"] <= 5999:
                 num_unique_request_kinds += 1
+                if count_data["count"] > max_kind_count:
+                    max_kind_count = count_data["count"]
+                    max_kind = count_data["kind"]
             elif 6000 <= count_data["kind"] <= 6999:
                 num_unique_result_kinds += 1
 
         stats["num_dvm_request_kinds"] = num_unique_request_kinds
         stats["num_dvm_result_kinds"] = num_unique_result_kinds
         stats["most_popular_kind"] = max_kind
+
+        # Process range_sums to get total counts for range
+        stats["dvm_requests_all_time"] = event_counts[0]["range_sums"]["5000_5999"]
+        stats["dvm_results_all_time"] = event_counts[0]["range_sums"]["6000_6999"]
 
         # Process time_based_counts
         if time_based_counts:
@@ -883,11 +864,20 @@ if __name__ == "__main__":
     slow_stats = GlobalStats.compute_stats()
     print(f"slow_stats took {datetime.now() - slow_stats_start_time}")
 
-    for k, v in slow_stats.items():
-        if k not in fast_stats.keys():
-            print(f"slow[{k}] = {v} | <missing in fast_stats>")
-        else:
-            print(f"slow[{k}] = {v} | fast[{k}] = {fast_stats[k]}")
+    def print_table(slow_stats, fast_stats):
+        print(
+            "Metric                              | Slow                              | Fast"
+        )
+        print("-" * 60)
+
+        for k, v in slow_stats.items():
+            slow_value = str(v)
+            fast_value = str(fast_stats.get(k, "<missing>"))
+
+            print(f"{k:<34} | {slow_value:<34} | {fast_value:<34}")
+
+    # Example usage
+    print_table(slow_stats, fast_stats)
 
     sys.exit()
 
