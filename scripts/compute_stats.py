@@ -760,6 +760,80 @@ def global_stats_via_big_mongo_query():
                         }
                     },
                 ],
+                "unique_dvms": [
+                    {
+                        "$match": {
+                            "$or": [
+                                {"kind": {"$gte": 6000, "$lte": 6999}},
+                                {
+                                    "tags": {
+                                        "$elemMatch": {
+                                            "$eq": ["status", "payment-required"]
+                                        }
+                                    },
+                                },
+                            ]
+                        }
+                    },
+                    {
+                        "$facet": {
+                            "dvm_counts": [
+                                {
+                                    "$group": {
+                                        "_id": "$pubkey",
+                                        "total_count": {"$sum": 1},
+                                        "kind_6000_6999_count": {
+                                            "$sum": {
+                                                "$cond": [
+                                                    {
+                                                        "$and": [
+                                                            {"$gte": ["$kind", 6000]},
+                                                            {"$lte": ["$kind", 6999]},
+                                                        ]
+                                                    },
+                                                    1,
+                                                    0,
+                                                ]
+                                            }
+                                        },
+                                        "payment_required_count": {
+                                            "$sum": {
+                                                "$cond": [
+                                                    {
+                                                        "$eq": [
+                                                            {
+                                                                "$in": [
+                                                                    "payment-required",
+                                                                    "$tags",
+                                                                ]
+                                                            },
+                                                            True,
+                                                        ]
+                                                    },
+                                                    1,
+                                                    0,
+                                                ]
+                                            }
+                                        },
+                                    }
+                                },
+                                {
+                                    "$group": {
+                                        "_id": None,
+                                        "unique_dvm_count": {"$sum": 1},
+                                        "dvm_details": {"$push": "$$ROOT"},
+                                    }
+                                },
+                            ]
+                        }
+                    },
+                    {
+                        "$project": {
+                            "unique_dvm_count": "$dvm_counts.unique_dvm_count",
+                            "dvm_details": "$dvm_counts.dvm_details",
+                        }
+                    },
+                ],
                 "payment_stats": [
                     {
                         "$match": {
