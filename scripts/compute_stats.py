@@ -671,6 +671,7 @@ def global_stats_via_big_mongo_query():
                                     ]
                                 }
                             },
+                            "created_at": {"$max": "$created_at"},
                         },
                     },
                     #  Group all DVMs together
@@ -684,6 +685,7 @@ def global_stats_via_big_mongo_query():
                                     "total_count": "$total_count",
                                     "kind_6000_6999_count": "$kind_6000_6999_count",
                                     "profile": "$profile",
+                                    "created_at": "$created_at",
                                 }
                             },
                         }
@@ -712,19 +714,19 @@ def global_stats_via_big_mongo_query():
         for kind_count in all_kind_counts:
             kind_num = kind_count["kind"]
             kind_count = kind_count["count"]
-            Kind.get_instance(kind_num).count_from_mongo(kind_count)
+            Kind.get_instance(kind_num).count_from_mongo = kind_count
 
             if (
-                EventKind.DVM_REQUEST_RANGE_START
+                EventKind.DVM_REQUEST_RANGE_START.value
                 <= kind_num
-                <= EventKind.DVM_REQUEST_RANGE_END
+                <= EventKind.DVM_REQUEST_RANGE_END.value
             ):
                 all_request_kinds.add(kind_num)
                 Kind.get_instance(kind_num).request_count = kind_count
             elif (
-                EventKind.DVM_RESULT_RANGE_START
+                EventKind.DVM_RESULT_RANGE_START.value
                 <= kind_num
-                <= EventKind.DVM_RESULT_RANGE_END
+                <= EventKind.DVM_RESULT_RANGE_END.value
             ):
                 all_result_kinds.add(kind_num)
                 Kind.get_instance(kind_num).result_count = kind_count
@@ -772,15 +774,16 @@ def global_stats_via_big_mongo_query():
 
             GlobalStats.most_popular_kind = max_kind
 
-        unique_dvms = facet_results.get("unique_dvms")
+        unique_dvms = facet_results.get("unique_dvms")[0]["dvm_details"]
         if unique_dvms:
             max_dvm_npub_hex = "<unknown>"
             max_dvm_count = -1
             num_dvm_profiles = 0
             for stat in unique_dvms:
+                print(f"stat is {stat}")
                 if stat["profile"] and stat["created_at"]:
                     try:
-                        profile_parsed = json.loads(stat["profile"])
+                        profile_parsed = json.loads(stat["profile"]["content"])
                         DVM.get_instance(stat["pubkey"]).add_nip89_profile(
                             profile_parsed, stat["created_at"]
                         )
@@ -921,12 +924,8 @@ def compute_basic_stats_from_db_queries():
     dvm_specific_stats_from_neo4j()
 
 
-def compute_summary_stats():
-    """Step 2"""
-
-
 def save_new_stats():
-    """Step 3"""
+    """Step 2"""
     save_global_stats_to_mongodb()
     save_dvm_stats_to_mongodb()
     save_kind_stats_to_mongodb()
@@ -938,7 +937,6 @@ if __name__ == "__main__":
     try:
         start_time = datetime.now()
         compute_basic_stats_from_db_queries()
-        compute_summary_stats()
         save_new_stats()
 
         LOGGER.info(
