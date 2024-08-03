@@ -781,79 +781,81 @@ def global_stats_via_big_mongo_query():
                                         },
                                     ],
                                 },
-                                # {
-                                #     "$and": [
-                                #         {"kind": 31990},
-                                #         {
-                                #             "$expr": {
-                                #                 "$let": {
-                                #                     "vars": {
-                                #                         "kTag": {
-                                #                             "$filter": {
-                                #                                 "input": "$tags",
-                                #                                 "as": "tag",
-                                #                                 "cond": {
-                                #                                     "$eq": [
-                                #                                         {
-                                #                                             "$arrayElemAt": [
-                                #                                                 "$$tag",
-                                #                                                 0,
-                                #                                             ]
-                                #                                         },
-                                #                                         "k",
-                                #                                     ]
-                                #                                 },
-                                #                             }
-                                #                         }
-                                #                     },
-                                #                     "in": {
-                                #                         "$and": [
-                                #                             {
-                                #                                 "$gt": [
-                                #                                     {"$size": "$$kTag"},
-                                #                                     0,
-                                #                                 ]
-                                #                             },
-                                #                             {
-                                #                                 "$let": {
-                                #                                     "vars": {
-                                #                                         "kValue": {
-                                #                                             "$toInt": {
-                                #                                                 "$arrayElemAt": [
-                                #                                                     {
-                                #                                                         "$arrayElemAt": [
-                                #                                                             "$$kTag",
-                                #                                                             0,
-                                #                                                         ]
-                                #                                                     },
-                                #                                                     1,
-                                #                                                 ]
-                                #                                             }
-                                #                                         }
-                                #                                     },
-                                #                                     "in": {
-                                #                                         "$and": [
-                                #                                             {
-                                #                                                 "$gte": [
-                                #                                                     "$$kValue",
-                                #                                                     5000,
-                                #                                                 ]
-                                #                                             },
-                                #                                             {
-                                #                                                 "$lte": [
-                                #                                                     "$$kValue",
-                                #                                                     5999,
-                                #                                                 ]
-                                #                                             },
-                                #                                         ]
-                                #                                     },
-                                #                                 }
-                                #                             },
-                                #                         ]
-                                #                     },
-                                #                 }
-                                #             }
-                                #         },
+                                {
+                                    "$and": [
+                                        {"kind": 31990},
+                                        {
+                                            "$expr": {
+                                                "$let": {
+                                                    "vars": {
+                                                        "kTag": {
+                                                            "$filter": {
+                                                                "input": "$tags",
+                                                                "as": "tag",
+                                                                "cond": {
+                                                                    "$eq": [
+                                                                        {
+                                                                            "$arrayElemAt": [
+                                                                                "$$tag",
+                                                                                0,
+                                                                            ]
+                                                                        },
+                                                                        "k",
+                                                                    ]
+                                                                },
+                                                            }
+                                                        }
+                                                    },
+                                                    "in": {
+                                                        "$and": [
+                                                            {
+                                                                "$gt": [
+                                                                    {"$size": "$$kTag"},
+                                                                    0,
+                                                                ]
+                                                            },
+                                                            {
+                                                                "$let": {
+                                                                    "vars": {
+                                                                        "kValue": {
+                                                                            "$toInt": {
+                                                                                "$arrayElemAt": [
+                                                                                    {
+                                                                                        "$arrayElemAt": [
+                                                                                            "$$kTag",
+                                                                                            0,
+                                                                                        ]
+                                                                                    },
+                                                                                    1,
+                                                                                ]
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    "in": {
+                                                                        "$and": [
+                                                                            {
+                                                                                "$gte": [
+                                                                                    "$$kValue",
+                                                                                    5000,
+                                                                                ]
+                                                                            },
+                                                                            {
+                                                                                "$lte": [
+                                                                                    "$$kValue",
+                                                                                    5999,
+                                                                                ]
+                                                                            },
+                                                                        ]
+                                                                    },
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            }
+                                        },
+                                    ]
+                                },
                             ]
                         },
                     },
@@ -876,76 +878,6 @@ def global_stats_via_big_mongo_query():
                                     ]
                                 }
                             },
-                            # and count the number of payments requested
-                            "payment_required_count": {
-                                "$sum": {
-                                    "$cond": [
-                                        {"$in": ["payment-required", "$tags"]},
-                                        1,
-                                        0,
-                                    ]
-                                }
-                            },
-                            # and count the total payments asked for by the DVM
-                            "total_payment_required": {
-                                "$sum": {
-                                    "$cond": [
-                                        {"$in": ["payment-required", "$tags"]},
-                                        {
-                                            "$let": {
-                                                "vars": {
-                                                    "amountTag": {
-                                                        "$filter": {
-                                                            "input": "$tags",
-                                                            "as": "tag",
-                                                            "cond": {
-                                                                "$expr": {
-                                                                    "$eq": [
-                                                                        {
-                                                                            "$arrayElemAt": [
-                                                                                "$$tag",
-                                                                                0,
-                                                                            ]
-                                                                        },
-                                                                        "amount",
-                                                                    ]
-                                                                },
-                                                            },
-                                                        }
-                                                    }
-                                                },
-                                                "in": {
-                                                    "$cond": [
-                                                        {
-                                                            "$gt": [
-                                                                {
-                                                                    "$size": "$$amountTag"
-                                                                },
-                                                                0,
-                                                            ]
-                                                        },
-                                                        {
-                                                            "$toInt": {
-                                                                "$arrayElemAt": [
-                                                                    {
-                                                                        "$arrayElemAt": [
-                                                                            "$$amountTag",
-                                                                            0,
-                                                                        ]
-                                                                    },
-                                                                    1,
-                                                                ]
-                                                            }
-                                                        },
-                                                        0,
-                                                    ]
-                                                },
-                                            }
-                                        },
-                                        0,
-                                    ]
-                                }
-                            },
                         },
                     },
                     {
@@ -956,27 +888,6 @@ def global_stats_via_big_mongo_query():
                         }
                     },
                     {"$project": {"unique_dvm_count": 1, "dvm_details": 1}},
-                ],
-                "payment_stats": [
-                    {
-                        "$match": {
-                            "kind": EventKind.DVM_FEEDBACK.value,
-                            "tags": {
-                                "$elemMatch": {"$eq": ["status", "payment-required"]}
-                            },
-                        }
-                    },
-                    {"$unwind": "$tags"},
-                    {"$match": {"tags.0": "amount"}},
-                    {
-                        "$group": {
-                            "_id": None,
-                            "total_number_of_payments_requests": {"$sum": 1},
-                            "total_amount_dvm_requested_sats": {
-                                "$sum": {"$toInt": {"$arrayElemAt": ["$tags", 1]}}
-                            },
-                        }
-                    },
                 ],
             }
         },
