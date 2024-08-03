@@ -58,47 +58,32 @@ def dvm(request, pub_key=""):
     print(f"Calling dvm with dvm_pub_key: {pub_key}")
     context = {}
 
-    # get all dvm pub keys
-    dvm_pub_keys = list(
-        db.events.distinct(
-            "pubkey",
-            {
-                "kind": {
-                    "$gte": 6000,
-                    "$lte": 6999,
-                    "$nin": EventKind.get_bad_dvm_kinds(),
-                }
-            },
-        )
-    )
+    # get all the stats on all the dvms
+    pipeline = [
+        # Sort by timestamp in descending order
+        {"$sort": {"timestamp": -1}},
+        # Group all documents and get the max timestamp
+        {
+            "$group": {
+                "_id": None,
+                "maxTimestamp": {"$first": "$timestamp"},
+                "docs": {"$push": "$$ROOT"},
+            }
+        },
+        # Unwind the docs array
+        {"$unwind": "$docs"},
+        # Filter to keep only the docs with the max timestamp
+        {"$match": {"$expr": {"$eq": ["$docs.timestamp", "$maxTimestamp"]}}},
+        # Project to return only the original document structure
+        {"$replaceRoot": {"newRoot": "$docs"}},
+        # Sort by number of jobs completed in descending order
+        {"$sort": {"number_jobs_completed": -1}},
+    ]
 
-    # get all dvm pub key names from nip 89s
-    dvm_nip89_profiles = {}
+    # Execute the aggregation pipeline
+    dvm_docs = list(db.new_dvm_stats.aggregate(pipeline))
 
-    for nip89_event in db.events.find({"kind": 31990}):
-        if "pubkey" in nip89_event:
-            try:
-                dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
-                    nip89_event["content"]
-                )
-                # print(
-                #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
-                # )
-            except Exception as e:
-                # print(f"Error loading json from {nip89_event['content']}")
-                # print(f"Content is: {nip89_event['content']}")
-                # print(e)
-                pass
-
-    dvm_pub_keys_and_names = {}  # key is pub key or dvm name, value is pub key
-
-    for pub_key_i in dvm_pub_keys:
-        dvm_pub_keys_and_names[pub_key_i] = pub_key_i
-        dvm_pub_keys_and_names[helpers.hex_to_npub(pub_key_i)] = pub_key_i
-        if pub_key_i in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key_i]:
-            dvm_pub_keys_and_names[dvm_nip89_profiles[pub_key_i]["name"]] = pub_key_i
-
-    context["dvm_pub_keys_and_names"] = dvm_pub_keys_and_names
+    context["dvm_stat_docs"] = dvm_docs
 
     if len(pub_key) > 0:
         print(f"len of pub_key is: {len(pub_key)}")
@@ -112,11 +97,19 @@ def dvm(request, pub_key=""):
 
         context["dvm_pub_key"] = pub_key
 
-        most_recent_stats = db.dvm_stats.find_one(
-            {"metadata.dvm_npub_hex": pub_key}, sort=[("timestamp", -1)]
-        )
+        most_recent_stats = None
+        try:
+            for dvm_stat in dvm_docs:
+                dvm_doc_metadata = dvm_stat["metadata"]
+                dvm_doc_pub_key_hex = dvm_doc_metadata["dvm_npub_hex"]
+                if dvm_doc_pub_key_hex == pub_key:
+                    most_recent_stats = dvm_stat
+                    break
 
-        context.update(most_recent_stats)
+            if most_recent_stats:
+                context.update(most_recent_stats)
+        except:
+            print(f"Could not find pub_key {pub_key} in recent dvm_stats")
 
     template = loader.get_template("monitor/dvm.html")
     return HttpResponse(template.render(context, request))

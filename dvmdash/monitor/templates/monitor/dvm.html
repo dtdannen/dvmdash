@@ -42,17 +42,24 @@
 {% endblock %}
 
 {% block content %}
-    {% if dvm_pub_keys_and_names %}
-        <form id="dvm-form" onsubmit="return redirectToDVM();">
-            <select id="dvm-select" name="selected_item" class="select2" style="width: 100%;">
-                <option value="">Start typing the pub key, hex, or nip-89 name of the dvm....</option>
-                {% for key, value in dvm_pub_keys_and_names.items %}
-                    <option value="{{ value }}">{{ key }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit">Submit</button>
-        </form>
-    {% endif %}
+       {% if dvm_stat_docs %}
+    <form id="dvm-form" onsubmit="return redirectToDVM();">
+        <select id="dvm-select" name="selected_item" class="select2" style="width: 100%;">
+            <option value="">Start typing the pub key, hex, or nip-89 name of the dvm....</option>
+            {% for doc in dvm_stat_docs %}
+                {% if doc.profile.name %}
+                    <option value="{{ doc.metadata.dvm_npub_hex }}">
+                        {{ doc.profile.name }}
+                    </option>
+                {%  endif %}
+                <option value="{{ doc.metadata.dvm_npub_hex }}">
+                    {{ doc.metadata.dvm_npub_hex }}
+                </option>
+            {% endfor %}
+        </select>
+        <button type="submit">Submit</button>
+    </form>
+{% endif %}
 
     {% if dvm_pub_key %}
 
@@ -137,8 +144,6 @@
             </div>
         </div>
 
-    {% endif %}
-
     {% if recent_dvm_events %}
     <table class="table table-striped">
       <thead>
@@ -161,6 +166,40 @@
       </tbody>
     </table>
     {% endif %}
+
+    {% elif dvm_stat_docs %}
+        <div class="container mt-5">
+        <h2>DVMs at a Glance</h2>
+        <table class="table table-striped table-dark">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Name or NPub Hex</th>
+                    <th>Jobs Completed</th>
+                    <th>Total Sats Received</th>
+                    <th>About</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in dvm_stat_docs %}
+                <tr>
+                    <td>{{ doc.timestamp|naturaltime}}</td>
+                    {% if doc.profile.name %}
+                        <td><a href="https://dvmdash.live/dvm/{{ doc.metadata.dvm_npub_hex }}">{{ doc.profile.name }}</a></td>
+                    {% else %}
+                        <td><a href="https://dvmdash.live/dvm/{{ doc.metadata.dvm_npub_hex }}">{{ doc.metadata.dvm_npub_hex|slice:":8" }}...{{ doc.metadata.dvm_npub_hex|slice:"-4:" }}</a></td>
+                    {%  endif %}
+                    <td>{{ doc.number_jobs_completed|intcomma }}</td>
+                    <td>{{ doc.total_sats_received|intcomma }}</td>
+                    <td>{{ doc.profile.about|truncatechars:50 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+
+    {%  endif %}
 
     <script>
 function redirectToDVM() {
