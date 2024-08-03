@@ -120,19 +120,9 @@ class GlobalStats:
     most_popular_kind = -2  # k
     most_popular_dvm = "<missing>"  # k
 
-    request_kinds_counts = {}  # key is kind, value is number of requests made by users
-    result_kinds_counts = {}  # key is kind, value is number of DVM responses
-    dvm_results_counts = {}  # key is dvm npub hex, value is number of times called
-    dvm_nip89_profiles = {}  #
-    user_request_counts = (
-        {}
-    )  # key is the users npub, value is number of dvm requests they've made
-    total_number_of_payments_requests = 0
-    total_amount_millisats = 0
-    total_amount_paid_to_dvm_millisats = 0
-
     @classmethod
     def compute_stats(cls):
+        # TODO - redo this
         stats = {
             "dvm_requests_all_time": GlobalStats.dvm_requests,
             "dvm_results_all_time": GlobalStats.dvm_results,
@@ -184,26 +174,14 @@ class DVM:
 
     def __init__(self, npub_hex):
         self.npub_hex = npub_hex
-        self.sats_received = []
         self.jobs_completed_from_mongo = 0  # k
-        self.jobs_completed_from_neo4j = 0  # k
         self.avg_response_time_per_kind_from_neo4j = {}  # k
-        self.number_of_jobs_per_kind_from_neo4j = {}
-        self.avg_response_time_per_kind_from_neo4j = {}
-        self.total_millisats_earned_per_kind_from_neo4j = {}
-        self.total_amount_paid_to_dvm_millisats = 0  # k
-        self.kinds_responded_to = []  # k
-        self.job_response_times = []
+        self.number_of_jobs_per_kind_from_neo4j = {}  # k
+        self.total_millisats_earned_per_kind_from_neo4j = {}  # k
         self.nip_89_profile = None  # k
-        self.profile_created_at = None
+        self.profile_created_at = None  # k
 
         DVM.instances[npub_hex] = self
-
-    def add_sats_received_from_job(self, sats_received: int):
-        self.sats_received.append(sats_received)
-
-    def add_job_response_time_data_point(self, job_response_time: float):
-        self.job_response_times.append(job_response_time)
 
     def add_nip89_profile(self, profile, created_at):
         if (
@@ -218,6 +196,7 @@ class DVM:
         self.profile_created_at = created_at
 
     def compute_stats(self):
+        # TODO - redo this
         stats = {
             "total_sats_received": int(sum(self.sats_received)),
             "number_jobs_completed": len(self.job_response_times),
@@ -268,42 +247,32 @@ class Kind:
         self.kind_number = kind_number
         self.unique_users = 0  # k
         self.count_from_mongo = 0  # k
-        self.total_sats_paid_to_dvms = 0
-        self.job_requests = 0
-        self.job_response_times = []
-        self.job_response_times_per_dvm = (
-            {}
-        )  # key is dvm npub hex, value is array of tuples (job_response_time, sats_payment)
+        self.average_response_time_per_dvm = {}
         self.dvm_npubs = []  # k
         self.millisats_earned_per_dvm = {}
+        self.job_count_per_dvm = {}
 
         Kind.instances[kind_number] = self
 
-    def add_job_done_by_dvm(
-        self, dvm_npub: str, job_response_time: float, sats_received: int
+    def add_dvm_npub_earnings_and_response_time(
+        self,
+        dvm_npub: str,
+        millisats_earned: int,
+        jobs_performed: int,
+        avg_response_time: float,
     ):
-        self.job_response_times.append(job_response_time)
-        if dvm_npub not in self.job_response_times_per_dvm.keys():
-            self.job_response_times_per_dvm[dvm_npub] = [
-                (job_response_time, sats_received)
-            ]
-        else:
-            self.job_response_times_per_dvm[dvm_npub].append(
-                (job_response_time, sats_received)
-            )
-
-        self.total_sats_paid_to_dvms += sats_received
-
-    def add_dvm_npub_earnings(self, dvm_npub: str, millisats_earned: int):
         if dvm_npub not in self.dvm_npubs:
             self.dvm_npubs.append(dvm_npub)
             self.millisats_earned_per_dvm[dvm_npub] = millisats_earned
+            self.job_count_per_dvm[dvm_npub] = jobs_performed
+            self.average_response_time_per_dvm[dvm_npub] = avg_response_time
         else:
             LOGGER.error(
                 "DVM npub already exists for this kind, error in db processing"
             )
 
     def compute_stats(self):
+        # TODO - redo this
         # first compute the average response time of each dvm
         avg_data_per_dvm = (
             {}
@@ -932,25 +901,28 @@ def dvm_specific_stats_from_neo4j():
 
             for record in result:
                 dvm_npub_hex = record["dvm_npub_hex"]
-                kind_number = record["kinds_responded_to"]
-                average_response_time_secs = record["avg_response_time_per_dvm"]
-                jobs_performed = record["jobs_count"]
-                total_amount_paid_to_dvm_millisats = record[
-                    "total_amount_paid_to_dvm_millisats"
-                ]
+                kind_number = record["kind"]
+                average_response_time_secs_per_kind = record["avg_response_time"]
+                jobs_performed_per_kind = record["jobs_count"]
+                amount_paid_for_this_kind = record["total_amount"]
 
                 dvm_instance = DVM.get_instance(dvm_npub_hex)
-                dvm_instance.jobs_completed_from_neo4j = jobs_performed
-                dvm_instance.avg_response_time_from_neo4j = average_response_time_secs
-                dvm_instance.total_amount_paid_to_dvm_millisats = (
-                    total_amount_paid_to_dvm_millisats
-                )
-                dvm_instance.kinds_responded_to = kinds_responded_to
+                dvm_instance.avg_response_time_per_kind_from_neo4j[
+                    kind_number
+                ] = average_response_time_secs_per_kind
+                dvm_instance.number_of_jobs_per_kind_from_neo4j[
+                    kind_number
+                ] = jobs_performed_per_kind
+                dvm_instance.total_millisats_earned_per_kind_from_neo4j[
+                    kind_number
+                ] = amount_paid_for_this_kind
 
-                for kind in kinds_responded_to:
-                    Kind.get_instance(kind).add_dvm_npub_earnings(
-                        dvm_npub_hex, total_amount_paid_to_dvm_millisats
-                    )
+                Kind.get_instance(kind_number).add_dvm_npub_earnings(
+                    dvm_npub_hex,
+                    amount_paid_for_this_kind,
+                    jobs_performed_per_kind,
+                    average_response_time_secs_per_kind,
+                )
 
         except Exception as e:
             LOGGER.error(f"Failed to execute Neo4j query: {e}")
