@@ -1,5 +1,6 @@
 import asyncio
 from asyncio import Queue
+import ast
 from collections import deque
 import random
 import sys
@@ -34,6 +35,7 @@ import motor.motor_asyncio
 import pymongo  # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
+from general.helpers import hex_to_npub
 
 
 def setup_logging():
@@ -319,39 +321,141 @@ class NotificationHandler(HandleNotification):
 
         # LOGGER.info("Finished creating/updating nodes in Neo4j")
 
+    def _create_event_node_insert_query(self, neo4j_event):
+        """handles making labels and other stuff"""
+        # create different events based on the kind
+        additional_event_labels = []
+        if 5000 <= neo4j_event["kind"] < 6000:
+            additional_event_labels = ["DVMRequest"]
+        elif 6000 <= neo4j_event["kind"] < 6999:
+            additional_event_labels = ["DVMResult"]
+        elif neo4j_event["kind"] == 7000:
+            # print("event is kind 7000")
+            additional_event_labels.append("Feedback")
+            # check the tags
+            if "tags" in neo4j_event:
+                tags = ast.literal_eval(neo4j_event["tags"])
+                for tag in tags:
+                    # print(f"\ttag is {tag}")
+                    if (
+                        tag[0] == "status"
+                        and len(tag) > 1
+                        and tag[1] == "payment-required"
+                    ):
+                        additional_event_labels.append("FeedbackPaymentRequest")
+                        # print("\tadding the label FeedbackPaymentRequest")
+
+        if additional_event_labels:
+            # create the event node
+            query = (
+                """
+                MERGE (n:Event:"""
+                + ":".join(additional_event_labels)
+                + """ {id: $event_id})
+                    ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                    RETURN n
+                    """
+            )
+        else:
+            # create the event node
+            query = """
+                    MERGE (n:Event {id: $event_id})
+                    ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                    RETURN n
+                    """
+
+        return query
+
     async def async_write_single_event_to_neo4j_db(self, event):
         event_kind = int(event.get("kind"))
-
-        query = """
-                MERGE (n:TestEvent {id: $event_id})
-                ON CREATE SET n += apoc.convert.fromJsonMap($json)
-                ON MATCH SET n += apoc.convert.fromJsonMap($json)
-                RETURN n
-                """
-
-        event_id = str(event.get("id"))  # Assuming 'id' is the unique identifier
-        doc_copy = event.copy()  # Create a copy of the document
-        doc_copy.pop("_id", None)  # Remove '_id' from the copy if it exists
-        doc_copy.pop("tags", None)
-        json_data = json.dumps(
-            doc_copy
-        )  # Convert the modified document to a JSON string
+        event_id = str(event.get("id"))
+        pubkey = event.get("pubkey")
 
         async with NEO4J_DRIVER.session() as session:
             try:
-                result = await session.run(query, event_id=event_id, json=json_data)
-                summary = await result.consume()
-                LOGGER.info(
-                    f"Created/Updated node for event {event_id}. "
-                    f"Nodes created: {summary.counters.nodes_created}, "
-                    f"Properties set: {summary.counters.properties_set}"
-                )
-            except Exception as e:
-                LOGGER.error(
-                    f"Error creating/updating node for event {event_id}: {str(e)}"
+                # Create Event node
+                event_query = self._create_event_node_insert_query(event)
+                event_props = {
+                    k: v for k, v in event.items() if k not in ["_id", "tags"]
+                }
+                await session.run(
+                    event_query, event_id=event_id, event_props=event_props
                 )
 
-        LOGGER.info("Finished creating test nodes in Neo4j")
+                # Create User or DVM node and relationship
+                if 5000 <= event_kind < 6000:
+                    node_type = "User"
+                    rel_type = "MADE_EVENT"
+                elif 6000 <= event_kind < 7000 or event_kind == 7000:
+                    node_type = "DVM"
+                    rel_type = "MADE_EVENT"
+                else:
+                    node_type = "Unknown"
+                    rel_type = "ASSOCIATED_WITH"
+
+                node_query = f"""
+                MERGE (n:{node_type} {{npub_hex: $pubkey}})
+                SET n.npub = $npub, n.url = $url
+                WITH n
+                MATCH (e:Event {{id: $event_id}})
+                MERGE (n)-[:{rel_type}]->(e)
+                """
+                npub = hex_to_npub(pubkey)
+                url = f"https://dvmdash.live/{'dvm' if node_type == 'DVM' else 'npub'}/{npub}"
+                await session.run(
+                    node_query, pubkey=pubkey, npub=npub, url=url, event_id=event_id
+                )
+
+                # Handle specific event types
+                if event_kind == 7000:  # Feedback event
+                    feedback_query = """
+                    MATCH (f:Event {id: $feedback_id})
+                    MATCH (r:Event {id: $request_id})
+                    MERGE (f)-[:FEEDBACK_FOR]->(r)
+                    """
+                    request_event_id = next(
+                        (tag[1] for tag in event.get("tags", []) if tag[0] == "e"), None
+                    )
+                    if request_event_id:
+                        await session.run(
+                            feedback_query,
+                            feedback_id=event_id,
+                            request_id=request_event_id,
+                        )
+
+                    # Handle invoice if present
+                    invoice_query = """
+                    MERGE (i:Invoice {id: $invoice_id})
+                    SET i += $invoice_props
+                    WITH i
+                    MATCH (f:Event {id: $feedback_id})
+                    MERGE (i)-[:INVOICE_FROM]->(f)
+                    """
+                    for tag in event.get("tags", []):
+                        if (
+                            tag[0] == "amount"
+                            and len(tag) >= 3
+                            and tag[2].startswith("lnbc")
+                        ):
+                            invoice_props = {
+                                "amount": tag[1],
+                                "invoice": tag[2],
+                                "creator_pubkey": pubkey,
+                                "feedback_event_id": event_id,
+                                "url": f"https://dvmdash.live/event/{tag[2]}",
+                            }
+                            await session.run(
+                                invoice_query,
+                                invoice_id=tag[2],
+                                invoice_props=invoice_props,
+                                feedback_id=event_id,
+                            )
+
+                LOGGER.info(f"Successfully processed event {event_id} in Neo4j")
+            except Exception as e:
+                LOGGER.error(f"Error processing event {event_id} in Neo4j: {str(e)}")
 
 
 async def nostr_client():
