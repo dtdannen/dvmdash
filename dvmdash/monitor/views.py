@@ -48,7 +48,7 @@ else:
 
 def metrics(request):
     # get the latest stats doc from the stats collection
-    most_recent_stats = db.global_stats.find_one(sort=[("timestamp", -1)])
+    most_recent_stats = db.new_global_stats.find_one(sort=[("timestamp", -1)])
 
     template = loader.get_template("monitor/metrics.html")
     return HttpResponse(template.render(most_recent_stats, request))

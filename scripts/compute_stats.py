@@ -142,7 +142,9 @@ class GlobalStats:
             "total_amount_paid_to_dvm_sats": int(
                 GlobalStats.total_amount_paid_to_dvm_millisats / 1000
             ),
+            "most_popular_kind": GlobalStats.most_popular_kind,
             "most_popular_dvm_npub": GlobalStats.most_popular_dvm.npub_hex,
+            "unique_dvm_users": GlobalStats.unique_users,
         }
 
         try:
@@ -702,10 +704,10 @@ def global_stats_via_big_mongo_query():
     facet_results = next(results, None)
 
     if facet_results is not None:
-        for facet_name, facet_data in facet_results.items():
-            print(f"Facet: {facet_name}")
-            print(json.dumps(facet_data, indent=2))
-            print("---")
+        # for facet_name, facet_data in facet_results.items():
+        #     print(f"Facet: {facet_name}")
+        #     print(json.dumps(facet_data, indent=2))
+        #     print("---")
 
         # To access specific facets:
         all_kind_counts = facet_results.get("event_counts", [])[0]["kind_counts"]
@@ -730,6 +732,9 @@ def global_stats_via_big_mongo_query():
             ):
                 all_result_kinds.add(kind_num)
                 Kind.get_instance(kind_num).result_count = kind_count
+
+        GlobalStats.num_request_kinds = len(all_request_kinds)
+        GlobalStats.num_result_kinds = len(all_result_kinds)
 
         GlobalStats.dvm_requests = facet_results.get("event_counts", [])[0][
             "sum_5000_5999"
@@ -766,7 +771,7 @@ def global_stats_via_big_mongo_query():
             max_kind = None
             max_kind_count = -1
             for stat in per_kind_stats:
-                print(f"Kind {stat['kind']}: {stat['unique_user_count']} unique users")
+                # print(f"Kind {stat['kind']}: {stat['unique_user_count']} unique users")
                 Kind.get_instance(stat["kind"]).unique_users = stat["unique_user_count"]
                 if stat["unique_user_count"] > max_kind_count:
                     max_kind = stat["kind"]
@@ -780,7 +785,7 @@ def global_stats_via_big_mongo_query():
             max_dvm_count = -1
             num_dvm_profiles = 0
             for stat in unique_dvms:
-                print(f"stat is {stat}")
+                # print(f"stat is {stat}")
                 if stat["profile"] and stat["created_at"]:
                     try:
                         profile_parsed = json.loads(stat["profile"]["content"])
@@ -899,7 +904,7 @@ def dvm_specific_stats_from_neo4j():
                     kind_number
                 ] = amount_paid_for_this_kind
 
-                Kind.get_instance(kind_number).add_dvm_npub_earnings(
+                Kind.get_instance(kind_number).add_dvm_npub_earnings_and_response_time(
                     dvm_npub_hex,
                     amount_paid_for_this_kind,
                     jobs_performed_per_kind,
@@ -913,7 +918,10 @@ def dvm_specific_stats_from_neo4j():
             )
 
         except Exception as e:
+            import traceback
+
             LOGGER.error(f"Failed to execute Neo4j query: {e}")
+            LOGGER.error(traceback.format_exc())
 
 
 def compute_basic_stats_from_db_queries():

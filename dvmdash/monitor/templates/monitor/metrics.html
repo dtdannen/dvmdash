@@ -40,7 +40,7 @@
             <div class="card text-white bg-mediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Response Kinds Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_response_kinds|intcomma }}</p>
+                    <p class="card-text display-4">{{ num_dvm_result_kinds|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -128,43 +128,21 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Unique DVM Users</h5>
-                    <p class="card-text display-4">{{ unique_users_of_dvms|intcomma }}</p>
+                    <p class="card-text display-4">{{ unique_dvm_users|intcomma }}</p>
                 </div>
             </div>
         </div>
-    </div>
+        <div class="col-md-4">
+                <div class="card text-white bg-darkmediumpurple mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Sats Paid to DVMs</h5>
+                        <p class="card-text display-4">{{ total_amount_paid_to_dvm_sats|intcomma }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 </div>
 
-    <div class="container mt-5">
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card text-white bg-darkmediumpurple mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Total Payment Requests from DVMs</h5>
-                    <p class="card-text display-4">{{ total_number_of_payments_requests|intcomma }}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card text-white bg-darkmediumpurple mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Total Sats Requested from DVMs</h5>
-                    <p class="card-text display-4">{{ total_amount_dvm_requested_sats|intcomma }}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card text-white bg-darkmediumpurple mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Total Sats Paid to DVMs</h5>
-                    <p class="card-text display-4">{{ total_amount_paid_to_dvm_sats|intcomma }}</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 
 {% endblock %}
