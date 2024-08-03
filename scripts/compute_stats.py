@@ -126,25 +126,6 @@ class GlobalStats:
 
     num_nip89_profiles = -1
 
-    @staticmethod
-    def compute_dvm_summary_stats(cls):
-        """
-        Only run this AFTER all DVM base stats have run
-        """
-
-        dvm_request_kinds = set()
-        for dvm_instance in DVM.instances:
-            dvm_request_kinds.update(
-                dvm_instance.number_of_jobs_per_kind_from_neo4j.keys()
-            )
-        GlobalStats.num_request_kinds = len(dvm_request_kinds)
-
-    @staticmethod
-    def compute_kind_summary_stats(cls):
-        """
-        Only run this AFTER all KIND base stats have run
-        """
-
     @classmethod
     def compute_stats(cls):
         stats = {
@@ -203,31 +184,10 @@ class DVM:
         self.profile_created_at = created_at
 
     def compute_stats(self):
-        # TODO - redo this
         stats = {
-            "total_sats_received": int(sum(self.sats_received)),
-            "number_jobs_completed": len(self.job_response_times),
+            "total_sats_received": int(sum(v for v in self.total_millisats_earned_per_kind_from_neo4j.values()) / 1000),
+            "number_jobs_completed": sum(v for v in self.number_of_jobs_per_kind_from_neo4j.values()),
         }
-
-        if stats["total_sats_received"] > 0:
-            stats["total_sats_received"] = int(sum(self.sats_received) / 1000)
-            stats["average_sats_received_per_job"] = int(
-                (sum(self.sats_received) / len(self.sats_received)) / 1000
-            )
-            stats["median_sats_received_per_job"] = median(self.sats_received) / 1000
-        else:
-            stats["total_sats_received"] = 0
-            stats["average_sats_received_per_job"] = -1
-            stats["median_sats_received_per_job"] = -1
-
-        if stats["number_jobs_completed"] > 0:
-            stats["average_job_response_time"] = int(
-                sum(self.job_response_times) / len(self.job_response_times)
-            )
-            stats["median_job_response_time"] = median(self.job_response_times)
-        else:
-            stats["average_job_response_time"] = -1
-            stats["median_job_response_time"] = -1
 
         if self.nip_89_profile:
             stats["profile"] = self.nip_89_profile
