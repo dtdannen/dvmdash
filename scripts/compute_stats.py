@@ -878,13 +878,34 @@ def global_stats_via_big_mongo_query():
                                     ]
                                 }
                             },
+                            "profile": {
+                                "$max": {
+                                    "$cond": [
+                                        {"$eq": ["$kind", 31990]},
+                                        {
+                                            "created_at": "$created_at",
+                                            "content": "$content",
+                                            "tags": "$tags",
+                                        },
+                                        None,
+                                    ]
+                                }
+                            },
                         },
                     },
+                    #  Group all DVMs together
                     {
                         "$group": {
                             "_id": None,
                             "unique_dvm_count": {"$sum": 1},
-                            "dvm_details": {"$push": "$$ROOT"},
+                            "dvm_details": {
+                                "$push": {
+                                    "pubkey": "$_id",
+                                    "total_count": "$total_count",
+                                    "kind_6000_6999_count": "$kind_6000_6999_count",
+                                    "profile": "$profile",
+                                }
+                            },
                         }
                     },
                     {"$project": {"unique_dvm_count": 1, "dvm_details": 1}},
