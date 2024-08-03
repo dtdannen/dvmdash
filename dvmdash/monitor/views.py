@@ -125,25 +125,52 @@ def kind(request, kind_num=""):
     print(f"Calling kind with kind_num: {kind_num}")
     context = {}
 
-    # get all kinds
-    kinds = [
-        k
-        for k in list(db.events.distinct("kind"))
-        if EventKind.DVM_REQUEST_RANGE_START.value
-        <= k
-        <= EventKind.DVM_REQUEST_RANGE_END.value
+    pipeline = [
+        # Sort by timestamp in descending order
+        {"$sort": {"timestamp": -1}},
+        # Group all documents by kind_number and get the most recent document for each kind
+        {"$group": {"_id": "$metadata.kind_number", "doc": {"$first": "$$ROOT"}}},
+        # Replace the root with the original document structure
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        # Sort by total jobs requested in descending order
+        {"$sort": {"total_jobs_requested": -1}},
     ]
 
-    context["kinds"] = kinds
+    # Execute the aggregation pipeline
+    kind_stat_docs = list(db.new_kind_stats.aggregate(pipeline))
+
+    context["kind_stat_docs"] = kind_stat_docs
+    context["kinds"] = [doc["metadata"]["kind_number"] for doc in kind_stat_docs]
 
     if len(kind_num) > 0:
         # load the data for this specific kind
         kind_num = int(kind_num)
         context["kind"] = kind_num
 
-        most_recent_stats = db.kind_stats.find_one(
-            {"metadata.kind_number": kind_num}, sort=[("timestamp", -1)]
-        )
+        most_recent_stats = None
+        try:
+            for kind_stat in kind_stat_docs:
+                kind_stat_metadata = kind_stat["metadata"]
+                kind_num_in_doc = kind_stat_metadata["kind_number"]
+                if kind_num == kind_num_in_doc:
+                    most_recent_stats = kind_stat
+                    break
+
+            if most_recent_stats:
+                # Sort data_per_dvm by jobs_performed
+                if "data_per_dvm" in most_recent_stats:
+                    sorted_data_per_dvm = sorted(
+                        most_recent_stats["data_per_dvm"].items(),
+                        key=lambda x: x[1]["jobs_performed"],
+                        reverse=True,
+                    )
+                    most_recent_stats[
+                        "sorted_data_per_dvm"
+                    ] = sorted_data_per_dvm  # New key for sorted data
+
+                context.update(most_recent_stats)
+        except:
+            print(f"Could not find pub_key {kind_num} in recent dvm_stats")
 
         context.update(most_recent_stats)
 

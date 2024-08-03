@@ -270,10 +270,16 @@ class Kind:
             self.job_count_per_dvm[dvm_npub] = jobs_performed
             self.average_response_time_per_dvm[dvm_npub] = avg_response_time
             self.data_per_dvm[dvm_npub] = {
-                "millisats_earned": millisats_earned,
+                "sats_earned": int(millisats_earned / 1000),
                 "jobs_performed": jobs_performed,
                 "avg_response_time": avg_response_time,
             }
+            # if the dvm has a name, then add the name too
+            if DVM.get_instance(dvm_npub).nip_89_profile:
+                if "display_name" in DVM.get_instance(dvm_npub).nip_89_profile:
+                    dvm_name = DVM.get_instance(dvm_npub).nip_89_profile["display_name"]
+                    self.data_per_dvm[dvm_npub]["name"] = dvm_name
+
         else:
             LOGGER.error(
                 "DVM npub already exists for this kind, error in db processing"

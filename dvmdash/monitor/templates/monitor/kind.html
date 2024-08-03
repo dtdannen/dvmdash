@@ -110,27 +110,71 @@
                     </div>
                 </div>
             </div>
-
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="card text-white bg-darkmediumpurple mb-3">
-                        <div class="card-body">
-                            <h5 class="card-title">Average Job Response Time</h5>
-                            <p class="card-text display-6">{{ average_job_response_time|precise_naturaldelta }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-6">
-                    <div class="card text-white bg-darkmediumpurple mb-3">
-                        <div class="card-body">
-                            <h5 class="card-title">Median Job Response Time</h5>
-                            <p class="card-text display-6">{{ median_job_response_time|precise_naturaldelta }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
+
+        <div class="container mt-5">
+        <h2 class="text-white mb-4">DVM Performance for Kind {{ kind }}</h2>
+        <div class="table-responsive">
+            <table class="table table-dark table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>DVM Name or NPub</th>
+                        <th>Jobs Performed</th>
+                        <th>Sats Earned</th>
+                        <th>Average Response Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dvm_npub, data in sorted_data_per_dvm %}
+                    <tr>
+                        {%  if data.name %}
+                        <td>
+                            {{ data.name }}
+                        </td>
+                        {%  else %}
+                        <td>
+                            {{ dvm_npub|slice:":8" }}...{{ dvm_npub|slice:"-8:" }}
+                        </td>
+                        {%  endif %}
+                        <td>{{ data.jobs_performed|intcomma }}</td>
+                        <td>{{ data.sats_earned|floatformat:0|intcomma }} sats</td>
+                        <td>{{ data.avg_response_time|floatformat:2 }} ms</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {%  elif kind_stat_docs %}
+        <div class="container mt-5">
+        <h2>Kinds at a Glance</h2>
+        <table class="table table-striped table-dark">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Kind Number</th>
+                    <th>Total Jobs Requested</th>
+                    <th>Total Jobs Performed</th>
+                    <th>Total Sats Paid to DVMs</th>
+                    <th>Number of DVMs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in kind_stat_docs %}
+                <tr>
+                    <td>{{ doc.timestamp|naturaltime }}</td>
+                    <td><a href="https://dvmdash.live/kind/{{ doc.metadata.kind_number }}">{{ doc.metadata.kind_number }}</a></td>
+                    <td>{{ doc.total_jobs_requested|intcomma }}</td>
+                    <td>{{ doc.total_jobs_performed|intcomma }}</td>
+                    <td>{{ doc.total_sats_paid_to_dvms|intcomma }}</td>
+                    <td>{{ doc.number_of_dvms|intcomma }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
     {% endif %}
 
     <script>
