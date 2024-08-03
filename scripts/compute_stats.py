@@ -143,11 +143,12 @@ class GlobalStats:
                 GlobalStats.total_amount_paid_to_dvm_millisats / 1000
             ),
             "most_popular_dvm_npub": GlobalStats.most_popular_dvm.npub_hex,
-
         }
 
         try:
-            stats["most_popular_dvm_name"] = GlobalStats.most_popular_dvm.nip_89_profile["name"]
+            stats[
+                "most_popular_dvm_name"
+            ] = GlobalStats.most_popular_dvm.nip_89_profile["name"]
         except:
             stats[
                 "most_popular_dvm_name"
@@ -185,8 +186,13 @@ class DVM:
 
     def compute_stats(self):
         stats = {
-            "total_sats_received": int(sum(v for v in self.total_millisats_earned_per_kind_from_neo4j.values()) / 1000),
-            "number_jobs_completed": sum(v for v in self.number_of_jobs_per_kind_from_neo4j.values()),
+            "total_sats_received": int(
+                sum(v for v in self.total_millisats_earned_per_kind_from_neo4j.values())
+                / 1000
+            ),
+            "number_jobs_completed": sum(
+                v for v in self.number_of_jobs_per_kind_from_neo4j.values()
+            ),
         }
 
         if self.nip_89_profile:
@@ -218,6 +224,11 @@ class Kind:
         self.dvm_npubs = []  # k
         self.millisats_earned_per_dvm = {}
         self.job_count_per_dvm = {}
+        self.request_count = -1
+        self.result_count = -1
+        self.data_per_dvm = (
+            {}
+        )  # key is dvm_npub_hex, value is the sats, response time, and job count for each
 
         Kind.instances[kind_number] = self
 
@@ -233,56 +244,27 @@ class Kind:
             self.millisats_earned_per_dvm[dvm_npub] = millisats_earned
             self.job_count_per_dvm[dvm_npub] = jobs_performed
             self.average_response_time_per_dvm[dvm_npub] = avg_response_time
+            self.data_per_dvm[dvm_npub] = {
+                "millisats_earned": millisats_earned,
+                "jobs_performed": jobs_performed,
+                "avg_response_time": avg_response_time,
+            }
         else:
             LOGGER.error(
                 "DVM npub already exists for this kind, error in db processing"
             )
 
     def compute_stats(self):
-        # TODO - redo this
-        # first compute the average response time of each dvm
-        avg_data_per_dvm = (
-            {}
-        )  # key is dvm npub hex, value is a single tuple containing avg and median response time and payment
-        for dvm_npub_hex, data in self.job_response_times_per_dvm.items():
-            response_times, sats_received_values = [], []
-            for job_response_time, sats_received in data:
-                response_times.append(job_response_time)
-                sats_received_values.append(sats_received)
-
-            avg_data_per_dvm[dvm_npub_hex] = {}
-
-            # calculate the average and median
-            avg_data_per_dvm[dvm_npub_hex]["avg_response_time"] = int(
-                sum(response_times) / len(data)
-            )
-            avg_data_per_dvm[dvm_npub_hex]["avg_sats_received"] = int(
-                (sum(sats_received_values) / 1000) / len(data)
-            )
-            avg_data_per_dvm[dvm_npub_hex]["median_response_time"] = int(
-                median(response_times)
-            )
-            avg_data_per_dvm[dvm_npub_hex]["median_sats_received"] = int(
-                median(sats_received_values) / 1000
-            )
-
         stats = {
-            "total_jobs_requested": self.job_requests,
-            "total_jobs_performed": len(self.job_response_times),
-            "number_of_dvms": len(list(avg_data_per_dvm.keys())),
-            "total_sats_paid_to_dvms": int(self.total_sats_paid_to_dvms / 1000),
-            "dvm_npubs": list(avg_data_per_dvm.keys()),
-            "data_per_dvm": avg_data_per_dvm,
+            "total_jobs_requested": self.request_count,
+            "total_jobs_performed": self.result_count,
+            "number_of_dvms": len(self.dvm_npubs),
+            "total_sats_paid_to_dvms": int(
+                sum(v for v in self.millisats_earned_per_dvm.values()) / 1000
+            ),
+            "dvm_npubs": self.dvm_npubs,
+            "data_per_dvm": self.data_per_dvm,
         }
-
-        if stats["total_jobs_performed"] > 0:
-            stats["average_job_response_time"] = int(
-                sum(self.job_response_times) / len(self.job_response_times)
-            )
-            stats["median_job_response_time"] = int(median(self.job_response_times))
-        else:
-            stats["average_job_response_time"] = -1
-            stats["median_job_response_time"] = -1
 
         return stats
 
@@ -732,12 +714,20 @@ def global_stats_via_big_mongo_query():
             kind_count = kind_count["count"]
             Kind.get_instance(kind_num).count_from_mongo(kind_count)
 
-            if EventKind.DVM_REQUEST_RANGE_START <= kind_num <= EventKind.DVM_REQUEST_RANGE_END:
+            if (
+                EventKind.DVM_REQUEST_RANGE_START
+                <= kind_num
+                <= EventKind.DVM_REQUEST_RANGE_END
+            ):
                 all_request_kinds.add(kind_num)
-            elif EventKind.DVM_RESULT_RANGE_START <= kind_num <= EventKind.DVM_RESULT_RANGE_END:
+                Kind.get_instance(kind_num).request_count = kind_count
+            elif (
+                EventKind.DVM_RESULT_RANGE_START
+                <= kind_num
+                <= EventKind.DVM_RESULT_RANGE_END
+            ):
                 all_result_kinds.add(kind_num)
-
-        GlobalStats.
+                Kind.get_instance(kind_num).result_count = kind_count
 
         GlobalStats.dvm_requests = facet_results.get("event_counts", [])[0][
             "sum_5000_5999"
@@ -791,10 +781,14 @@ def global_stats_via_big_mongo_query():
                 if stat["profile"] and stat["created_at"]:
                     try:
                         profile_parsed = json.loads(stat["profile"])
-                        DVM.get_instance(stat["pubkey"]).add_nip89_profile(profile_parsed, stat["created_at"])
-                        num_dvm_profiles +=1
+                        DVM.get_instance(stat["pubkey"]).add_nip89_profile(
+                            profile_parsed, stat["created_at"]
+                        )
+                        num_dvm_profiles += 1
                     except Exception as e:
-                        LOGGER.warning(f"Could not parse profile for DVM {stat['pubkey']}")
+                        LOGGER.warning(
+                            f"Could not parse profile for DVM {stat['pubkey']}"
+                        )
                         pass
 
                 DVM.get_instance(stat["pubkey"]).jobs_completed_from_mongo = stat[
@@ -911,7 +905,9 @@ def dvm_specific_stats_from_neo4j():
 
                 total_amount_paid_to_all_dvms += amount_paid_for_this_kind
 
-            GlobalStats.total_amount_paid_to_dvm_millisats = total_amount_paid_to_all_dvms
+            GlobalStats.total_amount_paid_to_dvm_millisats = (
+                total_amount_paid_to_all_dvms
+            )
 
         except Exception as e:
             LOGGER.error(f"Failed to execute Neo4j query: {e}")
