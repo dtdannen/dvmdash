@@ -121,50 +121,59 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="col-md-3">
-                    <div class="card text-white bg-darkmediumpurple mb-3">
-                        <div class="card-body">
-                            <h5 class="card-title">Average Job Cost in Sats</h5>
-                            <p class="card-text display-4">{{ average_sats_received_per_job|intcomma }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="card text-white bg-darkmediumpurple mb-3">
-                        <div class="card-body">
-                            <h5 class="card-title">Average Response Time</h5>
-                            <p class="card-text display-6">{{ average_job_response_time|precise_naturaldelta }}</p>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
+    {% if kind_stats %}
+    <div class="container mt-5">
+        <h2>Kind Statistics for this DVM</h2>
+        <table class="table table-striped table-dark">
+            <thead>
+                <tr>
+                    <th>Kind</th>
+                    <th>Average Response Time</th>
+                    <th>Total Sats Earned</th>
+                    <th>Number of Jobs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for kind, stats in kind_stats.items %}
+                    <tr>
+                        <td>{{ kind }}</td>
+                        <td>{{ stats.avg_response_time|floatformat:2 }} seconds</td>
+                        <td>{{ stats.total_sats_earned|intcomma }}</td>
+                        <td>{{ stats.number_of_jobs|intcomma }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+
     {% if recent_dvm_events %}
-    <table class="table table-striped">
-      <thead>
-        <tr>
-          <th scope="col">Time of Request</th>
-          <th scope="col">Kind</th>
-          <th scope="col">Event ID Link</th>
-            <th scope="col">Debug Link</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for e in recent_dvm_events %}
-        <tr>
-          <td>{{ e.created_at }}</td>
-          <td>{{ e.kind }}</td>
-          <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
-            <td><a href="{% url 'debug' event_id=e.id %}">Debug this DVM Chain</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        <div class="container mt-5">
+        <h2>100 Most Recent Events</h2>
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th scope="col">Time of Request</th>
+                  <th scope="col">Kind</th>
+                  <th scope="col">Event ID Link</th>
+                    <th scope="col">Debug Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for e in recent_dvm_events %}
+                <tr>
+                  <td>{{ e.created_at|naturaltime }}</td>
+                  <td>{{ e.kind }}</td>
+                  <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
+                    <td><a href="{% url 'debug' event_id=e.id %}">Debug this DVM Chain</a></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+        </div>
     {% endif %}
 
     {% elif dvm_stat_docs %}

@@ -95,8 +95,14 @@ def dvm(request, pub_key=""):
         memory_usage = sys.getsizeof(dvm_events)
         print(f"Memory usage of dvm_events: {memory_usage}")
 
-        context["dvm_pub_key"] = pub_key
+        # Convert Unix timestamps to datetime objects
+        for event in dvm_events:
+            event["created_at"] = timezone.make_aware(
+                datetime.fromtimestamp(int(event["created_at"]))
+            )
 
+        context["dvm_pub_key"] = pub_key
+        context["recent_dvm_events"] = dvm_events
         most_recent_stats = None
         try:
             for dvm_stat in dvm_docs:

@@ -197,6 +197,29 @@ class DVM:
             ),
         }
 
+        kind_stats = {}
+        for kind in set(
+            list(self.avg_response_time_per_kind_from_neo4j.keys())
+            + list(self.number_of_jobs_per_kind_from_neo4j.keys())
+            + list(self.total_millisats_earned_per_kind_from_neo4j.keys())
+        ):
+            kind_details = {}
+            if kind in self.avg_response_time_per_kind_from_neo4j.keys():
+                kind_details[
+                    "avg_response_time"
+                ] = self.avg_response_time_per_kind_from_neo4j[kind]
+            if kind in self.total_millisats_earned_per_kind_from_neo4j.keys():
+                kind_details["total_sats_earned"] = int(
+                    self.total_millisats_earned_per_kind_from_neo4j[kind] / 1000
+                )
+            if kind in self.number_of_jobs_per_kind_from_neo4j.keys():
+                kind_details[
+                    "number_of_jobs"
+                ] = self.number_of_jobs_per_kind_from_neo4j[kind]
+            kind_stats[str(kind)] = kind_details
+
+        stats["kind_stats"] = kind_stats
+
         if self.nip_89_profile:
             stats["profile"] = self.nip_89_profile
 
