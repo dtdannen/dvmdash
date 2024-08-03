@@ -887,65 +887,65 @@ def global_stats_via_big_mongo_query():
                                 }
                             },
                             # and count the total payments asked for by the DVM
-                            # "total_payment_required": {
-                            #     "$sum": {
-                            #         "$cond": [
-                            #             {"$in": ["payment-required", "$tags"]},
-                            #             {
-                            #                 "$let": {
-                            #                     "vars": {
-                            #                         "amountTag": {
-                            #                             "$filter": {
-                            #                                 "input": "$tags",
-                            #                                 "as": "tag",
-                            #                                 "cond": {
-                            #                                     "$expr": {
-                            #                                         "$eq": [
-                            #                                             {
-                            #                                                 "$arrayElemAt": [
-                            #                                                     "$$tag",
-                            #                                                     0,
-                            #                                                 ]
-                            #                                             },
-                            #                                             "amount",
-                            #                                         ]
-                            #                                     },
-                            #                                 },
-                            #                             }
-                            #                         }
-                            #                     },
-                            #                     "in": {
-                            #                         "$cond": [
-                            #                             {
-                            #                                 "$gt": [
-                            #                                     {
-                            #                                         "$size": "$$amountTag"
-                            #                                     },
-                            #                                     0,
-                            #                                 ]
-                            #                             },
-                            #                             {
-                            #                                 "$toInt": {
-                            #                                     "$arrayElemAt": [
-                            #                                         {
-                            #                                             "$arrayElemAt": [
-                            #                                                 "$$amountTag",
-                            #                                                 0,
-                            #                                             ]
-                            #                                         },
-                            #                                         1,
-                            #                                     ]
-                            #                                 }
-                            #                             },
-                            #                             0,
-                            #                         ]
-                            #                     },
-                            #                 }
-                            #             },
-                            #             0,
-                            #         ]
-                            #     }
-                            # },
+                            "total_payment_required": {
+                                "$sum": {
+                                    "$cond": [
+                                        {"$in": ["payment-required", "$tags"]},
+                                        {
+                                            "$let": {
+                                                "vars": {
+                                                    "amountTag": {
+                                                        "$filter": {
+                                                            "input": "$tags",
+                                                            "as": "tag",
+                                                            "cond": {
+                                                                "$expr": {
+                                                                    "$eq": [
+                                                                        {
+                                                                            "$arrayElemAt": [
+                                                                                "$$tag",
+                                                                                0,
+                                                                            ]
+                                                                        },
+                                                                        "amount",
+                                                                    ]
+                                                                },
+                                                            },
+                                                        }
+                                                    }
+                                                },
+                                                "in": {
+                                                    "$cond": [
+                                                        {
+                                                            "$gt": [
+                                                                {
+                                                                    "$size": "$$amountTag"
+                                                                },
+                                                                0,
+                                                            ]
+                                                        },
+                                                        {
+                                                            "$toInt": {
+                                                                "$arrayElemAt": [
+                                                                    {
+                                                                        "$arrayElemAt": [
+                                                                            "$$amountTag",
+                                                                            0,
+                                                                        ]
+                                                                    },
+                                                                    1,
+                                                                ]
+                                                            }
+                                                        },
+                                                        0,
+                                                    ]
+                                                },
+                                            }
+                                        },
+                                        0,
+                                    ]
+                                }
+                            },
                         },
                     },
                     {
