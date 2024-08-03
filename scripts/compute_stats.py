@@ -761,78 +761,201 @@ def global_stats_via_big_mongo_query():
                     },
                 ],
                 "unique_dvms": [
+                    # begin the match for finding any event that could be from a DVM so we can get the pubkey
                     {
                         "$match": {
                             "$or": [
                                 {"kind": {"$gte": 6000, "$lte": 6999}},
                                 {
-                                    "tags": {
-                                        "$elemMatch": {
-                                            "$eq": ["status", "payment-required"]
-                                        }
-                                    },
+                                    "$and": [
+                                        {"kind": 7000},
+                                        {
+                                            "tags": {
+                                                "$elemMatch": {
+                                                    "$eq": [
+                                                        "status",
+                                                        "payment-required",
+                                                    ]
+                                                }
+                                            },
+                                        },
+                                    ],
                                 },
+                                # {
+                                #     "$and": [
+                                #         {"kind": 31990},
+                                #         {
+                                #             "$expr": {
+                                #                 "$let": {
+                                #                     "vars": {
+                                #                         "kTag": {
+                                #                             "$filter": {
+                                #                                 "input": "$tags",
+                                #                                 "as": "tag",
+                                #                                 "cond": {
+                                #                                     "$eq": [
+                                #                                         {
+                                #                                             "$arrayElemAt": [
+                                #                                                 "$$tag",
+                                #                                                 0,
+                                #                                             ]
+                                #                                         },
+                                #                                         "k",
+                                #                                     ]
+                                #                                 },
+                                #                             }
+                                #                         }
+                                #                     },
+                                #                     "in": {
+                                #                         "$and": [
+                                #                             {
+                                #                                 "$gt": [
+                                #                                     {"$size": "$$kTag"},
+                                #                                     0,
+                                #                                 ]
+                                #                             },
+                                #                             {
+                                #                                 "$let": {
+                                #                                     "vars": {
+                                #                                         "kValue": {
+                                #                                             "$toInt": {
+                                #                                                 "$arrayElemAt": [
+                                #                                                     {
+                                #                                                         "$arrayElemAt": [
+                                #                                                             "$$kTag",
+                                #                                                             0,
+                                #                                                         ]
+                                #                                                     },
+                                #                                                     1,
+                                #                                                 ]
+                                #                                             }
+                                #                                         }
+                                #                                     },
+                                #                                     "in": {
+                                #                                         "$and": [
+                                #                                             {
+                                #                                                 "$gte": [
+                                #                                                     "$$kValue",
+                                #                                                     5000,
+                                #                                                 ]
+                                #                                             },
+                                #                                             {
+                                #                                                 "$lte": [
+                                #                                                     "$$kValue",
+                                #                                                     5999,
+                                #                                                 ]
+                                #                                             },
+                                #                                         ]
+                                #                                     },
+                                #                                 }
+                                #                             },
+                                #                         ]
+                                #                     },
+                                #                 }
+                                #             }
+                                #         },
                             ]
-                        }
+                        },
+                    },
+                    # now count the number of 6000-6999 responses from each DVM
+                    {
+                        "$group": {
+                            "_id": "$pubkey",
+                            "total_count": {"$sum": 1},
+                            "kind_6000_6999_count": {
+                                "$sum": {
+                                    "$cond": [
+                                        {
+                                            "$and": [
+                                                {"$gte": ["$kind", 6000]},
+                                                {"$lte": ["$kind", 6999]},
+                                            ]
+                                        },
+                                        1,
+                                        0,
+                                    ]
+                                }
+                            },
+                            # and count the number of payments requested
+                            "payment_required_count": {
+                                "$sum": {
+                                    "$cond": [
+                                        {"$in": ["payment-required", "$tags"]},
+                                        1,
+                                        0,
+                                    ]
+                                }
+                            },
+                            # and count the total payments asked for by the DVM
+                            # "total_payment_required": {
+                            #     "$sum": {
+                            #         "$cond": [
+                            #             {"$in": ["payment-required", "$tags"]},
+                            #             {
+                            #                 "$let": {
+                            #                     "vars": {
+                            #                         "amountTag": {
+                            #                             "$filter": {
+                            #                                 "input": "$tags",
+                            #                                 "as": "tag",
+                            #                                 "cond": {
+                            #                                     "$expr": {
+                            #                                         "$eq": [
+                            #                                             {
+                            #                                                 "$arrayElemAt": [
+                            #                                                     "$$tag",
+                            #                                                     0,
+                            #                                                 ]
+                            #                                             },
+                            #                                             "amount",
+                            #                                         ]
+                            #                                     },
+                            #                                 },
+                            #                             }
+                            #                         }
+                            #                     },
+                            #                     "in": {
+                            #                         "$cond": [
+                            #                             {
+                            #                                 "$gt": [
+                            #                                     {
+                            #                                         "$size": "$$amountTag"
+                            #                                     },
+                            #                                     0,
+                            #                                 ]
+                            #                             },
+                            #                             {
+                            #                                 "$toInt": {
+                            #                                     "$arrayElemAt": [
+                            #                                         {
+                            #                                             "$arrayElemAt": [
+                            #                                                 "$$amountTag",
+                            #                                                 0,
+                            #                                             ]
+                            #                                         },
+                            #                                         1,
+                            #                                     ]
+                            #                                 }
+                            #                             },
+                            #                             0,
+                            #                         ]
+                            #                     },
+                            #                 }
+                            #             },
+                            #             0,
+                            #         ]
+                            #     }
+                            # },
+                        },
                     },
                     {
-                        "$facet": {
-                            "dvm_counts": [
-                                {
-                                    "$group": {
-                                        "_id": "$pubkey",
-                                        "total_count": {"$sum": 1},
-                                        "kind_6000_6999_count": {
-                                            "$sum": {
-                                                "$cond": [
-                                                    {
-                                                        "$and": [
-                                                            {"$gte": ["$kind", 6000]},
-                                                            {"$lte": ["$kind", 6999]},
-                                                        ]
-                                                    },
-                                                    1,
-                                                    0,
-                                                ]
-                                            }
-                                        },
-                                        "payment_required_count": {
-                                            "$sum": {
-                                                "$cond": [
-                                                    {
-                                                        "$eq": [
-                                                            {
-                                                                "$in": [
-                                                                    "payment-required",
-                                                                    "$tags",
-                                                                ]
-                                                            },
-                                                            True,
-                                                        ]
-                                                    },
-                                                    1,
-                                                    0,
-                                                ]
-                                            }
-                                        },
-                                    }
-                                },
-                                {
-                                    "$group": {
-                                        "_id": None,
-                                        "unique_dvm_count": {"$sum": 1},
-                                        "dvm_details": {"$push": "$$ROOT"},
-                                    }
-                                },
-                            ]
+                        "$group": {
+                            "_id": None,
+                            "unique_dvm_count": {"$sum": 1},
+                            "dvm_details": {"$push": "$$ROOT"},
                         }
                     },
-                    {
-                        "$project": {
-                            "unique_dvm_count": "$dvm_counts.unique_dvm_count",
-                            "dvm_details": "$dvm_counts.dvm_details",
-                        }
-                    },
+                    {"$project": {"unique_dvm_count": 1, "dvm_details": 1}},
                 ],
                 "payment_stats": [
                     {
