@@ -108,12 +108,18 @@ DB, NEO4J_DRIVER = setup_database()
 
 
 class GlobalStats:
-    dvm_requests = 0
-    dvm_results = 0
-    dvm_requests_24_hrs = 0
-    dvm_results_24_hrs = 0
-    dvm_requests_1_week = 0
-    dvm_results_1_week = 0
+    dvm_requests = 0  # k
+    dvm_results = 0  # k
+    dvm_requests_24_hrs = 0  # k
+    dvm_results_24_hrs = 0  # k
+    dvm_requests_1_week = 0  # k
+    dvm_results_1_week = 0  # k
+    dvm_requests_1_month = 0  # k
+    dvm_results_1_month = 0  # k
+    unique_users = 0  # k
+    most_popular_kind = -2  # k
+    most_popular_dvm = "<missing>"  # k
+
     request_kinds_counts = {}  # key is kind, value is number of requests made by users
     result_kinds_counts = {}  # key is kind, value is number of DVM responses
     dvm_results_counts = {}  # key is dvm npub hex, value is number of times called
@@ -179,8 +185,16 @@ class DVM:
     def __init__(self, npub_hex):
         self.npub_hex = npub_hex
         self.sats_received = []
+        self.jobs_completed_from_mongo = 0  # k
+        self.jobs_completed_from_neo4j = 0  # k
+        self.avg_response_time_per_kind_from_neo4j = {}  # k
+        self.number_of_jobs_per_kind_from_neo4j = {}
+        self.avg_response_time_per_kind_from_neo4j = {}
+        self.total_millisats_earned_per_kind_from_neo4j = {}
+        self.total_amount_paid_to_dvm_millisats = 0  # k
+        self.kinds_responded_to = []  # k
         self.job_response_times = []
-        self.nip_89_profile = None
+        self.nip_89_profile = None  # k
         self.profile_created_at = None
 
         DVM.instances[npub_hex] = self
@@ -252,12 +266,16 @@ class Kind:
 
     def __init__(self, kind_number: int):
         self.kind_number = kind_number
+        self.unique_users = 0  # k
+        self.count_from_mongo = 0  # k
         self.total_sats_paid_to_dvms = 0
         self.job_requests = 0
         self.job_response_times = []
         self.job_response_times_per_dvm = (
             {}
         )  # key is dvm npub hex, value is array of tuples (job_response_time, sats_payment)
+        self.dvm_npubs = []  # k
+        self.millisats_earned_per_dvm = {}
 
         Kind.instances[kind_number] = self
 
@@ -275,6 +293,15 @@ class Kind:
             )
 
         self.total_sats_paid_to_dvms += sats_received
+
+    def add_dvm_npub_earnings(self, dvm_npub: str, millisats_earned: int):
+        if dvm_npub not in self.dvm_npubs:
+            self.dvm_npubs.append(dvm_npub)
+            self.millisats_earned_per_dvm[dvm_npub] = millisats_earned
+        else:
+            LOGGER.error(
+                "DVM npub already exists for this kind, error in db processing"
+            )
 
     def compute_stats(self):
         # first compute the average response time of each dvm
@@ -344,192 +371,8 @@ class Kind:
         }
 
 
-def compute_all_stats():
-    # get the number of unique kinds of all events
-    all_dvm_events_cursor = DB.events.find(
-        {
-            "$or": [
-                {
-                    "kind": {
-                        "$gte": 5000,
-                        "$lte": 7000,
-                        "$nin": EventKind.get_bad_dvm_kinds(),
-                    }
-                },
-                {"kind": 31990},
-            ]
-        }
-    )
-    all_dvm_events = list(all_dvm_events_cursor)
-
-    # print the memory usages of all events so far:
-    memory_usage = sys.getsizeof(all_dvm_events)
-    # Convert memory usage to megabytes
-    memory_usage_mb = memory_usage / (1024 * 1024)
-    LOGGER.info(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
-
-    current_timestamp = Timestamp.now()
-    current_secs = current_timestamp.as_secs()
-
-    max_time_24hr = current_secs - (24 * 60 * 60)
-    max_time_1week = current_secs - (7 * 24 * 60 * 60)
-
-    for dvm_event in tqdm(all_dvm_events):
-        if dvm_event["kind"] == EventKind.DVM_FEEDBACK.value:
-            try:
-                has_payment_required = False
-                payment_amount = 0
-                for tag in dvm_event["tags"]:
-                    if (
-                        tag[0] == "status"
-                        and len(tag) > 1
-                        and tag[1] == "payment-required"
-                    ):
-                        has_payment_required = True
-                    elif tag[0] == "amount" and len(tag) > 1:
-                        payment_amount = int(tag[1])
-                if has_payment_required:
-                    GlobalStats.total_number_of_payments_requests += 1
-                    GlobalStats.total_amount_millisats += payment_amount
-            except Exception as e:
-                LOGGER.debug(f"Could not process feedback event {dvm_event}: {e}")
-        elif dvm_event["kind"] == EventKind.DVM_NIP89_ANNOUNCEMENT.value:
-            try:
-                if "content" in dvm_event and len(dvm_event["content"]) > 0:
-                    nip89_profile = json.loads(dvm_event["content"])
-                    GlobalStats.dvm_nip89_profiles[dvm_event["pubkey"]] = nip89_profile
-                    DVM.get_instance(dvm_event["pubkey"]).add_nip89_profile(
-                        nip89_profile, dvm_event["created_at"]
-                    )
-            except Exception as e:
-                LOGGER.debug(
-                    f"Could not process NIP 89 announcement event {dvm_event}: {e}"
-                )
-        elif (
-            EventKind.DVM_REQUEST_RANGE_START.value
-            <= dvm_event["kind"]
-            <= EventKind.DVM_REQUEST_RANGE_END.value
-        ):
-            try:
-                if dvm_event["created_at"] >= max_time_1week:
-                    GlobalStats.dvm_requests_1_week += 1
-                    GlobalStats.dvm_requests_24_hrs += 1
-                elif dvm_event["created_at"] >= max_time_24hr:
-                    GlobalStats.dvm_requests_24_hrs += 1
-
-                if dvm_event["kind"] not in GlobalStats.request_kinds_counts.keys():
-                    GlobalStats.request_kinds_counts[dvm_event["kind"]] = 1
-                else:
-                    GlobalStats.request_kinds_counts[dvm_event["kind"]] += 1
-
-                if dvm_event["pubkey"] not in GlobalStats.user_request_counts.keys():
-                    GlobalStats.user_request_counts[dvm_event["pubkey"]] = 1
-                else:
-                    GlobalStats.user_request_counts[dvm_event["pubkey"]] += 1
-
-                Kind.get_instance(dvm_event["kind"]).job_requests += 1
-
-                GlobalStats.dvm_requests += 1
-            except Exception as e:
-                LOGGER.debug(f"Could not process dvm request event {dvm_event}: {e}")
-        elif (
-            EventKind.DVM_RESULT_RANGE_START.value
-            <= dvm_event["kind"]
-            <= EventKind.DVM_RESULT_RANGE_END.value
-        ):
-            try:
-                if dvm_event["created_at"] >= max_time_1week:
-                    GlobalStats.dvm_results_1_week += 1
-                    GlobalStats.dvm_results_24_hrs += 1
-                elif dvm_event["created_at"] >= max_time_24hr:
-                    GlobalStats.dvm_results_24_hrs += 1
-
-                if dvm_event["kind"] not in GlobalStats.result_kinds_counts.keys():
-                    GlobalStats.result_kinds_counts[dvm_event["kind"]] = 1
-                else:
-                    GlobalStats.result_kinds_counts[dvm_event["kind"]] += 1
-
-                if dvm_event["pubkey"] not in GlobalStats.dvm_results_counts:
-                    GlobalStats.dvm_results_counts[dvm_event["pubkey"]] = 1
-                else:
-                    GlobalStats.dvm_results_counts[dvm_event["pubkey"]] += 1
-
-                GlobalStats.dvm_results += 1
-            except Exception as e:
-                LOGGER.debug(f"Could not process dvm request event {dvm_event}: {e}")
-
-    # Estimate how many sats have been paid to DVMs based on them doing work after requesting payment
-    def process_feedback_event(feedback_event, dvm_node, response_event, result_event):
-        feedback_tags = feedback_event.get("tags", [])
-        if isinstance(feedback_tags, str):
-            try:
-                feedback_tags = ast.literal_eval(feedback_tags)
-            except (ValueError, SyntaxError) as e:
-                LOGGER.error(f"Failed to parse tags: {e}")
-                return
-
-        dvm_npub_hex = dvm_node.get(
-            "npub_hex"
-        )  # Assuming the DVM node has an 'npub' property
-        dvm_instance = DVM.get_instance(dvm_npub_hex)
-        request_created_at = response_event.get("created_at")
-        result_created_at = result_event.get("created_at")
-        kind_number = result_event.get("kind")
-
-        response_time_secs = None
-        if request_created_at and result_created_at:
-            # calculate the response time for the job to be done
-            response_time_secs = result_created_at - request_created_at
-            dvm_instance.add_job_response_time_data_point(response_time_secs)
-
-        for tag in feedback_tags:
-            if tag[0] == "amount" and len(tag) > 1:
-                try:
-                    amount = int(tag[1])
-                    GlobalStats.total_amount_paid_to_dvm_millisats += amount
-                    dvm_instance.add_sats_received_from_job(amount)
-                    if response_time_secs is None:
-                        raise Exception(
-                            f"response time is missing for kind {kind_number}."
-                        )
-                    Kind.get_instance(kind_number).add_job_done_by_dvm(
-                        dvm_npub_hex, response_time_secs, amount
-                    )
-                except ValueError as e:
-                    LOGGER.error(f"Invalid amount value: {tag[1]}, Error: {e}")
-                except Exception as e:
-                    LOGGER.error(f"Error processing neo4j feedback event: {e}")
-
-    neo4j_query_feedback_events = """
-            MATCH (u:User)-[:MADE_EVENT]->(nr:Event:DVMRequest)
-            MATCH (d:DVM)-[:MADE_EVENT]->(ns:Event:DVMResult)-[:RESULT_FOR]->(nr)
-            MATCH (d:DVM)-[:MADE_EVENT]->(f:FeedbackPaymentRequest)-[:FEEDBACK_FOR]->(nr)
-            RETURN f, d, nr, ns
-        """
-
-    with NEO4J_DRIVER.session() as session:
-        try:
-            result = session.execute_read(
-                lambda tx: list(tx.run(neo4j_query_feedback_events))
-            )
-
-            for record in result:
-                feedback_event = record.get("f")
-                dvm_node = record.get("d")
-                request_event = record.get("nr")
-                result_event = record.get("ns")
-                if feedback_event and dvm_node and request_event and result_event:
-                    process_feedback_event(
-                        feedback_event, dvm_node, request_event, result_event
-                    )
-                else:
-                    LOGGER.warning("Record missing 'f' key")
-        except Exception as e:
-            LOGGER.error(f"Failed to execute Neo4j query: {e}")
-
-
 def save_global_stats_to_mongodb():
-    collection_name = "global_stats"
+    collection_name = "new_global_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
             collection_name,
@@ -550,7 +393,7 @@ def save_global_stats_to_mongodb():
 
 
 def save_dvm_stats_to_mongodb():
-    collection_name = "dvm_stats"
+    collection_name = "new_dvm_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
             collection_name,
@@ -583,7 +426,7 @@ def save_dvm_stats_to_mongodb():
 
 
 def save_kind_stats_to_mongodb():
-    collection_name = "kind_stats"
+    collection_name = "new_kind_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
             collection_name,
@@ -718,6 +561,40 @@ def global_stats_via_big_mongo_query():
                         }
                     },
                 ],
+                "time_based_result_counts": [
+                    {
+                        "$match": {
+                            "created_at": {"$gte": max_time_1month},
+                            "kind": {"$gte": 6000, "$lte": 6999},
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "last_month_results": {
+                                "$sum": 1
+                            },  # Count all events within the last month
+                            "last_week_results": {
+                                "$sum": {
+                                    "$cond": [
+                                        {"$gte": ["$created_at", max_time_1week]},
+                                        1,
+                                        0,
+                                    ]
+                                }
+                            },
+                            "last_24hrs_results": {
+                                "$sum": {
+                                    "$cond": [
+                                        {"$gte": ["$created_at", max_time_24hr]},
+                                        1,
+                                        0,
+                                    ]
+                                }
+                            },
+                        }
+                    },
+                ],
                 "unique_users": [
                     {"$match": {"kind": {"$gte": 5000, "$lt": 6000}}},
                     {
@@ -766,21 +643,6 @@ def global_stats_via_big_mongo_query():
                         "$match": {
                             "$or": [
                                 {"kind": {"$gte": 6000, "$lte": 6999}},
-                                {
-                                    "$and": [
-                                        {"kind": 7000},
-                                        {
-                                            "tags": {
-                                                "$elemMatch": {
-                                                    "$eq": [
-                                                        "status",
-                                                        "payment-required",
-                                                    ]
-                                                }
-                                            },
-                                        },
-                                    ],
-                                },
                                 {
                                     "$and": [
                                         {"kind": 31990},
@@ -926,52 +788,69 @@ def global_stats_via_big_mongo_query():
             print("---")
 
         # To access specific facets:
-        event_counts = facet_results.get("event_counts", [])
-        time_based_counts = facet_results.get("time_based_request_counts", [])
+        all_kind_counts = facet_results.get("event_counts", [])[0]["kind_counts"]
+        for kind_count in all_kind_counts:
+            kind_num = kind_count["kind"]
+            kind_count = kind_count["count"]
+            Kind.get_instance(kind_num).count_from_mongo(kind_count)
 
-        # Process event_counts
-        max_kind = event_counts[0]["details"][0]["kind"]
-        max_kind_count = event_counts[0]["details"][0]["count"]
-        num_unique_request_kinds = 0
-        num_unique_result_kinds = 0
-        for count_data in event_counts[0]["details"]:
-            print(f"Kind: {count_data['kind']}, Count: {count_data['count']}")
-            if 5000 <= count_data["kind"] <= 5999:
-                num_unique_request_kinds += 1
-                if count_data["count"] > max_kind_count:
-                    max_kind_count = count_data["count"]
-                    max_kind = count_data["kind"]
-            elif 6000 <= count_data["kind"] <= 6999:
-                num_unique_result_kinds += 1
+        GlobalStats.dvm_requests = facet_results.get("event_counts", [])[0][
+            "sum_5000_5999"
+        ]
+        GlobalStats.dvm_results = facet_results.get("event_counts", [])[0][
+            "sum_6000_6999"
+        ]
 
-        stats["num_dvm_request_kinds"] = num_unique_request_kinds
-        stats["num_dvm_result_kinds"] = num_unique_result_kinds
-        stats["most_popular_kind"] = max_kind
+        time_based_request_counts = facet_results.get("time_based_request_counts", [])[
+            0
+        ]
+        GlobalStats.dvm_requests_24_hrs = time_based_request_counts[
+            "last_24hrs_requests"
+        ]
+        GlobalStats.dvm_requests_1_week = time_based_request_counts[
+            "last_week_requests"
+        ]
+        GlobalStats.dvm_requests_1_month = time_based_request_counts[
+            "last_month_requests"
+        ]
 
-        # Process range_sums to get total counts for range
-        stats["dvm_requests_all_time"] = event_counts[0]["range_sums"]["5000_5999"]
-        stats["dvm_results_all_time"] = event_counts[0]["range_sums"]["6000_6999"]
-
-        # Process time_based_counts
-        if time_based_counts:
-            print(f"Last 24 hours: {time_based_counts[0].get('last_24hrs', 0)}")
-            stats["dvm_requests_24_hrs"] = time_based_counts[0].get("last_24hrs")
-            print(f"Last week: {time_based_counts[0].get('last_week', 0)}")
-            stats["dvm_requests_1_week"] = time_based_counts[0].get("last_week")
-            print(f"Last month: {time_based_counts[0].get('last_month', 0)}")
-            stats["dvm_requests_1_month"] = time_based_counts[0].get("last_month")
+        time_based_result_counts = facet_results.get("time_based_result_counts", [])[0]
+        GlobalStats.dvm_results_24_hrs = time_based_result_counts["last_24hrs_results"]
+        GlobalStats.dvm_results_1_week = time_based_result_counts["last_week_results"]
+        GlobalStats.dvm_results_1_month = time_based_result_counts["last_month_results"]
 
         unique_users_data = facet_results.get("unique_users", [])
+
         if unique_users_data:
             per_kind_stats = unique_users_data[0].get("per_kind_stats", [])
             total_unique_users = unique_users_data[0].get("total_unique_users", 0)
+            GlobalStats.unique_users = total_unique_users
 
-            print("Unique users per kind:")
+            max_kind = None
+            max_kind_count = -1
             for stat in per_kind_stats:
                 print(f"Kind {stat['kind']}: {stat['unique_user_count']} unique users")
+                Kind.get_instance(stat["kind"]).unique_users = stat["unique_user_count"]
+                if stat["unique_user_count"] > max_kind_count:
+                    max_kind = stat["kind"]
+                    max_kind_count = stat["unique_user_count"]
 
-            print(f"\nTotal unique users across all kinds: {total_unique_users}")
-            stats["unique_users_of_dvms"] = total_unique_users
+            GlobalStats.most_popular_kind = max_kind
+
+        unique_dvms = facet_results.get("unique_dvms")
+        if unique_dvms:
+            max_dvm = "<unknown>"
+            max_dvm_count = -1
+            for stat in unique_dvms:
+                if stat["profile"]:
+                    DVM.get_instance(stat["pubkey"]).nip_89_profile = stat["profile"]
+                DVM.get_instance(stat["pubkey"]).jobs_completed_from_mongo = stat[
+                    "kind_6000_6999_count"
+                ]
+                if stat["kind_6000_6999_count"] > max_dvm_count:
+                    max_dvm = stat["pubkey"]
+                    max_dvm_count = stat["kind_6000_6999_count"]
+            GlobalStats.most_popular_dvm = max_dvm
 
     else:
         print("No results found")
@@ -979,47 +858,126 @@ def global_stats_via_big_mongo_query():
     return stats
 
 
+def dvm_specific_stats_from_neo4j():
+    neo4j_query_feedback_events = """
+        MATCH (u:User)-[:MADE_EVENT]->(nr:Event:DVMRequest)
+        MATCH (d:DVM)-[:MADE_EVENT]->(ns:Event:DVMResult)-[:RESULT_FOR]->(nr)
+        MATCH (d:DVM)-[:MADE_EVENT]->(f:FeedbackPaymentRequest)-[:FEEDBACK_FOR]->(nr)
+        WITH d, nr, ns, f,
+             ns.created_at - nr.created_at AS response_time_secs,
+             apoc.convert.fromJsonList(f.tags) AS parsed_tags,
+             nr.kind AS request_kind
+        WITH d, response_time_secs, request_kind, parsed_tags,
+             [tag IN parsed_tags WHERE tag[0] = 'amount'][0][1] AS amount_str
+        WHERE amount_str IS NOT NULL
+        WITH d, response_time_secs, request_kind, toInteger(amount_str) AS amount
+        WHERE amount IS NOT NULL
+        WITH 
+            d.npub_hex AS dvm_npub_hex,
+            request_kind,
+            avg(response_time_secs) AS avg_response_time,
+            count(*) AS jobs_count,
+            sum(amount) AS total_amount
+        WITH collect({
+            dvm_npub_hex: dvm_npub_hex,
+            kind: request_kind,
+            avg_response_time: avg_response_time,
+            jobs_count: jobs_count,
+            total_amount: total_amount
+        }) AS dvm_kind_stats
+        
+        // Calculate DVM totals
+        UNWIND dvm_kind_stats AS stat
+        WITH dvm_kind_stats, stat.dvm_npub_hex AS dvm, 
+             sum(stat.total_amount) AS dvm_total_amount,
+             sum(stat.jobs_count) AS dvm_total_jobs,
+             avg(stat.avg_response_time) AS dvm_avg_response_time
+        WITH dvm_kind_stats, collect({
+            dvm: dvm,
+            dvm_total_amount: dvm_total_amount,
+            dvm_total_jobs: dvm_total_jobs,
+            dvm_avg_response_time: dvm_avg_response_time
+        }) AS dvm_totals
+        
+        // Calculate overall totals and combine with original stats
+        UNWIND dvm_kind_stats AS stat
+        WITH stat, dvm_totals, dvm_kind_stats,
+             sum(stat.total_amount) AS overall_total_amount,
+             sum(stat.jobs_count) AS overall_total_jobs,
+             avg(stat.avg_response_time) AS overall_avg_response_time
+        WITH stat, dvm_totals, 
+             overall_total_amount, overall_total_jobs, overall_avg_response_time,
+             [x IN dvm_totals WHERE x.dvm = stat.dvm_npub_hex][0] AS dvm_total
+        
+        RETURN 
+            stat.dvm_npub_hex AS dvm_npub_hex,
+            stat.kind AS kind,
+            stat.avg_response_time AS avg_response_time,
+            stat.jobs_count AS jobs_count,
+            stat.total_amount AS total_amount,
+            dvm_total.dvm_total_amount AS dvm_total_amount,
+            dvm_total.dvm_total_jobs AS dvm_total_jobs,
+            dvm_total.dvm_avg_response_time AS dvm_avg_response_time,
+            overall_total_amount,
+            overall_total_jobs,
+            overall_avg_response_time
+        ORDER BY dvm_npub_hex, stat.jobs_count DESC
+    """
+
+    with NEO4J_DRIVER.session() as session:
+        try:
+            result = session.execute_read(
+                lambda tx: list(tx.run(neo4j_query_feedback_events))
+            )
+
+            for record in result:
+                dvm_npub_hex = record["dvm_npub_hex"]
+                kind_number = record["kinds_responded_to"]
+                average_response_time_secs = record["avg_response_time_per_dvm"]
+                jobs_performed = record["jobs_count"]
+                total_amount_paid_to_dvm_millisats = record[
+                    "total_amount_paid_to_dvm_millisats"
+                ]
+
+                dvm_instance = DVM.get_instance(dvm_npub_hex)
+                dvm_instance.jobs_completed_from_neo4j = jobs_performed
+                dvm_instance.avg_response_time_from_neo4j = average_response_time_secs
+                dvm_instance.total_amount_paid_to_dvm_millisats = (
+                    total_amount_paid_to_dvm_millisats
+                )
+                dvm_instance.kinds_responded_to = kinds_responded_to
+
+                for kind in kinds_responded_to:
+                    Kind.get_instance(kind).add_dvm_npub_earnings(
+                        dvm_npub_hex, total_amount_paid_to_dvm_millisats
+                    )
+
+        except Exception as e:
+            LOGGER.error(f"Failed to execute Neo4j query: {e}")
+
+
 if __name__ == "__main__":
     """Usage: python compute_stats.py"""
 
-    # compare compute_stats with the mongo db query version
-
-    fast_stats_start_time = datetime.now()
-    fast_stats = global_stats_via_big_mongo_query()
-    print(f"fast_stats took {datetime.now() - fast_stats_start_time}")
-
-    slow_stats_start_time = datetime.now()
-    compute_all_stats()
-    slow_stats = GlobalStats.compute_stats()
-    print(f"slow_stats took {datetime.now() - slow_stats_start_time}")
-
-    def print_table(slow_stats, fast_stats):
-        print(
-            "Metric                              | Slow                              | Fast"
-        )
-        print("-" * 60)
-
-        for k, v in slow_stats.items():
-            slow_value = str(v)
-            fast_value = str(fast_stats.get(k, "<missing>"))
-
-            print(f"{k:<34} | {slow_value:<34} | {fast_value:<34}")
-
-    # Example usage
-    print_table(slow_stats, fast_stats)
-
-    sys.exit()
-
     try:
-        LOGGER.info(f"Starting compute stats process")
         start_time = datetime.now()
+        # mongo query
+        global_stats_via_big_mongo_query()
+        # neo4j query
+        dvm_specific_stats_from_neo4j()
+        LOGGER.info(
+            f"there are {len(DVM.instances)} DVM Instances and {len(Kind.instances)} Kind Instances"
+        )
+
         save_global_stats_to_mongodb()
         save_dvm_stats_to_mongodb()
         save_kind_stats_to_mongodb()
+
         LOGGER.info(
             f"Stats computed and saved to MongoDB. Took {datetime.now() - start_time} seconds."
         )
         LOGGER.info("Goodbye!")
+
     except Exception as e:
         import traceback
 
