@@ -118,11 +118,35 @@ class GlobalStats:
     dvm_results_1_month = 0  # k
     unique_users = 0  # k
     most_popular_kind = -2  # k
-    most_popular_dvm = "<missing>"  # k
+    most_popular_dvm = None  # k
+
+    num_request_kinds = -1
+    num_result_kinds = -1
+    total_amount_paid_to_dvm_millisats = -1
+
+    num_nip89_profiles = -1
+
+    @staticmethod
+    def compute_dvm_summary_stats(cls):
+        """
+        Only run this AFTER all DVM base stats have run
+        """
+
+        dvm_request_kinds = set()
+        for dvm_instance in DVM.instances:
+            dvm_request_kinds.update(
+                dvm_instance.number_of_jobs_per_kind_from_neo4j.keys()
+            )
+        GlobalStats.num_request_kinds = len(dvm_request_kinds)
+
+    @staticmethod
+    def compute_kind_summary_stats(cls):
+        """
+        Only run this AFTER all KIND base stats have run
+        """
 
     @classmethod
     def compute_stats(cls):
-        # TODO - redo this
         stats = {
             "dvm_requests_all_time": GlobalStats.dvm_requests,
             "dvm_results_all_time": GlobalStats.dvm_results,
@@ -130,41 +154,24 @@ class GlobalStats:
             "dvm_results_24_hrs": GlobalStats.dvm_results_24_hrs,
             "dvm_requests_1_week": GlobalStats.dvm_requests_1_week,
             "dvm_results_1_week": GlobalStats.dvm_results_1_week,
-            "num_dvm_request_kinds": len(GlobalStats.request_kinds_counts.keys()),
-            "num_dvm_result_kinds": len(GlobalStats.result_kinds_counts.keys()),
-            "dvm_nip_89s": len(GlobalStats.dvm_nip89_profiles.keys()),
-            "dvm_pub_keys": len(GlobalStats.dvm_results_counts.keys()),
-            "total_number_of_payments_requests": GlobalStats.total_number_of_payments_requests,
-            "total_amount_dvm_requested_sats": int(
-                GlobalStats.total_amount_millisats / 1000
-            ),
+            "num_dvm_request_kinds": GlobalStats.num_request_kinds,
+            "num_dvm_result_kinds": GlobalStats.num_result_kinds,
+            "dvm_nip_89s": GlobalStats.num_nip89_profiles,
+            "dvm_pub_keys": len(DVM.instances),
             "total_amount_paid_to_dvm_sats": int(
                 GlobalStats.total_amount_paid_to_dvm_millisats / 1000
             ),
+            "most_popular_dvm_npub": GlobalStats.most_popular_dvm.npub_hex,
+
         }
 
-        most_popular_dvm_npub = max(
-            GlobalStats.dvm_results_counts, key=GlobalStats.dvm_results_counts.get
-        )
-        if (
-            most_popular_dvm_npub in GlobalStats.dvm_nip89_profiles
-            and "name" in GlobalStats.dvm_nip89_profiles[most_popular_dvm_npub]
-        ):
-            stats["most_popular_dvm_name"] = GlobalStats.dvm_nip89_profiles[
-                most_popular_dvm_npub
-            ]["name"]
-        else:
+        try:
+            stats["most_popular_dvm_name"] = GlobalStats.most_popular_dvm.nip_89_profile["name"]
+        except:
             stats[
                 "most_popular_dvm_name"
-            ] = f"{most_popular_dvm_npub[:8]}...{most_popular_dvm_npub[:-4]}"
+            ] = f"{GlobalStats.most_popular_dvm.npub_hex[:8]}...{GlobalStats.most_popular_dvm.npub_hex[:-4]}"
 
-        stats[
-            "most_popular_dvm_npub"
-        ] = most_popular_dvm_npub  # this is to make the metric clickable
-        stats["most_popular_kind"] = max(
-            GlobalStats.request_kinds_counts, key=GlobalStats.request_kinds_counts.get
-        )
-        stats["unique_users_of_dvms"] = len(GlobalStats.user_request_counts.keys())
         return stats
 
 
@@ -758,10 +765,19 @@ def global_stats_via_big_mongo_query():
 
         # To access specific facets:
         all_kind_counts = facet_results.get("event_counts", [])[0]["kind_counts"]
+        all_request_kinds = set()
+        all_result_kinds = set()
         for kind_count in all_kind_counts:
             kind_num = kind_count["kind"]
             kind_count = kind_count["count"]
             Kind.get_instance(kind_num).count_from_mongo(kind_count)
+
+            if EventKind.DVM_REQUEST_RANGE_START <= kind_num <= EventKind.DVM_REQUEST_RANGE_END:
+                all_request_kinds.add(kind_num)
+            elif EventKind.DVM_RESULT_RANGE_START <= kind_num <= EventKind.DVM_RESULT_RANGE_END:
+                all_result_kinds.add(kind_num)
+
+        GlobalStats.
 
         GlobalStats.dvm_requests = facet_results.get("event_counts", [])[0][
             "sum_5000_5999"
@@ -808,18 +824,27 @@ def global_stats_via_big_mongo_query():
 
         unique_dvms = facet_results.get("unique_dvms")
         if unique_dvms:
-            max_dvm = "<unknown>"
+            max_dvm_npub_hex = "<unknown>"
             max_dvm_count = -1
+            num_dvm_profiles = 0
             for stat in unique_dvms:
-                if stat["profile"]:
-                    DVM.get_instance(stat["pubkey"]).nip_89_profile = stat["profile"]
+                if stat["profile"] and stat["created_at"]:
+                    try:
+                        profile_parsed = json.loads(stat["profile"])
+                        DVM.get_instance(stat["pubkey"]).add_nip89_profile(profile_parsed, stat["created_at"])
+                        num_dvm_profiles +=1
+                    except Exception as e:
+                        LOGGER.warning(f"Could not parse profile for DVM {stat['pubkey']}")
+                        pass
+
                 DVM.get_instance(stat["pubkey"]).jobs_completed_from_mongo = stat[
                     "kind_6000_6999_count"
                 ]
                 if stat["kind_6000_6999_count"] > max_dvm_count:
-                    max_dvm = stat["pubkey"]
+                    max_dvm_npub_hex = stat["pubkey"]
                     max_dvm_count = stat["kind_6000_6999_count"]
-            GlobalStats.most_popular_dvm = max_dvm
+            GlobalStats.most_popular_dvm = DVM.get_instance(max_dvm_npub_hex)
+            GlobalStats.num_nip89_profiles = num_dvm_profiles
 
     else:
         print("No results found")
@@ -898,7 +923,7 @@ def dvm_specific_stats_from_neo4j():
             result = session.execute_read(
                 lambda tx: list(tx.run(neo4j_query_feedback_events))
             )
-
+            total_amount_paid_to_all_dvms = 0
             for record in result:
                 dvm_npub_hex = record["dvm_npub_hex"]
                 kind_number = record["kind"]
@@ -924,8 +949,31 @@ def dvm_specific_stats_from_neo4j():
                     average_response_time_secs_per_kind,
                 )
 
+                total_amount_paid_to_all_dvms += amount_paid_for_this_kind
+
+            GlobalStats.total_amount_paid_to_dvm_millisats = total_amount_paid_to_all_dvms
+
         except Exception as e:
             LOGGER.error(f"Failed to execute Neo4j query: {e}")
+
+
+def compute_basic_stats_from_db_queries():
+    """Step 1"""
+    # mongo query
+    global_stats_via_big_mongo_query()
+    # neo4j query
+    dvm_specific_stats_from_neo4j()
+
+
+def compute_summary_stats():
+    """Step 2"""
+
+
+def save_new_stats():
+    """Step 3"""
+    save_global_stats_to_mongodb()
+    save_dvm_stats_to_mongodb()
+    save_kind_stats_to_mongodb()
 
 
 if __name__ == "__main__":
@@ -933,17 +981,13 @@ if __name__ == "__main__":
 
     try:
         start_time = datetime.now()
-        # mongo query
-        global_stats_via_big_mongo_query()
-        # neo4j query
-        dvm_specific_stats_from_neo4j()
+        compute_basic_stats_from_db_queries()
+        compute_summary_stats()
+        save_new_stats()
+
         LOGGER.info(
             f"there are {len(DVM.instances)} DVM Instances and {len(Kind.instances)} Kind Instances"
         )
-
-        save_global_stats_to_mongodb()
-        save_dvm_stats_to_mongodb()
-        save_kind_stats_to_mongodb()
 
         LOGGER.info(
             f"Stats computed and saved to MongoDB. Took {datetime.now() - start_time} seconds."
