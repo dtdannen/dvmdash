@@ -182,6 +182,7 @@ RESTART_THRESHOLD = 0.2
 class NotificationHandler(HandleNotification):
     def __init__(self, max_batch_size=100, max_wait_time=5):
         self.event_queue = Queue()
+        self.neo4j_queue = Queue()  # this is for neo4j queries that need to go out
         self.max_batch_size = max_batch_size
         self.max_wait_time = max_wait_time
         self.bin_size_seconds = 15  # seconds
@@ -258,7 +259,7 @@ class NotificationHandler(HandleNotification):
 
             if batch:
                 await self.async_write_to_mongo_db(batch)
-                await self.async_write_to_neo4j_db(batch)
+                await self.create_neo4j_queries(batch)
 
             # Mark tasks as done
             number_of_events_marked_done = 0
@@ -289,46 +290,259 @@ class NotificationHandler(HandleNotification):
             except Exception as e:
                 LOGGER.error(f"Error inserting events into database: {e}")
 
-    async def async_write_to_neo4j_db(self, events):
+    async def process_neo4j_queries(self):
+        while True:
+            batch = []
+            try:
+                # Wait for the first event or until max_wait_time
+                query = await asyncio.wait_for(
+                    self.neo4j_queue.get(), timeout=self.max_wait_time
+                )
+                batch.append(query)
+
+                # Start a new transaction
+                async with NEO4J_DRIVER.session().begin_transaction() as tx:
+                    for query in batch:
+                        # Execute each query within the transaction
+                        await tx.run(query["query"], **query["params"])
+
+                    # Commit the transaction
+                    await tx.commit()
+
+                LOGGER.info(
+                    f"Successfully executed batch of {len(batch)} queries in Neo4j"
+                )
+            except Exception as e:
+                LOGGER.error(f"Error executing batch queries in Neo4j: {str(e)}")
+
+    async def create_neo4j_queries(self, events):
         LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
         if not events:
             return
 
-        query = """
-        UNWIND $batch AS event
-        MERGE (n:TestEvent {id: event.id})
-        SET n += event.properties
+        for event in events:
+            # Step 1: figure out what additional labels this event will get
+            additional_event_labels = []
+            if 5000 <= event["kind"] < 6000:
+                additional_event_labels = ["DVMRequest"]
+            elif 6000 <= event["kind"] < 6999:
+                additional_event_labels = ["DVMResult"]
+            elif event["kind"] == 7000:
+                # print("event is kind 7000")
+                additional_event_labels.append("Feedback")
+                # check the tags
+                if "tags" in event:
+                    tags = ast.literal_eval(event["tags"])
+                    for tag in tags:
+                        # print(f"\ttag is {tag}")
+                        if (
+                            tag[0] == "status"
+                            and len(tag) > 1
+                            and tag[1] == "payment-required"
+                        ):
+                            additional_event_labels.append("FeedbackPaymentRequest")
+                            # print("\tadding the label FeedbackPaymentRequest")
+
+            if additional_event_labels:
+                # create the event node
+                event_query = (
+                    """
+                        MERGE (n:Event:"""
+                    + ":".join(additional_event_labels)
+                    + """ {id: $event_id})
+                        ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                        ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                        RETURN n
+                        """
+                )
+
+            else:
+                # create the event node
+                event_query = """
+                        MERGE (n:Event {id: $event_id})
+                        ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                        ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                        RETURN n
+                        """
+
+            # Step 2: Submit the query for creating this event to neo4j
+            ready_to_execute_event_query = {
+                "query": event_query,
+                "params": {"event_id": event["id"], "json": json.dumps(event)},
+            }
+            await self.neo4j_queue.put(ready_to_execute_event_query)
+
+            # Step 3: Determine what other nodes and relations to also submit based on additional_event_labels
+            if additional_event_labels == ["DVMRequest"]:
+                # if this is a DVMRequest, then we need (1) a User Node and (2) a MADE_EVENT relation
+                user_node_query = """
+                    MERGE (n:User {npub_hex: $npub_hex})
+                    ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                    RETURN n
+                """
+
+                user_npub = hex_to_npub(event["pubkey"])
+                user_node_query_params = {
+                    "npub_hex": event["pubkey"],
+                    "json": {
+                        "npub": user_npub,
+                        "url": "https://dvmdash.live/npub/" + user_npub,
+                        "neo4j_node_type": "User",
+                    },
+                }
+
+                # TODO - later we can submit a request to relays to get a kind 0 profile for the USER and add
+                #  these values to the params
+
+                ready_to_execute_user_query = {
+                    "query": user_node_query,
+                    "params": user_node_query_params,
+                }
+
+                await self.neo4j_queue.put(ready_to_execute_user_query)
+
+                # now do the MADE_EVENT relation
+                made_event_query = """
+                    MATCH (n:User {npub_hex: $npub_hex})
+                    MATCH (r:Event {id: $event_id})
+                    MERGE (n)-[rel:MADE_EVENT]->(r)
+                    RETURN rel
+                """
+
+                ready_to_execute_made_event_query = {
+                    "query": made_event_query,
+                    "params": {
+                        "npub_hex": event["pubkey"],
+                        "event_id": event["id"],
+                    },
+                }
+
+                await self.neo4j_queue.put(ready_to_execute_made_event_query)
+            elif additional_event_labels == ["DVMResult"]:
+                # let's get the 'e' tag pointing to the original request and if we can't find it, we will
+                # reject this event
+                dvm_request_event_id = ""
+                for tag in event["tags"]:
+                    if len(tag) > 1 and tag[0] == "e":
+                        dvm_request_event_id = tag[1]
+                        break
+
+                if dvm_request_event_id:
+                    dvm_node_query = """
+                        MERGE (n:DVM {npub_hex: $npub_hex})
+                        ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                        RETURN n
+                    """
+
+                    dvm_npub = hex_to_npub(event["pubkey"])
+                    dvm_node_query_params = {
+                        "npub_hex": event["pubkey"],
+                        "json": {
+                            "npub": dvm_npub,
+                            "url": "https://dvmdash.live/dvm/" + dvm_npub,
+                            "neo4j_node_type": "DVM",
+                        },
+                    }
+
+                    # TODO - later we can submit a request to relays to get a kind 31990 profile for the DVM and add
+                    #  these values to the dvm node params
+
+                    ready_to_execute_dvm_node_query = {
+                        "query": dvm_node_query,
+                        "params": dvm_node_query_params,
+                    }
+
+                    await self.neo4j_queue.put(ready_to_execute_dvm_node_query)
+
+                    # now create the MADE_EVENT relation query
+
+                    dvm_made_event_query = """
+                       MATCH (n:DVM {npub_hex: $npub_hex})
+                       MATCH (r:Event {id: $event_id})
+                       MERGE (n)-[rel:MADE_EVENT]->(r)
+                       RETURN rel
+                    """
+
+                    ready_to_execute_dvm_made_event_query = {
+                        "query": dvm_made_event_query,
+                        "params": {
+                            "npub_hex": event["pubkey"],
+                            "event_id": event["id"],
+                        },
+                    }
+
+                    await self.neo4j_queue.put(ready_to_execute_dvm_made_event_query)
+
+                    # now because this is a DVMResult, we want to add a relation from this to the original DVM Request
+
+                    # now let's make the query to create that node in case it doesn't exist
+                    create_dvm_request_if_not_exist_query = """
+                        OPTIONAL MATCH (existing:Event:DVMRequest {id: $event_id})
+                        WITH existing
+                        WHERE existing IS NULL
+                        CREATE (n:Event:DVMRequest {id: $event_id})
+                        RETURN n
+                    """
+
+                    ready_to_execute_create_dvm_request_if_not_exist = {
+                        "query": create_dvm_request_if_not_exist_query,
+                        "params": {"event_id": dvm_request_event_id},
+                    }
+
+                    await self.neo4j_queue.put(
+                        ready_to_execute_create_dvm_request_if_not_exist
+                    )
+
+                    # now make the relation from the DVMResult to the DVMRequest
+
+                    dvm_result_to_request_relation_query = """
+                        MATCH (result:Event:DVMResult {id: $result_event_id})
+                        MATCH (request:Event:DVMRequest {id: $request_event_id})
+                        MERGE (result)-[rel:RESULT_FOR]->(request)
+                        RETURN rel
+                    """
+
+                    ready_to_execute_dvm_result_to_request_rel_query = {
+                        "query": dvm_result_to_request_relation_query,
+                        "params": {
+                            "result_event_id": event["id"],
+                            "request_event_id": dvm_request_event_id,
+                        },
+                    }
+
+                    await self.neo4j_queue.put(
+                        ready_to_execute_dvm_result_to_request_rel_query
+                    )
+
+                else:
+                    LOGGER.warning(
+                        f"Rejecting DVMResult event with id: {event['id']} because there is no 'e' tag"
+                    )
+
+    def _create_user_node(self, user_npub):
+        """
+        Attempts to look for a user's kind 0 profile event and update the user node for this npub
         """
 
-        batch = []
-        for doc in events:
-            doc_copy = doc.copy()
-            doc_copy.pop("_id", None)
-            doc_copy.pop("tags", None)
-            batch.append({"id": str(doc.get("id")), "properties": doc_copy})
+        # ask relays for a kind 0 by this npub
 
-        async with NEO4J_DRIVER.session() as session:
-            try:
-                result = await session.run(query, batch=batch)
-                summary = await result.consume()
-                # LOGGER.info(
-                #     f"Bulk operation completed. "
-                #     f"Nodes created: {summary.counters.nodes_created}, "
-                #     f"Properties set: {summary.counters.properties_set}"
-                # )
-            except Exception as e:
-                LOGGER.error(f"Error in bulk write to Neo4j: {str(e)}")
+        # if we find one, add it to the neo4j Queue
 
-        # LOGGER.info("Finished creating/updating nodes in Neo4j")
-
-    def _create_event_node_insert_query(self, neo4j_event):
+    def _create_event_node_insert_queries(self, neo4j_event):
         """handles making labels and other stuff"""
         # create different events based on the kind
         additional_event_labels = []
+        additional_queries = (
+            []
+        )  # list of tuples, where the item[0] is the query and item[1] is the args
         if 5000 <= neo4j_event["kind"] < 6000:
             additional_event_labels = ["DVMRequest"]
+            # nothing else is needed for this
         elif 6000 <= neo4j_event["kind"] < 6999:
             additional_event_labels = ["DVMResult"]
+            # we need to connect this DVMResult with the original DVMRequest Event
+
         elif neo4j_event["kind"] == 7000:
             # print("event is kind 7000")
             additional_event_labels.append("Feedback")
@@ -368,7 +582,7 @@ class NotificationHandler(HandleNotification):
 
         return query
 
-    async def async_write_single_event_to_neo4j_db(self, event):
+    def create_neo4j_queries_from_single_event(self, event):
         event_kind = int(event.get("kind"))
         event_id = str(event.get("id"))
         pubkey = event.get("pubkey")
@@ -476,6 +690,9 @@ async def nostr_client():
     # Your existing code without the while True loop
     notification_handler = NotificationHandler()
     process_events_task = asyncio.create_task(notification_handler.process_events())
+    process_neo4j_queries = asyncio.create_task(
+        notification_handler.process_neo4j_queries()
+    )
     await client.handle_notifications(notification_handler)
     return client  # Return the client for potential cleanup
 
