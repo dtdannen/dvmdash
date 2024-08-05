@@ -323,6 +323,7 @@ class NotificationHandler(HandleNotification):
         for event in events:
             # Step 1: figure out what additional labels this event will get
             additional_event_labels = []
+            additional_properties = {}
             if 5000 <= event["kind"] < 6000:
                 additional_event_labels = ["DVMRequest"]
             elif 6000 <= event["kind"] < 6999:
@@ -336,12 +337,15 @@ class NotificationHandler(HandleNotification):
                     for tag in tags:
                         # print(f"\ttag is {tag}")
                         if (
-                            tag[0] == "status"
-                            and len(tag) > 1
+                            len(tag) > 1
+                            and tag[0] == "status"
                             and tag[1] == "payment-required"
                         ):
                             additional_event_labels.append("FeedbackPaymentRequest")
-                            # print("\tadding the label FeedbackPaymentRequest")
+                        elif len(tag) > 1 and tag[0] == "amount":
+                            additional_properties["amount"] = tag[1]
+                            if len(tag) > 2:
+                                additional_properties["invoice_data"] = tag[2]
 
             if additional_event_labels:
                 # create the event node
@@ -364,6 +368,17 @@ class NotificationHandler(HandleNotification):
                         ON MATCH SET n += apoc.convert.fromJsonMap($json)
                         RETURN n
                         """
+
+            # do this in this order, so we keep any top level event properties from the original note and don't
+            # accidentally overwrite them
+            for prop_k, prop_v in additional_properties.items():
+                if prop_k not in event.keys():
+                    event[prop_k] = prop_v
+                else:
+                    LOGGER.warning(
+                        f"Event {event['id']} already has property {prop_k} with a "
+                        f"value of {event[prop_k]} and we are trying to add property value {prop_v}"
+                    )
 
             # Step 2: Submit the query for creating this event to neo4j
             ready_to_execute_event_query = {
@@ -420,8 +435,7 @@ class NotificationHandler(HandleNotification):
 
                 await self.neo4j_queue.put(ready_to_execute_made_event_query)
             elif additional_event_labels == ["DVMResult"]:
-                # let's get the 'e' tag pointing to the original request and if we can't find it, we will
-                # reject this event
+                # let's get the 'e' tag pointing to the original request and if we can't find it, reject this event
                 dvm_request_event_id = ""
                 for tag in event["tags"]:
                     if len(tag) > 1 and tag[0] == "e":
@@ -518,6 +532,102 @@ class NotificationHandler(HandleNotification):
                 else:
                     LOGGER.warning(
                         f"Rejecting DVMResult event with id: {event['id']} because there is no 'e' tag"
+                    )
+            elif "Feedback" in additional_event_labels:
+                # let's get the 'e' tag pointing to the original request and if we can't find it, reject this event
+                dvm_request_event_id = ""
+                for tag in event["tags"]:
+                    if len(tag) > 1 and tag[0] == "e":
+                        dvm_request_event_id = tag[1]
+                        break
+
+                if dvm_request_event_id:
+                    # let's create an invoice node if there is one
+                    if "FeedbackPaymentRequest" in additional_event_labels:
+                        if "invoice" in additional_properties:
+                            # for now we use the invoice data as a unique identifier, mostly supporting the lnbc
+                            # string format
+                            if not additional_properties["invoice"].startswith("lnbc"):
+                                # TODO - add better support for other payment request types, like ecash
+                                LOGGER.warning(
+                                    f"invoice data for feedback event {event['id']} does not start with 'lnbc'"
+                                )
+                            invoice_params = {
+                                "invoice_data": additional_properties["invoice_data"],
+                                "url": f"https://dvmdash.live/invoice/{additional_properties['invoice_data']}",
+                            }
+                            if "amount" in additional_properties:
+                                invoice_params["amount"] = additional_properties[
+                                    "amount"
+                                ]
+
+                            create_invoice_node_query = """
+                                                    MERGE (n:Invoice {id: $invoice_data})
+                                                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                                                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                                                    RETURN n
+                                                """
+                            invoice_params = {
+                                "creator_pubkey": event["pubkey"],
+                                "feedback_event_id": event["id"],
+                            }
+
+                            ready_to_execute_create_invoice_node_query = {
+                                "query": create_invoice_node_query,
+                                "params": invoice_params,
+                            }
+
+                            # TODO - put this event into a mongo collection for invoices so we can display this on the webpage
+
+                            await self.neo4j_queue.put(
+                                ready_to_execute_create_invoice_node_query
+                            )
+
+                            # now create a relation to this invoice from the feedback event
+                            create_invoice_to_feedback_rel_query = """
+                                MATCH (i:Invoice {id: $invoice_data})
+                                MATCH (f:Event {id: $event_id})
+                                MERGE (i)-[rel:INVOICE_FROM]->(f)
+                                RETURN rel
+                            """
+
+                            invoice_rel_params = {
+                                "invoice_data": additional_properties["invoice_data"],
+                                "event_id": event["id"],
+                            }
+
+                            ready_to_execute_invoice_to_feedback_rel = {
+                                "query": create_invoice_to_feedback_rel_query,
+                                "params": invoice_rel_params,
+                            }
+
+                            await self.neo4j_queue.put(
+                                ready_to_execute_invoice_to_feedback_rel
+                            )
+
+                        else:
+                            LOGGER.debug(
+                                f"FeedbackPaymentRequest event id={event['id']} is missing invoice data"
+                            )
+
+                    # now create a relation from the feedback to the original DVM Request
+                    create_feedback_to_original_request_query = """
+                       MATCH (feedback:Event {id: $feedback_event_id})
+                       MATCH (request:Event {id: $request_event_id})
+                       MERGE (feedback)-[rel:FEEDBACK_FOR]->(request)
+                       RETURN rel
+                   """
+
+                    ready_to_execute_feedback_to_request_rel_query = {
+                        "query": create_feedback_to_original_request_query,
+                        "params": {
+                            "feedback_event_id": event["id"],
+                            "request_event_id": dvm_request_event_id,
+                        },
+                    }
+
+                    await self.neo4j_queue.put(
+                        ready_to_execute_feedback_to_request_rel_query
                     )
 
     def _create_user_node(self, user_npub):
