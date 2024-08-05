@@ -1,5 +1,6 @@
 import bech32
 import json
+from bson import ObjectId
 
 
 def hex_to_npub(hex_pubkey):
@@ -21,3 +22,14 @@ def sanitize_json(data):
         return sanitized_dict
     else:
         return str(data)
+
+
+def clean_for_json(data):
+    if isinstance(data, dict):
+        return {k: clean_for_json(v) for k, v in data.items() if k != "_id"}
+    elif isinstance(data, list):
+        return [clean_for_json(i) for i in data]
+    elif isinstance(data, ObjectId):
+        return str(data)
+    else:
+        return data

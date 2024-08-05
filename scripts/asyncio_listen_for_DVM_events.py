@@ -35,7 +35,8 @@ import motor.motor_asyncio
 import pymongo  # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
-from general.helpers import hex_to_npub
+from general.helpers import hex_to_npub, clean_for_json
+import traceback
 
 
 def setup_logging():
@@ -190,8 +191,15 @@ class NotificationHandler(HandleNotification):
             (0, 0.0)
         ]  # (v1, v2) where v1 is the number of seen events in that bin and v2 is the difference (%) from the last bin
         self.last_bin_created_at_time = Timestamp.now()
+        self.row_count = 0
+        self.last_header_time = 0
+        self.header_interval = 20  # Print header every 20 rows
 
     def count_new_seen_event(self):
+        """
+        WIP: If we start getting an unusual low number of events, report the issue somewhere automatically
+        """
+        # TODO - this hasn't been tested yet
         # check if we are in the current bin or need to create a new bin
         current_time = Timestamp.now()
         last_bin_event_count = self.seen_events_bin[-1][0]
@@ -226,12 +234,37 @@ class NotificationHandler(HandleNotification):
 
             self.seen_events_bin[-1] = (new_event_count, last_bin_delta_percent)
 
+    async def print_queue_sizes(self):
+        current_time = time.time()
+        event_queue_size = self.event_queue.qsize()
+        neo4j_queue_size = self.neo4j_queue.qsize()
+
+        # Print header if it's the first row or if header_interval rows have passed
+        if (
+            self.row_count % self.header_interval == 0
+            or current_time - self.last_header_time > 60
+        ):
+            header = f"{'Time':^12}|{'Event Queue':^15}|{'Neo4j Queue':^15}"
+            LOGGER.info("\n" + "=" * len(header))
+            LOGGER.info(header)
+            LOGGER.info("=" * len(header))
+            self.last_header_time = current_time
+            self.row_count = 0
+
+        # Print the queue sizes
+        current_time_str = time.strftime("%H:%M:%S")
+        LOGGER.info(
+            f"{current_time_str:^12}|{event_queue_size:^15d}|{neo4j_queue_size:^15d}"
+        )
+
+        self.row_count += 1
+
     async def handle(self, relay_url, subscription_id, event: Event):
         # self.count_new_seen_event()
         if event.kind() in RELEVANT_KINDS:
             await self.event_queue.put(json.loads(event.as_json()))
 
-        LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
+        await self.print_queue_sizes()
 
     async def handle_msg(self, relay_url: str, message: str):
         # Implement this method
@@ -239,47 +272,54 @@ class NotificationHandler(HandleNotification):
 
     async def process_events(self):
         while True:
-            batch = []
             try:
-                # Wait for the first event or until max_wait_time
-                event = await asyncio.wait_for(
-                    self.event_queue.get(), timeout=self.max_wait_time
-                )
-                batch.append(event)
+                await self.print_queue_sizes()
+                batch = []
+                try:
+                    # Wait for the first event or until max_wait_time
+                    event = await asyncio.wait_for(
+                        self.event_queue.get(), timeout=self.max_wait_time
+                    )
+                    batch.append(event)
 
-                # Collect more events if available, up to max_batch_size
-                while len(batch) < self.max_batch_size and not self.event_queue.empty():
-                    batch.append(self.event_queue.get_nowait())
+                    # Collect more events if available, up to max_batch_size
+                    while (
+                        len(batch) < self.max_batch_size
+                        and not self.event_queue.empty()
+                    ):
+                        batch.append(self.event_queue.get_nowait())
 
-                # LOGGER.info(f"Batch size is now {len(batch)}")
+                    # LOGGER.info(f"Batch size is now {len(batch)}")
 
-            except asyncio.TimeoutError:
-                # If no events received within max_wait_time, continue to next iteration
-                continue
+                except asyncio.TimeoutError:
+                    # If no events received within max_wait_time, continue to next iteration
+                    continue
 
-            if batch:
-                await self.async_write_to_mongo_db(batch)
-                await self.create_neo4j_queries(batch)
+                if batch:
+                    await self.async_write_to_mongo_db(batch)
+                    await self.create_neo4j_queries(batch)
 
-            # Mark tasks as done
-            number_of_events_marked_done = 0
-            for _ in range(len(batch)):
-                self.event_queue.task_done()
-                number_of_events_marked_done += 1
-            LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
-            # LOGGER.info(f"Number of events marked done: {number_of_events_marked_done}")
-            # LOGGER.info(f"Remaining items in queue: {remaining_items}")
+                # Mark tasks as done
+                number_of_events_marked_done = 0
+                for _ in range(len(batch)):
+                    self.event_queue.task_done()
+                    number_of_events_marked_done += 1
+                # LOGGER.info(f"Number of events marked done: {number_of_events_marked_done}")
+                # LOGGER.info(f"Remaining items in queue: {remaining_items}")
+            except Exception as e:
+                LOGGER.error(f"Unhandled exception in process_events: {e}")
+                LOGGER.error(traceback.format_exc())
+                await asyncio.sleep(5)  # Wait a bit before retrying
 
     async def async_write_to_mongo_db(self, events):
-        LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
         if len(events) > 0:
             try:
                 result = await ASYNC_MONGO_DB.test_events.insert_many(
                     events, ordered=False
                 )
-                # LOGGER.info(
-                #     f"Finished writing events to db with result: {len(result.inserted_ids)}"
-                # )
+                LOGGER.info(
+                    f"Finished writing events to db with result: {len(result.inserted_ids)}"
+                )
             except BulkWriteError as e:
                 # If you want to log the details of the duplicates or other errors
                 num_duplicates_found = len(e.details["writeErrors"])
@@ -294,29 +334,50 @@ class NotificationHandler(HandleNotification):
         while True:
             batch = []
             try:
-                # Wait for the first event or until max_wait_time
-                query = await asyncio.wait_for(
-                    self.neo4j_queue.get(), timeout=self.max_wait_time
-                )
-                batch.append(query)
+                await self.print_queue_sizes()
+                try:
+                    # Wait for the first query or until max_wait_time
+                    query = await asyncio.wait_for(
+                        self.neo4j_queue.get(), timeout=self.max_wait_time
+                    )
+                    batch.append(query)
 
-                # Start a new transaction
-                async with NEO4J_DRIVER.session().begin_transaction() as tx:
-                    for query in batch:
-                        # Execute each query within the transaction
-                        await tx.run(query["query"], **query["params"])
+                    # Collect more queries if available, up to max_batch_size
+                    while (
+                        len(batch) < self.max_batch_size
+                        and not self.neo4j_queue.empty()
+                    ):
+                        batch.append(self.neo4j_queue.get_nowait())
 
-                    # Commit the transaction
-                    await tx.commit()
+                    # Start a new session and transaction
+                    async with NEO4J_DRIVER.AsyncSession() as session:
+                        async with session.begin_transaction() as tx:
+                            for query in batch:
+                                # Execute each query within the transaction
+                                await tx.run(query["query"], **query["params"])
 
-                LOGGER.info(
-                    f"Successfully executed batch of {len(batch)} queries in Neo4j"
-                )
+                            # Commit the transaction
+                            await tx.commit()
+
+                    LOGGER.info(
+                        f"Successfully executed batch of {len(batch)} queries in Neo4j"
+                    )
+                except asyncio.TimeoutError:
+                    # If no queries received within max_wait_time, continue to next iteration
+                    continue
+                except Exception as e:
+                    LOGGER.error(f"Error executing batch queries in Neo4j: {str(e)}")
+                    traceback.print_exc()
             except Exception as e:
-                LOGGER.error(f"Error executing batch queries in Neo4j: {str(e)}")
+                LOGGER.error(f"Unhandled exception in process_neo4j_queries: {e}")
+                traceback.print_exc()
+                await asyncio.sleep(5)  # Wait a bit before retrying
+            finally:
+                # Mark tasks as done
+                for _ in range(len(batch)):
+                    self.neo4j_queue.task_done()
 
     async def create_neo4j_queries(self, events):
-        LOGGER.info(f"Current queue size: {self.event_queue.qsize()}")
         if not events:
             return
 
@@ -333,7 +394,8 @@ class NotificationHandler(HandleNotification):
                 additional_event_labels.append("Feedback")
                 # check the tags
                 if "tags" in event:
-                    tags = ast.literal_eval(event["tags"])
+                    # tags = ast.literal_eval(event["tags"])
+                    tags = event["tags"]
                     for tag in tags:
                         # print(f"\ttag is {tag}")
                         if (
@@ -347,28 +409,16 @@ class NotificationHandler(HandleNotification):
                             if len(tag) > 2:
                                 additional_properties["invoice_data"] = tag[2]
 
-            if additional_event_labels:
-                # create the event node
-                event_query = (
-                    """
-                        MERGE (n:Event:"""
-                    + ":".join(additional_event_labels)
-                    + """ {id: $event_id})
-                        ON CREATE SET n = apoc.convert.fromJsonMap($json)
-                        ON MATCH SET n += apoc.convert.fromJsonMap($json)
-                        RETURN n
-                        """
-                )
-
-            else:
-                # create the event node
-                event_query = """
-                        MERGE (n:Event {id: $event_id})
-                        ON CREATE SET n = apoc.convert.fromJsonMap($json)
-                        ON MATCH SET n += apoc.convert.fromJsonMap($json)
-                        RETURN n
-                        """
-
+            # now create the event
+            event_query = """
+                    OPTIONAL MATCH (existing:Event {id: $event_id})
+                    WITH existing
+                    WHERE existing IS NULL
+                    CREATE (n $labels {id: $event_id})
+                    SET n = apoc.convert.fromJsonMap($json)
+                    RETURN n
+                """
+            labels = ["Event"] + additional_event_labels
             # do this in this order, so we keep any top level event properties from the original note and don't
             # accidentally overwrite them
             for prop_k, prop_v in additional_properties.items():
@@ -381,9 +431,14 @@ class NotificationHandler(HandleNotification):
                     )
 
             # Step 2: Submit the query for creating this event to neo4j
+
             ready_to_execute_event_query = {
                 "query": event_query,
-                "params": {"event_id": event["id"], "json": json.dumps(event)},
+                "params": {
+                    "event_id": event["id"],
+                    "labels": labels,
+                    "json": json.dumps(clean_for_json(event)),
+                },
             }
             await self.neo4j_queue.put(ready_to_execute_event_query)
 
@@ -391,9 +446,11 @@ class NotificationHandler(HandleNotification):
             if additional_event_labels == ["DVMRequest"]:
                 # if this is a DVMRequest, then we need (1) a User Node and (2) a MADE_EVENT relation
                 user_node_query = """
-                    MERGE (n:User {npub_hex: $npub_hex})
-                    ON CREATE SET n = apoc.convert.fromJsonMap($json)
-                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                    OPTIONAL MATCH (existing:User {npub_hex: $npub_hex})
+                    WITH existing
+                    WHERE existing IS NULL
+                    CREATE (n:User {npub_hex: $npub_hex})
+                    SET n = apoc.convert.fromJsonMap($json)
                     RETURN n
                 """
 
@@ -421,7 +478,8 @@ class NotificationHandler(HandleNotification):
                 made_event_query = """
                     MATCH (n:User {npub_hex: $npub_hex})
                     MATCH (r:Event {id: $event_id})
-                    MERGE (n)-[rel:MADE_EVENT]->(r)
+                    WHERE NOT (n)-[:MADE_EVENT]->(r)
+                    CREATE (n)-[rel:MADE_EVENT]->(r)
                     RETURN rel
                 """
 
@@ -444,8 +502,11 @@ class NotificationHandler(HandleNotification):
 
                 if dvm_request_event_id:
                     dvm_node_query = """
-                        MERGE (n:DVM {npub_hex: $npub_hex})
-                        ON CREATE SET n = apoc.convert.fromJsonMap($json)
+                        OPTIONAL MATCH (existing:DVM {npub_hex: $npub_hex})
+                        WITH existing
+                        WHERE existing IS NULL
+                        CREATE (n:DVM {npub_hex: $npub_hex})
+                        SET n = apoc.convert.fromJsonMap($json)
                         RETURN n
                     """
 
@@ -472,10 +533,11 @@ class NotificationHandler(HandleNotification):
                     # now create the MADE_EVENT relation query
 
                     dvm_made_event_query = """
-                       MATCH (n:DVM {npub_hex: $npub_hex})
-                       MATCH (r:Event {id: $event_id})
-                       MERGE (n)-[rel:MADE_EVENT]->(r)
-                       RETURN rel
+                        MATCH (n:DVM {npub_hex: $npub_hex})
+                        MATCH (r:Event {id: $event_id})
+                        WHERE NOT (n)-[:MADE_EVENT]->(r)
+                        CREATE (n)-[rel:MADE_EVENT]->(r)
+                        RETURN rel
                     """
 
                     ready_to_execute_dvm_made_event_query = {
@@ -513,7 +575,8 @@ class NotificationHandler(HandleNotification):
                     dvm_result_to_request_relation_query = """
                         MATCH (result:Event:DVMResult {id: $result_event_id})
                         MATCH (request:Event:DVMRequest {id: $request_event_id})
-                        MERGE (result)-[rel:RESULT_FOR]->(request)
+                        WHERE NOT (result)-[:RESULT_FOR]->(request)
+                        CREATE (result)-[rel:RESULT_FOR]->(request)
                         RETURN rel
                     """
 
@@ -552,25 +615,27 @@ class NotificationHandler(HandleNotification):
                                 LOGGER.warning(
                                     f"invoice data for feedback event {event['id']} does not start with 'lnbc'"
                                 )
+
+                            create_invoice_node_query = """
+                                OPTIONAL MATCH (existing:Invoice {id: $invoice_data})
+                                WITH existing
+                                WHERE existing IS NULL
+                                CREATE (n:Invoice {id: $invoice_data})
+                                SET n += apoc.convert.fromJsonMap($json)
+                                RETURN n
+                            """
+
                             invoice_params = {
+                                "creator_pubkey": event["pubkey"],
+                                "feedback_event_id": event["id"],
                                 "invoice_data": additional_properties["invoice_data"],
                                 "url": f"https://dvmdash.live/invoice/{additional_properties['invoice_data']}",
                             }
+
                             if "amount" in additional_properties:
                                 invoice_params["amount"] = additional_properties[
                                     "amount"
                                 ]
-
-                            create_invoice_node_query = """
-                                                    MERGE (n:Invoice {id: $invoice_data})
-                                                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
-                                                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
-                                                    RETURN n
-                                                """
-                            invoice_params = {
-                                "creator_pubkey": event["pubkey"],
-                                "feedback_event_id": event["id"],
-                            }
 
                             ready_to_execute_create_invoice_node_query = {
                                 "query": create_invoice_node_query,
@@ -587,7 +652,8 @@ class NotificationHandler(HandleNotification):
                             create_invoice_to_feedback_rel_query = """
                                 MATCH (i:Invoice {id: $invoice_data})
                                 MATCH (f:Event {id: $event_id})
-                                MERGE (i)-[rel:INVOICE_FROM]->(f)
+                                WHERE NOT (i)-[:INVOICE_FROM]->(f)
+                                CREATE (i)-[rel:INVOICE_FROM]->(f)
                                 RETURN rel
                             """
 
@@ -614,7 +680,8 @@ class NotificationHandler(HandleNotification):
                     create_feedback_to_original_request_query = """
                        MATCH (feedback:Event {id: $feedback_event_id})
                        MATCH (request:Event {id: $request_event_id})
-                       MERGE (feedback)-[rel:FEEDBACK_FOR]->(request)
+                       WHERE NOT (feedback)-[:FEEDBACK_FOR]->(request)
+                       CREATE (feedback)-[rel:FEEDBACK_FOR]->(request)
                        RETURN rel
                    """
 
@@ -630,157 +697,6 @@ class NotificationHandler(HandleNotification):
                         ready_to_execute_feedback_to_request_rel_query
                     )
 
-    def _create_user_node(self, user_npub):
-        """
-        Attempts to look for a user's kind 0 profile event and update the user node for this npub
-        """
-
-        # ask relays for a kind 0 by this npub
-
-        # if we find one, add it to the neo4j Queue
-
-    def _create_event_node_insert_queries(self, neo4j_event):
-        """handles making labels and other stuff"""
-        # create different events based on the kind
-        additional_event_labels = []
-        additional_queries = (
-            []
-        )  # list of tuples, where the item[0] is the query and item[1] is the args
-        if 5000 <= neo4j_event["kind"] < 6000:
-            additional_event_labels = ["DVMRequest"]
-            # nothing else is needed for this
-        elif 6000 <= neo4j_event["kind"] < 6999:
-            additional_event_labels = ["DVMResult"]
-            # we need to connect this DVMResult with the original DVMRequest Event
-
-        elif neo4j_event["kind"] == 7000:
-            # print("event is kind 7000")
-            additional_event_labels.append("Feedback")
-            # check the tags
-            if "tags" in neo4j_event:
-                tags = ast.literal_eval(neo4j_event["tags"])
-                for tag in tags:
-                    # print(f"\ttag is {tag}")
-                    if (
-                        tag[0] == "status"
-                        and len(tag) > 1
-                        and tag[1] == "payment-required"
-                    ):
-                        additional_event_labels.append("FeedbackPaymentRequest")
-                        # print("\tadding the label FeedbackPaymentRequest")
-
-        if additional_event_labels:
-            # create the event node
-            query = (
-                """
-                MERGE (n:Event:"""
-                + ":".join(additional_event_labels)
-                + """ {id: $event_id})
-                    ON CREATE SET n = apoc.convert.fromJsonMap($json)
-                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
-                    RETURN n
-                    """
-            )
-        else:
-            # create the event node
-            query = """
-                    MERGE (n:Event {id: $event_id})
-                    ON CREATE SET n = apoc.convert.fromJsonMap($json)
-                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
-                    RETURN n
-                    """
-
-        return query
-
-    def create_neo4j_queries_from_single_event(self, event):
-        event_kind = int(event.get("kind"))
-        event_id = str(event.get("id"))
-        pubkey = event.get("pubkey")
-
-        async with NEO4J_DRIVER.session() as session:
-            try:
-                # Create Event node
-                event_query = self._create_event_node_insert_query(event)
-                event_props = {
-                    k: v for k, v in event.items() if k not in ["_id", "tags"]
-                }
-                await session.run(
-                    event_query, event_id=event_id, event_props=event_props
-                )
-
-                # Create User or DVM node and relationship
-                if 5000 <= event_kind < 6000:
-                    node_type = "User"
-                    rel_type = "MADE_EVENT"
-                elif 6000 <= event_kind < 7000 or event_kind == 7000:
-                    node_type = "DVM"
-                    rel_type = "MADE_EVENT"
-                else:
-                    node_type = "Unknown"
-                    rel_type = "ASSOCIATED_WITH"
-
-                node_query = f"""
-                MERGE (n:{node_type} {{npub_hex: $pubkey}})
-                SET n.npub = $npub, n.url = $url
-                WITH n
-                MATCH (e:Event {{id: $event_id}})
-                MERGE (n)-[:{rel_type}]->(e)
-                """
-                npub = hex_to_npub(pubkey)
-                url = f"https://dvmdash.live/{'dvm' if node_type == 'DVM' else 'npub'}/{npub}"
-                await session.run(
-                    node_query, pubkey=pubkey, npub=npub, url=url, event_id=event_id
-                )
-
-                # Handle specific event types
-                if event_kind == 7000:  # Feedback event
-                    feedback_query = """
-                    MATCH (f:Event {id: $feedback_id})
-                    MATCH (r:Event {id: $request_id})
-                    MERGE (f)-[:FEEDBACK_FOR]->(r)
-                    """
-                    request_event_id = next(
-                        (tag[1] for tag in event.get("tags", []) if tag[0] == "e"), None
-                    )
-                    if request_event_id:
-                        await session.run(
-                            feedback_query,
-                            feedback_id=event_id,
-                            request_id=request_event_id,
-                        )
-
-                    # Handle invoice if present
-                    invoice_query = """
-                    MERGE (i:Invoice {id: $invoice_id})
-                    SET i += $invoice_props
-                    WITH i
-                    MATCH (f:Event {id: $feedback_id})
-                    MERGE (i)-[:INVOICE_FROM]->(f)
-                    """
-                    for tag in event.get("tags", []):
-                        if (
-                            tag[0] == "amount"
-                            and len(tag) >= 3
-                            and tag[2].startswith("lnbc")
-                        ):
-                            invoice_props = {
-                                "amount": tag[1],
-                                "invoice": tag[2],
-                                "creator_pubkey": pubkey,
-                                "feedback_event_id": event_id,
-                                "url": f"https://dvmdash.live/event/{tag[2]}",
-                            }
-                            await session.run(
-                                invoice_query,
-                                invoice_id=tag[2],
-                                invoice_props=invoice_props,
-                                feedback_id=event_id,
-                            )
-
-                LOGGER.info(f"Successfully processed event {event_id} in Neo4j")
-            except Exception as e:
-                LOGGER.error(f"Error processing event {event_id} in Neo4j: {str(e)}")
-
 
 async def nostr_client():
     keys = Keys.generate()
@@ -793,8 +709,11 @@ async def nostr_client():
     await client.connect()
 
     prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
+    prev_30days_timestamp = Timestamp.from_secs(
+        Timestamp.now().as_secs() - 60 * 60 * 24 * 30
+    )
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(prev_24hr_timestamp)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(prev_30days_timestamp)
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
@@ -805,44 +724,6 @@ async def nostr_client():
     )
     await client.handle_notifications(notification_handler)
     return client  # Return the client for potential cleanup
-
-
-def old_main():
-    # get the limits from sys.args
-    if len(sys.argv) == 4:
-        RUNTIME_LIMIT = int(sys.argv[1])
-        LOOKBACK_TIME = int(sys.argv[2])
-        WAIT_LIMIT = int(sys.argv[3])
-    else:
-        print(
-            "Usage: python listen_for_DVM_events.py <RUNTIME_LIMIT_AS_MINS>"
-            " <LOOKBACK_TIME_AS_MINS> <WAIT_LIMIT_AS_SECS>\n"
-            "Example: python listen_for_DVM_events.py 10 120 60\n"
-        )
-        sys.exit(1)
-
-    try:
-        LOGGER.info(f"Starting client run with RUNTIME_LIMIT: {RUNTIME_LIMIT} minutes")
-        LOGGER.info(f"Starting client run with LOOKBACK_TIME: {LOOKBACK_TIME} minutes")
-        LOGGER.info(f"Starting client run with WAIT_LIMIT: {WAIT_LIMIT} seconds")
-
-        run_nostr_client(
-            RUNTIME_LIMIT, LOOKBACK_TIME
-        )  # Replace 3 with your desired run time limit in minutes
-        LOGGER.info(
-            f"Client run completed. Sleeping for {WAIT_LIMIT} seconds before exiting completely"
-        )
-        time.sleep(WAIT_LIMIT)  # Sleep for a short time before restarting
-        LOGGER.info("Goodbye!")
-    except Exception as e:
-        LOGGER.error(f"Exception occurred: {e}")
-        LOGGER.info(
-            f"Client exception occurred. Sleeping for {WAIT_LIMIT} seconds before exiting completely"
-        )
-        time.sleep(
-            WAIT_LIMIT
-        )  # Sleep for a short time before restarting in case of an exception
-        LOGGER.info("Goodbye!")
 
 
 def create_test_events_collection():
@@ -917,16 +798,54 @@ def async_db_tests():
     loop.run_until_complete(write_test_docs())
 
 
+def global_exception_handler(loop, context):
+    exception = context.get("exception", context["message"])
+    LOGGER.error(f"Caught global exception: {exception}")
+    LOGGER.error(traceback.format_exc())
+
+
+async def main():
+    try:
+        client = await nostr_client()
+
+        # We'll create a task for client.handle_notifications, which is already running
+        handle_notifications_task = asyncio.current_task()
+
+        # Wait for all tasks to complete or for a keyboard interrupt
+        while True:
+            await asyncio.sleep(1)
+
+    except KeyboardInterrupt:
+        LOGGER.info("Received keyboard interrupt, shutting down...")
+    except Exception as e:
+        LOGGER.error(f"Unhandled exception in main: {e}")
+        traceback.print_exc()
+    finally:
+        # Attempt to disconnect the client
+        try:
+            await client.disconnect()
+        except Exception as e:
+            LOGGER.error(f"Error disconnecting client: {e}")
+
+        # Cancel all running tasks
+        for task in asyncio.all_tasks():
+            if task is not asyncio.current_task():
+                task.cancel()
+
+        # Wait for all tasks to be cancelled
+        await asyncio.gather(*asyncio.all_tasks(), return_exceptions=True)
+
+        LOGGER.info("All tasks have been cancelled, exiting...")
+
+
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    client = loop.run_until_complete(nostr_client())
-    # TODO - get async to end if GLOBAL_STOP is true.... probably just need to use an asyncio function to get
-    #  the current loop and end all tasks on it
-    #  THEN wrap all this code in the main function so it gets called again EXCEPT if there is a keyboard interrupt
+    loop.set_exception_handler(global_exception_handler)
     try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        pass
+        loop.run_until_complete(main())
+    except Exception as e:
+        LOGGER.error(f"Fatal error in main loop: {e}")
+        traceback.print_exc()
     finally:
-        loop.run_until_complete(client.disconnect())
         loop.close()
+        LOGGER.info("Event loop closed, exiting...")
