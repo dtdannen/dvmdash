@@ -35,7 +35,7 @@ import motor.motor_asyncio
 import pymongo  # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
-from general.helpers import hex_to_npub, clean_for_json
+from general.helpers import hex_to_npub, sanitize_json
 import traceback
 
 
@@ -181,7 +181,7 @@ RESTART_THRESHOLD = 0.2
 
 
 class NotificationHandler(HandleNotification):
-    def __init__(self, max_batch_size=100, max_wait_time=5):
+    def __init__(self, max_batch_size=100, max_wait_time=3):
         self.event_queue = Queue()
         self.neo4j_queue = Queue()  # this is for neo4j queries that need to go out
         self.max_batch_size = max_batch_size
@@ -317,9 +317,9 @@ class NotificationHandler(HandleNotification):
                 result = await ASYNC_MONGO_DB.test_events.insert_many(
                     events, ordered=False
                 )
-                LOGGER.info(
-                    f"Finished writing events to db with result: {len(result.inserted_ids)}"
-                )
+                # LOGGER.info(
+                #    f"Finished writing events to db with result: {len(result.inserted_ids)}"
+                # )
             except BulkWriteError as e:
                 # If you want to log the details of the duplicates or other errors
                 num_duplicates_found = len(e.details["writeErrors"])
@@ -349,15 +349,16 @@ class NotificationHandler(HandleNotification):
                     ):
                         batch.append(self.neo4j_queue.get_nowait())
 
-                    # Start a new session and transaction
-                    async with NEO4J_DRIVER.AsyncSession() as session:
-                        async with session.begin_transaction() as tx:
-                            for query in batch:
-                                # Execute each query within the transaction
-                                await tx.run(query["query"], **query["params"])
+                    async def _run_queries(tx, queries):
+                        for query in queries:
+                            # LOGGER.warning(
+                            #     f"About to run query {query['query']} with params {query['params']}"
+                            # )
+                            await tx.run(query["query"], **query["params"])
 
-                            # Commit the transaction
-                            await tx.commit()
+                    # Start a new session and transaction
+                    async with NEO4J_DRIVER.session() as session:
+                        await session.execute_write(_run_queries, batch)
 
                     LOGGER.info(
                         f"Successfully executed batch of {len(batch)} queries in Neo4j"
@@ -410,14 +411,18 @@ class NotificationHandler(HandleNotification):
                                 additional_properties["invoice_data"] = tag[2]
 
             # now create the event
-            event_query = """
+            event_query = (
+                """
                     OPTIONAL MATCH (existing:Event {id: $event_id})
                     WITH existing
                     WHERE existing IS NULL
-                    CREATE (n $labels {id: $event_id})
+                    CREATE (n:Event"""
+                + ":".join(additional_event_labels)
+                + """{id: $event_id}) 
                     SET n = apoc.convert.fromJsonMap($json)
                     RETURN n
                 """
+            )
             labels = ["Event"] + additional_event_labels
             # do this in this order, so we keep any top level event properties from the original note and don't
             # accidentally overwrite them
@@ -437,7 +442,7 @@ class NotificationHandler(HandleNotification):
                 "params": {
                     "event_id": event["id"],
                     "labels": labels,
-                    "json": json.dumps(clean_for_json(event)),
+                    "json": json.dumps(sanitize_json(event)),
                 },
             }
             await self.neo4j_queue.put(ready_to_execute_event_query)
@@ -457,11 +462,13 @@ class NotificationHandler(HandleNotification):
                 user_npub = hex_to_npub(event["pubkey"])
                 user_node_query_params = {
                     "npub_hex": event["pubkey"],
-                    "json": {
-                        "npub": user_npub,
-                        "url": "https://dvmdash.live/npub/" + user_npub,
-                        "neo4j_node_type": "User",
-                    },
+                    "json": json.dumps(
+                        {
+                            "npub": user_npub,
+                            "url": "https://dvmdash.live/npub/" + user_npub,
+                            "neo4j_node_type": "User",
+                        }
+                    ),
                 }
 
                 # TODO - later we can submit a request to relays to get a kind 0 profile for the USER and add
@@ -513,11 +520,13 @@ class NotificationHandler(HandleNotification):
                     dvm_npub = hex_to_npub(event["pubkey"])
                     dvm_node_query_params = {
                         "npub_hex": event["pubkey"],
-                        "json": {
-                            "npub": dvm_npub,
-                            "url": "https://dvmdash.live/dvm/" + dvm_npub,
-                            "neo4j_node_type": "DVM",
-                        },
+                        "json": json.dumps(
+                            {
+                                "npub": dvm_npub,
+                                "url": "https://dvmdash.live/dvm/" + dvm_npub,
+                                "neo4j_node_type": "DVM",
+                            }
+                        ),
                     }
 
                     # TODO - later we can submit a request to relays to get a kind 31990 profile for the DVM and add
