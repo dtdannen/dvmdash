@@ -665,9 +665,9 @@ class NotificationHandler(HandleNotification):
                             }
 
                             if "amount" in additional_properties:
-                                json_inner_params["json"][
+                                json_inner_params["amount"] = additional_properties[
                                     "amount"
-                                ] = additional_properties["amount"]
+                                ]
 
                             invoice_params = {
                                 "invoice_data": additional_properties["invoice_data"],
