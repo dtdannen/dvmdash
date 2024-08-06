@@ -37,6 +37,7 @@ from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
 from general.helpers import hex_to_npub, sanitize_json
 import traceback
+from bson.json_util import dumps
 
 
 def setup_logging():
@@ -128,6 +129,7 @@ def setup_database():
 
 
 SYNC_MONGO_DB, ASYNC_MONGO_DB, NEO4J_DRIVER = setup_database()
+NEO4J_BOOKMARK_MANAGER = AsyncGraphDatabase.bookmark_manager()
 
 
 def get_relays():
@@ -194,6 +196,7 @@ class NotificationHandler(HandleNotification):
         self.row_count = 0
         self.last_header_time = 0
         self.header_interval = 20  # Print header every 20 rows
+        self.neo4j_semaphore = asyncio.Semaphore(3)
 
     def count_new_seen_event(self):
         """
@@ -245,7 +248,7 @@ class NotificationHandler(HandleNotification):
             or current_time - self.last_header_time > 60
         ):
             header = f"{'Time':^12}|{'Event Queue':^15}|{'Neo4j Queue':^15}"
-            LOGGER.info("\n" + "=" * len(header))
+            # LOGGER.info("\n" + "=" * len(header))
             LOGGER.info(header)
             LOGGER.info("=" * len(header))
             self.last_header_time = current_time
@@ -269,6 +272,22 @@ class NotificationHandler(HandleNotification):
     async def handle_msg(self, relay_url: str, message: str):
         # Implement this method
         pass
+
+    async def manual_insert(self, event_json):
+        """
+        Manually insert an event into the system.
+
+        :param event_json: A JSON string representing the event to be inserted.
+        """
+        # Convert the JSON string back to an Event object
+        event = Event.from_json(event_json)
+
+        # Check if the event kind is relevant
+        if event.kind() in RELEVANT_KINDS:
+            await self.event_queue.put(json.loads(event.as_json()))
+
+            # Optionally, call print_queue_sizes or any other method to handle the event as needed
+            await self.print_queue_sizes()
 
     async def process_events(self):
         while True:
@@ -328,53 +347,33 @@ class NotificationHandler(HandleNotification):
             except Exception as e:
                 LOGGER.error(f"Error inserting events into database: {e}")
 
-    async def process_neo4j_queries(self):
-        while True:
-            batch = []
+    async def process_single_neo4j_query(self):
+        async with self.neo4j_semaphore:
             try:
-                await self.print_queue_sizes()
-                try:
-                    # Wait for the first query or until max_wait_time
-                    query = await asyncio.wait_for(
-                        self.neo4j_queue.get(), timeout=self.max_wait_time
-                    )
-                    batch.append(query)
-
-                    # Collect more queries if available, up to max_batch_size
-                    while (
-                        len(batch) < self.max_batch_size
-                        and not self.neo4j_queue.empty()
-                    ):
-                        batch.append(self.neo4j_queue.get_nowait())
-
-                    async def _run_queries(tx, queries):
-                        for query in queries:
-                            # LOGGER.warning(
-                            #     f"About to run query {query['query']} with params {query['params']}"
-                            # )
-                            await tx.run(query["query"], **query["params"])
-
-                    # Start a new session and transaction
-                    async with NEO4J_DRIVER.session() as session:
-                        await session.execute_write(_run_queries, batch)
-
-                    LOGGER.info(
-                        f"Successfully executed batch of {len(batch)} queries in Neo4j"
-                    )
-                except asyncio.TimeoutError:
-                    # If no queries received within max_wait_time, continue to next iteration
-                    continue
-                except Exception as e:
-                    LOGGER.error(f"Error executing batch queries in Neo4j: {str(e)}")
-                    traceback.print_exc()
+                query = await self.neo4j_queue.get()
+                async with NEO4J_DRIVER.session() as session:
+                    try:
+                        LOGGER.debug(
+                            f"Executing query: {query['query']} with params: {query['params']}"
+                        )
+                        result = await session.run(query["query"], **query["params"])
+                        await asyncio.sleep(0.001)
+                    except Exception as e:
+                        LOGGER.error(f"Error executing query in Neo4j: {str(e)}")
+                        LOGGER.error(
+                            f"Failed query: {query['query'][:100]}... Params: {query['params']}"
+                        )
+                        traceback.print_exc()
+                    finally:
+                        self.neo4j_queue.task_done()
             except Exception as e:
                 LOGGER.error(f"Unhandled exception in process_neo4j_queries: {e}")
                 traceback.print_exc()
-                await asyncio.sleep(5)  # Wait a bit before retrying
-            finally:
-                # Mark tasks as done
-                for _ in range(len(batch)):
-                    self.neo4j_queue.task_done()
+                await asyncio.sleep(2)  # Wait a bit before retrying
+
+    async def process_neo4j_queries(self):
+        while True:
+            await self.process_single_neo4j_query()
 
     async def create_neo4j_queries(self, events):
         if not events:
@@ -715,7 +714,8 @@ async def nostr_client():
         await client.add_relay(relay)
     await client.connect()
 
-    prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
+    now_timestamp = Timestamp.now()
+    # prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
     prev_30days_timestamp = Timestamp.from_secs(
         Timestamp.now().as_secs() - 60 * 60 * 24 * 30
     )
@@ -730,7 +730,7 @@ async def nostr_client():
         notification_handler.process_neo4j_queries()
     )
     await client.handle_notifications(notification_handler)
-    return client  # Return the client for potential cleanup
+    return client, notification_handler  # Return the client for potential cleanup
 
 
 def create_test_events_collection():
@@ -811,9 +811,40 @@ def global_exception_handler(loop, context):
     LOGGER.error(traceback.format_exc())
 
 
+async def test_neo4j_connection():
+    async with NEO4J_DRIVER.session() as session:
+        result = await session.run("CREATE (n:TestNode {name: 'test'}) RETURN n")
+        data = await result.single()
+        if data:
+            LOGGER.info("Successfully created test node")
+        else:
+            LOGGER.error("Failed to create test node")
+
+
 async def main():
+    await test_neo4j_connection()
+
     try:
-        client = await nostr_client()
+        client, notification_handler = await nostr_client()
+
+        # Fetch and process documents in batches
+        batch_size = 10  # Adjust based on your needs
+        cursor = ASYNC_MONGO_DB.events.find().batch_size(batch_size)
+
+        async for doc in cursor:
+            # LOGGER.info(f"doc is: {doc}")
+            # Ensure doc is treated as a dictionary here
+            if isinstance(doc, dict):  # Check if doc is indeed a dictionary
+                doc.pop("_id", None)  # Safely remove '_id' if it exists
+            else:
+                LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
+                continue
+
+            # Convert document to JSON string
+            doc_json_str = dumps(doc)
+
+            # Call your manual Nostr handler for each document
+            await notification_handler.manual_insert(doc_json_str)
 
         # We'll create a task for client.handle_notifications, which is already running
         handle_notifications_task = asyncio.current_task()
