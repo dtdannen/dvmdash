@@ -641,7 +641,9 @@ class NotificationHandler(HandleNotification):
                         if "invoice_data" in additional_properties:
                             # for now we use the invoice data as a unique identifier, mostly supporting the lnbc
                             # string format
-                            if not additional_properties["invoice"].startswith("lnbc"):
+                            if not additional_properties["invoice_data"].startswith(
+                                "lnbc"
+                            ):
                                 # TODO - add better support for other payment request types, like ecash
                                 LOGGER.warning(
                                     f"invoice data for feedback event {event['id']} does not start with 'lnbc'"
@@ -656,17 +658,21 @@ class NotificationHandler(HandleNotification):
                                 RETURN n
                             """
 
-                            invoice_params = {
+                            json_inner_params = {
                                 "creator_pubkey": event["pubkey"],
                                 "feedback_event_id": event["id"],
-                                "invoice_data": additional_properties["invoice_data"],
                                 "url": f"https://dvmdash.live/invoice/{additional_properties['invoice_data']}",
                             }
 
                             if "amount" in additional_properties:
-                                invoice_params["amount"] = additional_properties[
+                                json_inner_params["json"][
                                     "amount"
-                                ]
+                                ] = additional_properties["amount"]
+
+                            invoice_params = {
+                                "invoice_data": additional_properties["invoice_data"],
+                                "json": json.dumps(json_inner_params),
+                            }
 
                             ready_to_execute_create_invoice_node_query = {
                                 "query": create_invoice_node_query,
