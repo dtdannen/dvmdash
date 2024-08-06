@@ -638,7 +638,7 @@ class NotificationHandler(HandleNotification):
                 if dvm_request_event_id:
                     # let's create an invoice node if there is one
                     if "FeedbackPaymentRequest" in additional_event_labels:
-                        if "invoice" in additional_properties:
+                        if "invoice_data" in additional_properties:
                             # for now we use the invoice data as a unique identifier, mostly supporting the lnbc
                             # string format
                             if not additional_properties["invoice"].startswith("lnbc"):
