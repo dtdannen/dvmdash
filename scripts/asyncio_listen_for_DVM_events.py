@@ -314,9 +314,7 @@ class NotificationHandler(HandleNotification):
     async def async_write_to_mongo_db(self, events):
         if len(events) > 0:
             try:
-                result = await ASYNC_MONGO_DB.test_events.insert_many(
-                    events, ordered=False
-                )
+                result = await ASYNC_MONGO_DB.events.insert_many(events, ordered=False)
                 # LOGGER.info(
                 #    f"Finished writing events to db with result: {len(result.inserted_ids)}"
                 # )

@@ -41,9 +41,12 @@ class Neo4jService:
     def close(self):
         self._neo4j_driver.close()
 
-    def run_query(self, query):
+    def run_query(self, query, params=None):
         with self._neo4j_driver.session() as session:
-            result = session.run(query)
+            if params is None:
+                result = session.run(query)
+            else:
+                result = session.run(query, params)
             return [record.data() for record in result]
 
 

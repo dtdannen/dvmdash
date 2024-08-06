@@ -526,68 +526,64 @@ def get_graph_data(request, request_event_id=""):
     """
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
     """
-
-    # now call neo 4j to get the graph data
-    query = (
-        """
-        MATCH (req:Event {id: '"""
-        + request_event_id
-        + """'})
+    # now call neo4j to get the graph data
+    query = """
+        MATCH (req:Event {id: $request_event_id})
         OPTIONAL MATCH (n)-[r*]->(req)
-        RETURN n, r, req
-        """
+        RETURN req, COLLECT(n) AS related_nodes, COLLECT(r) AS relations
+    """
+
+    print(
+        "Querying neo4j with query: ",
+        query.replace("$request_event_id", f"'{request_event_id}'"),
     )
 
-    print("Querying neo4j with query: ", query)
-
-    data = neo4j_service.run_query(query)
+    params = {"request_event_id": request_event_id}
+    data = neo4j_service.run_query(query, params)
 
     # process the data so it's in an easy format for forming into a graph
     # these will all be triples
     node_relations = []
-
-    # print("Got data from neo4j:")
-    # print(json.dumps(data, indent=2, sort_keys=True))
-
     event_nodes = {}  # key is the event id, value is the event node
-    for record in data:
-        if "n" not in record:
-            print("WARNING!!!! 'n' is not in record:")
-            record_str = json.dumps(record, indent=2, sort_keys=True)
-            print(f"Record: {record_str}")
-            continue
 
+    print(f"Raw data from neo4j:\n{json.dumps(data, default=str, indent=2)}")
+
+    for record in data:
         if "req" not in record:
             print("WARNING!!!! 'req' is not in record:")
             record_str = json.dumps(record, indent=2, sort_keys=True)
             print(f"Record: {record_str}")
             continue
 
-        n_event_id, n_event_data = _get_row_data_from_event_dict(record["n"])
-        if n_event_id and n_event_id not in event_nodes.keys():
-            event_nodes[n_event_id] = n_event_data
-        if "n_type" in record and "neo4j_node_type" not in n_event_data:
-            n_event_data["neo4j_node_type"] = record["n_type"]
-
+        # Process the req node
         req_event_id, req_event_data = _get_row_data_from_event_dict(record["req"])
-        if req_event_id and req_event_id not in event_nodes.keys():
+        if req_event_id and req_event_id not in event_nodes:
             event_nodes[req_event_id] = req_event_data
         if "req_type" in record and "neo4j_node_type" not in req_event_data:
             req_event_data["neo4j_node_type"] = record["req_type"]
 
-        for relation in record["r"]:
-            lhs = relation[0]
-            relation_name = relation[1]
-            rhs = relation[2]
+        # Process related nodes
+        for n in record["related_nodes"]:
+            n_event_id, n_event_data = _get_row_data_from_event_dict(n)
+            if n_event_id and n_event_id not in event_nodes:
+                event_nodes[n_event_id] = n_event_data
+            if "n_type" in n and "neo4j_node_type" not in n_event_data:
+                n_event_data["neo4j_node_type"] = n["n_type"]
 
-            # if the relation is between two events, add it to the list
-            node_relations.append(
-                {
-                    "source_node": lhs,
-                    "target_node": rhs,
-                    "relation": relation_name,
-                }
-            )
+        # Process relations
+        for relation_path in record["relations"]:
+            for relation in relation_path:
+                # Assuming the relation tuple is structured as (start_node, type, end_node)
+                lhs = relation[0]  # start_node id
+                relation_name = relation[1]  # relation type
+                rhs = relation[2]  # end_node id
+                node_relations.append(
+                    {
+                        "source_node": lhs,
+                        "target_node": rhs,
+                        "relation": relation_name,
+                    }
+                )
 
     response_data = {
         "data": data,
