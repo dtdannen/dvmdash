@@ -24,6 +24,22 @@ def sanitize_json(data):
         return str(data)
 
 
+def format_query_with_params(query_and_params):
+    query = query_and_params["query"]
+    params = query_and_params["params"]
+    formatted_query = query
+    for key, value in params.items():
+        placeholder = f"${key}"
+        if isinstance(value, str):
+            formatted_value = f"'{value}'"
+        elif isinstance(value, (list, dict)):
+            formatted_value = json.dumps(value)
+        else:
+            formatted_value = str(value)
+        formatted_query = formatted_query.replace(placeholder, formatted_value)
+    return formatted_query
+
+
 def clean_for_json(data):
     if isinstance(data, dict):
         return {k: clean_for_json(v) for k, v in data.items() if k != "_id"}

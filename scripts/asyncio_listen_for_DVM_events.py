@@ -35,7 +35,7 @@ import motor.motor_asyncio
 import pymongo  # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
-from general.helpers import hex_to_npub, sanitize_json
+from general.helpers import hex_to_npub, sanitize_json, format_query_with_params
 import traceback
 from bson.json_util import dumps
 
@@ -408,18 +408,28 @@ class NotificationHandler(HandleNotification):
                                 additional_properties["invoice_data"] = tag[2]
 
             # now create the event
-            event_query = (
-                """
-                    OPTIONAL MATCH (existing:Event {id: $event_id})
-                    WITH existing
-                    WHERE existing IS NULL
-                    CREATE (n:Event"""
-                + ":".join(additional_event_labels)
-                + """{id: $event_id}) 
-                    SET n = apoc.convert.fromJsonMap($json)
-                    RETURN n
-                """
-            )
+            if len(additional_event_labels) > 0:
+                event_query = (
+                    """
+                        OPTIONAL MATCH (existing:Event {id: $event_id})
+                        WITH existing
+                        WHERE existing IS NULL
+                        CREATE (n:Event:"""
+                    + ":".join(additional_event_labels)
+                    + """{id: $event_id}) 
+                        SET n = apoc.convert.fromJsonMap($json)
+                        RETURN n
+                    """
+                )
+            else:
+                event_query = """
+                            OPTIONAL MATCH (existing:Event {id: $event_id})
+                            WITH existing
+                            WHERE existing IS NULL
+                            CREATE (n:Event {id: $event_id}) 
+                                        SET n = apoc.convert.fromJsonMap($json)
+                                        RETURN n
+                                    """
             labels = ["Event"] + additional_event_labels
             # do this in this order, so we keep any top level event properties from the original note and don't
             # accidentally overwrite them
@@ -442,6 +452,9 @@ class NotificationHandler(HandleNotification):
                     "json": json.dumps(sanitize_json(event)),
                 },
             }
+            LOGGER.info(
+                f"ready to execute query:\n{format_query_with_params(ready_to_execute_event_query)}"
+            )
             await self.neo4j_queue.put(ready_to_execute_event_query)
 
             # Step 3: Determine what other nodes and relations to also submit based on additional_event_labels
@@ -475,7 +488,9 @@ class NotificationHandler(HandleNotification):
                     "query": user_node_query,
                     "params": user_node_query_params,
                 }
-
+                LOGGER.info(
+                    f"ready to execute query:\n{format_query_with_params(ready_to_execute_user_query)}"
+                )
                 await self.neo4j_queue.put(ready_to_execute_user_query)
 
                 # now do the MADE_EVENT relation
@@ -494,7 +509,9 @@ class NotificationHandler(HandleNotification):
                         "event_id": event["id"],
                     },
                 }
-
+                LOGGER.info(
+                    f"ready to execute query:\n{format_query_with_params(ready_to_execute_made_event_query)}"
+                )
                 await self.neo4j_queue.put(ready_to_execute_made_event_query)
             elif additional_event_labels == ["DVMResult"]:
                 # let's get the 'e' tag pointing to the original request and if we can't find it, reject this event
@@ -533,7 +550,9 @@ class NotificationHandler(HandleNotification):
                         "query": dvm_node_query,
                         "params": dvm_node_query_params,
                     }
-
+                    LOGGER.info(
+                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_node_query)}"
+                    )
                     await self.neo4j_queue.put(ready_to_execute_dvm_node_query)
 
                     # now create the MADE_EVENT relation query
@@ -553,7 +572,9 @@ class NotificationHandler(HandleNotification):
                             "event_id": event["id"],
                         },
                     }
-
+                    LOGGER.info(
+                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_made_event_query)}"
+                    )
                     await self.neo4j_queue.put(ready_to_execute_dvm_made_event_query)
 
                     # now because this is a DVMResult, we want to add a relation from this to the original DVM Request
@@ -571,7 +592,9 @@ class NotificationHandler(HandleNotification):
                         "query": create_dvm_request_if_not_exist_query,
                         "params": {"event_id": dvm_request_event_id},
                     }
-
+                    LOGGER.info(
+                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_dvm_request_if_not_exist)}"
+                    )
                     await self.neo4j_queue.put(
                         ready_to_execute_create_dvm_request_if_not_exist
                     )
@@ -593,7 +616,9 @@ class NotificationHandler(HandleNotification):
                             "request_event_id": dvm_request_event_id,
                         },
                     }
-
+                    LOGGER.info(
+                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_result_to_request_rel_query)}"
+                    )
                     await self.neo4j_queue.put(
                         ready_to_execute_dvm_result_to_request_rel_query
                     )
@@ -649,7 +674,9 @@ class NotificationHandler(HandleNotification):
                             }
 
                             # TODO - put this event into a mongo collection for invoices so we can display this on the webpage
-
+                            LOGGER.info(
+                                f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_invoice_node_query)}"
+                            )
                             await self.neo4j_queue.put(
                                 ready_to_execute_create_invoice_node_query
                             )
@@ -672,7 +699,9 @@ class NotificationHandler(HandleNotification):
                                 "query": create_invoice_to_feedback_rel_query,
                                 "params": invoice_rel_params,
                             }
-
+                            LOGGER.info(
+                                f"ready to execute query:\n{format_query_with_params(ready_to_execute_invoice_to_feedback_rel)}"
+                            )
                             await self.neo4j_queue.put(
                                 ready_to_execute_invoice_to_feedback_rel
                             )
@@ -698,7 +727,9 @@ class NotificationHandler(HandleNotification):
                             "request_event_id": dvm_request_event_id,
                         },
                     }
-
+                    LOGGER.info(
+                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_feedback_to_request_rel_query)}"
+                    )
                     await self.neo4j_queue.put(
                         ready_to_execute_feedback_to_request_rel_query
                     )
@@ -720,7 +751,7 @@ async def nostr_client():
         Timestamp.now().as_secs() - 60 * 60 * 24 * 30
     )
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(prev_30days_timestamp)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(now_timestamp)
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
@@ -772,9 +803,15 @@ def async_db_tests():
                 doc_copy = doc.copy()  # Create a copy of the document
                 doc_copy.pop("_id", None)  # Remove '_id' from the copy if it exists
                 doc_copy.pop("tags", None)
+                # if "tags" in doc_copy:
+                #    doc_copy["tags"] = apoc.convert.toJson([doc_copy["tags"]])
                 json_data = json.dumps(
                     doc_copy
                 )  # Convert the modified document to a JSON string
+
+                # print(
+                #     f"test query is: {format_query_with_params({'query': query, '})}"
+                # )
 
                 try:
                     result = await session.run(query, event_id=event_id, json=json_data)
@@ -827,24 +864,25 @@ async def main():
     try:
         client, notification_handler = await nostr_client()
 
+        # uncomment this to get old events from the db into neo4j
         # Fetch and process documents in batches
-        batch_size = 10  # Adjust based on your needs
-        cursor = ASYNC_MONGO_DB.events.find().batch_size(batch_size)
-
-        async for doc in cursor:
-            # LOGGER.info(f"doc is: {doc}")
-            # Ensure doc is treated as a dictionary here
-            if isinstance(doc, dict):  # Check if doc is indeed a dictionary
-                doc.pop("_id", None)  # Safely remove '_id' if it exists
-            else:
-                LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
-                continue
-
-            # Convert document to JSON string
-            doc_json_str = dumps(doc)
-
-            # Call your manual Nostr handler for each document
-            await notification_handler.manual_insert(doc_json_str)
+        # batch_size = 10  # Adjust based on your needs
+        # cursor = ASYNC_MONGO_DB.events.find().batch_size(batch_size)
+        #
+        # async for doc in cursor:
+        #     # LOGGER.info(f"doc is: {doc}")
+        #     # Ensure doc is treated as a dictionary here
+        #     if isinstance(doc, dict):  # Check if doc is indeed a dictionary
+        #         doc.pop("_id", None)  # Safely remove '_id' if it exists
+        #     else:
+        #         LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
+        #         continue
+        #
+        #     # Convert document to JSON string
+        #     doc_json_str = dumps(doc)
+        #
+        #     # Call your manual Nostr handler for each document
+        #     await notification_handler.manual_insert(doc_json_str)
 
         # We'll create a task for client.handle_notifications, which is already running
         handle_notifications_task = asyncio.current_task()
@@ -877,6 +915,9 @@ async def main():
 
 
 if __name__ == "__main__":
+    # async_db_tests()
+    # sys.exit()
+
     loop = asyncio.get_event_loop()
     loop.set_exception_handler(global_exception_handler)
     try:
