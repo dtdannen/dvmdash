@@ -26,6 +26,8 @@ from pymongo.errors import BulkWriteError
 from general.dvm import EventKind
 from general.helpers import hex_to_npub, sanitize_json, format_query_with_params
 import traceback
+import argparse
+import datetime
 
 
 def setup_logging():
@@ -914,13 +916,27 @@ async def main():
 
 
 if __name__ == "__main__":
-    # async_db_tests()
-    # sys.exit()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--runtime", type=int, help="Number of minutes to run before exiting"
+    )
+    args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
     loop.set_exception_handler(global_exception_handler)
+
     try:
-        loop.run_until_complete(main())
+        if args.runtime:
+            end_time = datetime.datetime.now() + datetime.timedelta(
+                minutes=args.runtime
+            )
+            loop.run_until_complete(
+                asyncio.wait_for(main(), timeout=(args.runtime * 60))
+            )
+        else:
+            loop.run_until_complete(main())
+    except asyncio.TimeoutError:
+        LOGGER.info(f"Program ran for {args.runtime} minutes and is now exiting.")
     except Exception as e:
         LOGGER.error(f"Fatal error in main loop: {e}")
         traceback.print_exc()
