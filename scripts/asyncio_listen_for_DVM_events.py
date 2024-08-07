@@ -385,6 +385,11 @@ class NotificationHandler(HandleNotification):
             additional_properties = {}
             if 5000 <= event["kind"] < 6000:
                 additional_event_labels = ["DVMRequest"]
+                if "tags" in event:
+                    for tag in event["tags"]:
+                        if len(tag) > 0 and tag[0] == "encrypted":
+                            additional_event_labels.append("Encrypted")
+
             elif 6000 <= event["kind"] < 6999:
                 additional_event_labels = ["DVMResult"]
             elif event["kind"] == 7000:
