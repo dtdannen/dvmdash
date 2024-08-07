@@ -283,9 +283,9 @@ class Kind:
         jobs_performed: int,
         avg_response_time: float,
     ):
-        LOGGER.warning(
-            f"dvm npub is {dvm_npub} and dvm.npubs is {self.dvm_npubs} and is it inside it? {dvm_npub in self.dvm_npubs}"
-        )
+        # LOGGER.warning(
+        #     f"dvm npub is {dvm_npub} and dvm.npubs is {self.dvm_npubs} and is it inside it? {dvm_npub in self.dvm_npubs}"
+        # )
         if dvm_npub not in self.dvm_npubs:
             self.dvm_npubs.append(dvm_npub)
             self.millisats_earned_per_dvm[dvm_npub] = millisats_earned
@@ -1017,14 +1017,14 @@ if __name__ == "__main__":
             compute_basic_stats_from_db_queries()
             save_new_stats()
 
-            LOGGER.info(
-                f"there are {len(DVM.instances)} DVM Instances and {len(Kind.instances)} Kind Instances"
-            )
+            # LOGGER.info(
+            #     f"there are {len(DVM.instances)} DVM Instances and {len(Kind.instances)} Kind Instances"
+            # )
 
             LOGGER.info(
                 f"Stats computed and saved to MongoDB. Took {datetime.now() - start_time} seconds."
             )
-            LOGGER.info("Iteration complete. Press Ctrl+C to exit.")
+            # LOGGER.info("Iteration complete. Press Ctrl+C to exit.")
 
         except Exception as e:
             import traceback

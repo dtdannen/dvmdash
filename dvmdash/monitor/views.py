@@ -546,7 +546,7 @@ def get_graph_data(request, request_event_id=""):
     node_relations = []
     event_nodes = {}  # key is the event id, value is the event node
 
-    print(f"Raw data from neo4j:\n{json.dumps(data, default=str, indent=2)}")
+    # print(f"Raw data from neo4j:\n{json.dumps(data, default=str, indent=2)}")
 
     for record in data:
         if "req" not in record:
