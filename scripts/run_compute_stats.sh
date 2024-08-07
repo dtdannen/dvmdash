@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SCRIPT="/home/dvmdash/dvmdash/scripts/compute_stats.py"
-LOG_DIR="/home/dvmdash/dvmdash/logs"
+LOG_DIR="/home/dvmdash/dvmdash/compute_stats_logs"
 LOG_FILE="$LOG_DIR/compute_stats_$(date +"%Y-%m-%d_%H-%M-%S").log"
 VENV_PATH="/home/dvmdash/dvmdash/backend_venv"  # Update this with the correct path to your virtual environment
 MAX_LOG_FILES=100
