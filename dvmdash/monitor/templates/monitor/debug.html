@@ -99,7 +99,12 @@
 
 document.addEventListener("DOMContentLoaded", function() {
     console.log("vis.js loaded:", typeof vis !== 'undefined');
-  fetch('/api/graph/{{ event_id }}')
+
+    const relativeUrl = `/api/graph/{{ event_id }}`;
+    const fullUrl = new URL(relativeUrl, window.location.origin).href;
+    console.log("Attempting to fetch from full URL:", fullUrl);
+
+    fetch(fullUrl)
     .then(response => {
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
