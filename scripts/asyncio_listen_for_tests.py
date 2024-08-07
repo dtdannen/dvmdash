@@ -1,43 +1,15 @@
 import asyncio
-from asyncio import Queue
-import ast
-from collections import deque
-import random
-import sys
-from datetime import datetime, timedelta
-import nostr_sdk
-import json
-import os
-import time
-from pathlib import Path
-from threading import Thread, Lock
-import ctypes
-import loguru
-import dotenv
 from nostr_sdk import (
     Keys,
     Client,
-    Tag,
-    EventBuilder,
     Filter,
     HandleNotification,
     Timestamp,
-    nip04_decrypt,
-    LogLevel,
     NostrSigner,
     Kind,
-    SubscribeAutoCloseOptions,
-    Options,
     Event,
 )
-from neo4j import AsyncGraphDatabase
-import motor.motor_asyncio
-import pymongo  # used only to create new collections if they don't exist
-from pymongo.errors import BulkWriteError
-from general.dvm import EventKind
-from general.helpers import hex_to_npub, sanitize_json, format_query_with_params
-import traceback
-from bson.json_util import dumps
+
 
 RELAYS = list(
     "wss://nostr-pub.wellorder.net,wss://relay.damus.io,wss://nos.lol,wss://relay.primal.net,wss://offchain.pub,wss://nostr.mom,wss://relay.nostr.bg,wss://nostr.oxtr.dev,wss://relay.nostr.bg,wss://nostr-relay.nokotaro.com,wss://relay.nostr.wirednet.jp".split(

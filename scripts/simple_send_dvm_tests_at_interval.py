@@ -2,29 +2,12 @@
 This script sends a DVM test every minute, and measures how long it takes before we see it in our db
 """
 import asyncio
-import os
-import loguru
-import nostr_sdk
-from pathlib import Path
-import dotenv
-import sys
 from nostr_sdk import (
     Keys,
     Client,
-    Tag,
     EventBuilder,
-    Filter,
-    HandleNotification,
-    Timestamp,
-    nip04_decrypt,
-    LogLevel,
     NostrSigner,
-    Kind,
-    SubscribeAutoCloseOptions,
-    Options,
-    Event,
 )
-import motor.motor_asyncio
 
 RELAYS = list(
     "wss://nostr-pub.wellorder.net,wss://relay.damus.io,wss://nos.lol,wss://relay.primal.net,wss://offchain.pub,wss://nostr.mom,wss://relay.nostr.bg,wss://nostr.oxtr.dev,wss://relay.nostr.bg,wss://nostr-relay.nokotaro.com,wss://relay.nostr.wirednet.jp".split(
@@ -52,11 +35,12 @@ async def send_5000_event():
         f"\tWrite a poem about a data vending machine", []
     ).to_event(broadcasting_keys)
 
-    print(f"Sent event id: {event_i.id().to_hex()}")
     # print(f"event as json: {event_i.as_json()}")
 
     # print(f"\tSending a {event_i.kind().as_u16()} test note with id: {event_i.id()}")
     output = await broadcasting_client.send_event(event_i)
+
+    print(f"Sent event id: {event_i.id().to_hex()}, output is: {output}")
 
     # print(f"\tOutput: {output}")
 
