@@ -153,6 +153,26 @@ class GlobalStats:
 
         return stats
 
+    @classmethod
+    def reset(cls):
+        cls.dvm_requests = 0  # k
+        cls.dvm_results = 0  # k
+        cls.dvm_requests_24_hrs = 0  # k
+        cls.dvm_results_24_hrs = 0  # k
+        cls.dvm_requests_1_week = 0  # k
+        cls.dvm_results_1_week = 0  # k
+        cls.dvm_requests_1_month = 0  # k
+        cls.dvm_results_1_month = 0  # k
+        cls.unique_users = 0  # k
+        cls.most_popular_kind = -2  # k
+        cls.most_popular_dvm = None  # k
+
+        cls.num_request_kinds = -1
+        cls.num_result_kinds = -1
+        cls.total_amount_paid_to_dvm_millisats = -1
+
+        cls.num_nip89_profiles = -1
+
 
 # use this class to track all stats for a given DVM
 class DVM:
@@ -232,6 +252,10 @@ class DVM:
             npub_hex: dvm.compute_stats() for npub_hex, dvm in cls.instances.items()
         }
 
+    @classmethod
+    def reset(cls):
+        cls.instances = {}
+
 
 class Kind:
     instances = {}
@@ -259,6 +283,9 @@ class Kind:
         jobs_performed: int,
         avg_response_time: float,
     ):
+        LOGGER.warning(
+            f"dvm npub is {dvm_npub} and dvm.npubs is {self.dvm_npubs} and is it inside it? {dvm_npub in self.dvm_npubs}"
+        )
         if dvm_npub not in self.dvm_npubs:
             self.dvm_npubs.append(dvm_npub)
             self.millisats_earned_per_dvm[dvm_npub] = millisats_earned
@@ -313,6 +340,10 @@ class Kind:
             kind_number: kind.compute_stats()
             for kind_number, kind in cls.instances.items()
         }
+
+    @classmethod
+    def reset(cls):
+        cls.instances = {}
 
 
 def save_global_stats_to_mongodb():
@@ -978,6 +1009,10 @@ if __name__ == "__main__":
 
     while True:
         try:
+            GlobalStats.reset()
+            DVM.reset()
+            Kind.reset()
+
             start_time = datetime.now()
             compute_basic_stats_from_db_queries()
             save_new_stats()

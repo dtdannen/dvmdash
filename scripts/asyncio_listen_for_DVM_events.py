@@ -410,31 +410,36 @@ class NotificationHandler(HandleNotification):
                             additional_event_labels.append("Encrypted")
 
             # now create the event
-            if len(additional_event_labels) > 0:
-                event_query = (
-                    """
-                        OPTIONAL MATCH (existing:Event"""
-                    + ":".join(additional_event_labels)
-                    + """ {id: $event_id})
-                        WITH existing
-                        WHERE existing IS NULL
-                        CREATE (n:Event:"""
-                    + ":".join(additional_event_labels)
-                    + """{id: $event_id}) 
-                        SET n = apoc.convert.fromJsonMap($json)
-                        RETURN n
-                    """
-                )
-            else:
-                LOGGER.warning(f"No additional labels for event: {event}")
-                event_query = """
-                            OPTIONAL MATCH (existing:Event {id: $event_id})
-                            WITH existing
-                            WHERE existing IS NULL
-                            CREATE (n:Event {id: $event_id}) 
-                                        SET n = apoc.convert.fromJsonMap($json)
-                                        RETURN n
-                                    """
+            if len(additional_event_labels) == 0:
+                # do nothing for now
+                pass
+
+            event_query = (
+                """
+                    OPTIONAL MATCH (existing:Event"""
+                + ":".join(additional_event_labels)
+                + """ {id: $event_id})
+                    WITH existing
+                    WHERE existing IS NULL
+                    CREATE (n:Event:"""
+                + ":".join(additional_event_labels)
+                + """{id: $event_id}) 
+                    SET n += apoc.convert.fromJsonMap($json)
+                    RETURN n
+                """
+            )
+
+            # else:
+            #     pass
+            #     # LOGGER.warning(f"No additional labels for event: {event}")
+            #     # event_query = """
+            #     #             OPTIONAL MATCH (existing:Event {id: $event_id})
+            #     #             WITH existing
+            #     #             WHERE existing IS NULL
+            #     #             CREATE (n:Event {id: $event_id})
+            #     #                         SET n = apoc.convert.fromJsonMap($json)
+            #     #                         RETURN n
+            #     #                     """
             # do this in this order, so we keep any top level event properties from the original note and don't
             # accidentally overwrite them
             for prop_k, prop_v in additional_properties.items():
@@ -468,7 +473,7 @@ class NotificationHandler(HandleNotification):
                     WITH existing
                     WHERE existing IS NULL
                     CREATE (n:User {npub_hex: $npub_hex})
-                    SET n = apoc.convert.fromJsonMap($json)
+                    SET n += apoc.convert.fromJsonMap($json)
                     RETURN n
                 """
 
@@ -491,15 +496,15 @@ class NotificationHandler(HandleNotification):
                     "query": user_node_query,
                     "params": user_node_query_params,
                 }
-                # LOGGER.info(
-                #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_user_query)}"
-                # )
+                LOGGER.info(
+                    f"ready to execute query:\n{format_query_with_params(ready_to_execute_user_query)}"
+                )
                 await self.neo4j_queue.put(ready_to_execute_user_query)
 
                 # now do the MADE_EVENT relation
                 made_event_query = """
                     MATCH (n:User {npub_hex: $npub_hex})
-                    MATCH (r:Event {id: $event_id})
+                    MATCH (r:Event:DVMRequest {id: $event_id})
                     WHERE NOT (n)-[:MADE_EVENT]->(r)
                     CREATE (n)-[rel:MADE_EVENT]->(r)
                     RETURN rel
@@ -512,9 +517,9 @@ class NotificationHandler(HandleNotification):
                         "event_id": event["id"],
                     },
                 }
-                # LOGGER.info(
-                #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_made_event_query)}"
-                # )
+                LOGGER.info(
+                    f"ready to execute query:\n{format_query_with_params(ready_to_execute_made_event_query)}"
+                )
                 await self.neo4j_queue.put(ready_to_execute_made_event_query)
             elif additional_event_labels == ["DVMResult"]:
                 # let's get the 'e' tag pointing to the original request and if we can't find it, reject this event
@@ -530,7 +535,7 @@ class NotificationHandler(HandleNotification):
                         WITH existing
                         WHERE existing IS NULL
                         CREATE (n:DVM {npub_hex: $npub_hex})
-                        SET n = apoc.convert.fromJsonMap($json)
+                        SET n += apoc.convert.fromJsonMap($json)
                         RETURN n
                     """
 
@@ -562,7 +567,7 @@ class NotificationHandler(HandleNotification):
 
                     dvm_made_event_query = """
                         MATCH (n:DVM {npub_hex: $npub_hex})
-                        MATCH (r:Event {id: $event_id})
+                        MATCH (r:Event:DVMResult {id: $event_id})
                         WHERE NOT (n)-[:MADE_EVENT]->(r)
                         CREATE (n)-[rel:MADE_EVENT]->(r)
                         RETURN rel
@@ -637,6 +642,40 @@ class NotificationHandler(HandleNotification):
                     if len(tag) > 1 and tag[0] == "e":
                         dvm_request_event_id = tag[1]
                         break
+
+                # create the DVM node if it doesn't exist yet
+                dvm_node_query = """
+                    OPTIONAL MATCH (existing:DVM {npub_hex: $npub_hex})
+                    WITH existing
+                    WHERE existing IS NULL
+                    CREATE (n:DVM {npub_hex: $npub_hex})
+                    SET n += apoc.convert.fromJsonMap($json)
+                    RETURN n
+                """
+
+                dvm_npub = hex_to_npub(event["pubkey"])
+                dvm_node_query_params = {
+                    "npub_hex": event["pubkey"],
+                    "json": json.dumps(
+                        {
+                            "npub": dvm_npub,
+                            "url": "https://dvmdash.live/dvm/" + dvm_npub,
+                            "neo4j_node_type": "DVM",
+                        }
+                    ),
+                }
+
+                # TODO - later we can submit a request to relays to get a kind 31990 profile for the DVM and add
+                #  these values to the dvm node params
+
+                ready_to_execute_dvm_node_query = {
+                    "query": dvm_node_query,
+                    "params": dvm_node_query_params,
+                }
+                # LOGGER.info(
+                #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_node_query)}"
+                # )
+                await self.neo4j_queue.put(ready_to_execute_dvm_node_query)
 
                 # create the MADE_EVENT rel from the DVM to this Feedback event
                 dvm_made_feedback_query = """
@@ -770,13 +809,13 @@ async def nostr_client():
         await client.add_relay(relay)
     await client.connect()
 
-    # now_timestamp = Timestamp.now()
+    now_timestamp = Timestamp.now()
     # prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
-    prev_30days_timestamp = Timestamp.from_secs(
-        Timestamp.now().as_secs() - 60 * 60 * 24 * 30
-    )
+    # prev_30days_timestamp = Timestamp.from_secs(
+    #     Timestamp.now().as_secs() - 60 * 60 * 24 * 30
+    # )
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(prev_30days_timestamp)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(now_timestamp)
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
@@ -884,7 +923,7 @@ async def test_neo4j_connection():
 
 
 async def main():
-    await test_neo4j_connection()
+    # await test_neo4j_connection()
 
     try:
         client, notification_handler = await nostr_client()
