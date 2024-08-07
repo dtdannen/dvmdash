@@ -82,7 +82,10 @@ def setup_databases():
         ca = certifi.where()
 
         # connect to db
-        mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True, tlsCAFile=ca)
+        # mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True, tlsCAFile=ca)
+        mongo_client = MongoClient(
+            os.getenv("MONGO_URI")
+        )  # use this for local mongo server
         db = mongo_client["dvmdash"]
 
         logger.info("Connected to cloud mongo db")
@@ -139,7 +142,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.ERROR)
     graph_sync = GraphDBSync(mongo_db, neo4j_driver, logger)
     print("About to clear neo4j db...")
-    # graph_sync.clear()
+    graph_sync.clear()
     print("About to sync...")
     graph_sync.run()
 

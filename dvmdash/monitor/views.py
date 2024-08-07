@@ -31,7 +31,7 @@ if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like s
     print("Connected to local mongo db using MONGITA")
 else:
     # connect to db
-    mongo_client = MongoClient(os.getenv("MONGO_URI"), tls=True)
+    mongo_client = MongoClient(os.getenv("MONGO_URI"))
     db = mongo_client["dvmdash"]
 
     try:
@@ -47,300 +47,75 @@ else:
 
 
 def metrics(request):
-    context = {}
-
-    # get the number of events in the database
-    num_dvm_events_in_db = db.events.count_documents({})
-    context["num_dvm_events_in_db"] = num_dvm_events_in_db
-
-    # get the number of unique kinds of all events
-    all_dvm_events_cursor = db.events.find(
-        {"kind": {"$gte": 5000, "$lte": 6999, "$nin": EventKind.get_bad_dvm_kinds()}}
-    )
-    all_dvm_events = list(all_dvm_events_cursor)
-
-    # print the memory usages of all events so far:
-    memory_usage = sys.getsizeof(all_dvm_events)
-    # Convert memory usage to megabytes
-    memory_usage_mb = memory_usage / (1024 * 1024)
-    print(f"Memory usage of all_dvm_events: {memory_usage_mb:.2f} MB")
-
-    dvm_nip89_profiles = {}
-
-    for nip89_event in db.events.find({"kind": 31990}):
-        if "pubkey" in nip89_event:
-            try:
-                dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
-                    nip89_event["content"]
-                )
-                # print(
-                #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
-                # )
-            except Exception as e:
-                # print(f"Error loading json from {nip89_event['content']}")
-                # print(f"Content is: {nip89_event['content']}")
-                # print(e)
-                pass
-
-    request_kinds_counts = {}
-    response_kinds_counts = {}
-    zap_counts = 0
-    dm_counts = 0
-    uncategorized_counts = 0
-    num_dvm_request_events = 0
-    num_dvm_response_events = 0
-
-    current_timestamp = Timestamp.now()
-    current_secs = current_timestamp.as_secs()
-
-    max_time_24hr = Timestamp.from_secs(current_secs - (24 * 60 * 60))
-    max_time_1week = Timestamp.from_secs(current_secs - (7 * 24 * 60 * 60))
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    dvm_tasks_24h = db.events.count_documents(
-        {
-            "created_at": {"$gte": max_time_24hr.as_secs()},
-            "kind": {"$gte": 5000, "$lte": 5999},
-        }
-    )
-    context["num_dvm_tasks_24h"] = dvm_tasks_24h
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    dvm_results_24h = db.events.count_documents(
-        {
-            "created_at": {"$gte": max_time_24hr.as_secs()},
-            "kind": {"$gte": 6000, "$lte": 6999},
-        }
-    )
-    context["num_dvm_results_24h"] = dvm_results_24h
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    dvm_tasks_1week = db.events.count_documents(
-        {
-            "created_at": {"$gte": max_time_1week.as_secs()},
-            "kind": {"$gte": 5000, "$lte": 5999},
-        }
-    )
-    context["num_dvm_tasks_1week"] = dvm_tasks_1week
-
-    # TODO - alter this to make sure bad dvm kinds are ignored
-    dvm_results_1week = db.events.count_documents(
-        {
-            "created_at": {"$gte": max_time_1week.as_secs()},
-            "kind": {"$gte": 6000, "$lte": 6999},
-        }
-    )
-
-    context["num_dvm_results_1week"] = dvm_results_1week
-
-    # pub ids of all dvms
-    dvm_job_results = {}
-
-    # pub ids of all dvm requests - these are probably people?
-    dvm_job_requests = {}
-
-    for dvm_event_i in all_dvm_events:
-        if "kind" in dvm_event_i:
-            kind_num = dvm_event_i["kind"]
-
-            if (
-                5000 <= kind_num <= 5999
-                and kind_num not in EventKind.get_bad_dvm_kinds()
-            ):
-                num_dvm_request_events += 1
-                if kind_num in request_kinds_counts:
-                    request_kinds_counts[kind_num] += 1
-                else:
-                    request_kinds_counts[kind_num] = 1
-
-                dvm_request_pub_key = dvm_event_i["pubkey"]
-                if dvm_request_pub_key in dvm_job_requests:
-                    dvm_job_requests[dvm_request_pub_key] += 1
-                else:
-                    dvm_job_requests[dvm_request_pub_key] = 1
-
-            elif (
-                6000 <= kind_num <= 6999
-                and kind_num not in EventKind.get_bad_dvm_kinds()
-            ):
-                num_dvm_response_events += 1
-                if kind_num in response_kinds_counts:
-                    response_kinds_counts[kind_num] += 1
-                else:
-                    response_kinds_counts[kind_num] = 1
-
-                dvm_pub_key = dvm_event_i["pubkey"]
-                if dvm_pub_key in dvm_job_results:
-                    dvm_job_results[dvm_pub_key] += 1
-                else:
-                    dvm_job_results[dvm_pub_key] = 1
-
-            elif kind_num == 9735:
-                zap_counts += 1
-            elif kind_num == 4:
-                dm_counts += 1
-            else:
-                uncategorized_counts += 1
-        else:
-            print("WARNING - event missing kind field")
-            print(f"{dvm_event_i}")
-
-    # this is used to make the bars and labels of the graphs clickable to go to the corresponding dvm page
-    labels_to_pubkeys = {}
-
-    # replace dvm_job_results keys with names if available
-    dvm_job_results_names = {}
-    for pub_key, count in dvm_job_results.items():
-        if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
-            dvm_job_results_names[dvm_nip89_profiles[pub_key]["name"]] = count
-            labels_to_pubkeys[dvm_nip89_profiles[pub_key]["name"]] = pub_key
-        else:
-            dvm_job_results_names[pub_key[:6]] = count
-            labels_to_pubkeys[pub_key[:6]] = pub_key
-
-    context["num_dvm_kinds"] = len(list(request_kinds_counts.keys()))
-    context["num_dvm_feedback_kinds"] = len(list(response_kinds_counts.keys()))
-    context["zap_counts"] = zap_counts
-    context["dm_counts"] = dm_counts
-    context["uncategorized_counts"] = uncategorized_counts
-    context["num_dvm_request_kinds"] = len(
-        [
-            k
-            for k in list(request_kinds_counts.keys())
-            if k not in EventKind.get_bad_dvm_kinds()
-        ]
-    )
-    context["num_dvm_response_kinds"] = len(
-        [
-            k
-            for k in list(response_kinds_counts.keys())
-            if k not in EventKind.get_bad_dvm_kinds()
-        ]
-    )
-    context["request_kinds_counts"] = request_kinds_counts
-    context["response_kinds_counts"] = response_kinds_counts
-    context["num_dvm_request_events"] = num_dvm_request_events
-    context["num_dvm_response_events"] = num_dvm_response_events
-    context["dvm_job_results"] = {
-        k: v for k, v in dvm_job_results_names.items() if v > 100
-    }
-    context["dvm_pub_keys"] = len(list(dvm_job_results.keys()))
-    context["dvm_nip_89s"] = len(list(dvm_nip89_profiles.keys()))
-
-    most_popular_dvm_npub = max(dvm_job_results, key=dvm_job_results.get)
-    if (
-        most_popular_dvm_npub in dvm_nip89_profiles
-        and "name" in dvm_nip89_profiles[most_popular_dvm_npub]
-    ):
-        context["most_popular_dvm"] = dvm_nip89_profiles[most_popular_dvm_npub]["name"]
-
-    context["most_popular_kind"] = max(
-        request_kinds_counts, key=request_kinds_counts.get
-    )
-
-    # get the top 15 dvm job requests pub ids
-    # first sort dictionary by value
-    # then pick the top 15
-    # Sort the dictionary by value in descending order and get the top 15 items
-    top_dvm_job_requests = sorted(
-        dvm_job_requests.items(), key=lambda x: x[1], reverse=True
-    )[:15]
-
-    # Convert the list of tuples back to a dictionary
-    top_dvm_job_requests_dict = dict(top_dvm_job_requests)
-
-    top_dvm_job_requests_via_name = {}
-    for pub_key, count in top_dvm_job_requests_dict.items():
-        print(f"pub_key: {pub_key}, count: {count}")
-        if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
-            top_dvm_job_requests_via_name[dvm_nip89_profiles[pub_key]["name"]] = count
-            labels_to_pubkeys[dvm_nip89_profiles[pub_key]["name"]] = pub_key
-        else:
-            top_dvm_job_requests_via_name[pub_key[:6]] = count
-            labels_to_pubkeys[pub_key[:6]] = pub_key
-
-    context["dvm_job_requests"] = top_dvm_job_requests_via_name
-    context["labels_to_pubkeys"] = json.dumps(labels_to_pubkeys).replace("'", "")
-
-    for kind, count in request_kinds_counts.items():
-        print(f"\tKind {kind} has {count} instances")
-
-    print(f"Setting var num_dvm_kinds to {context['num_dvm_kinds']}")
+    # get the latest stats doc from the stats collection
+    most_recent_stats = db.new_global_stats.find_one(sort=[("timestamp", -1)])
 
     template = loader.get_template("monitor/metrics.html")
-    return HttpResponse(template.render(context, request))
+    return HttpResponse(template.render(most_recent_stats, request))
 
 
 def dvm(request, pub_key=""):
     print(f"Calling dvm with dvm_pub_key: {pub_key}")
     context = {}
 
-    if pub_key == "":
-        # get all dvm pub keys
-        # TODO - update this to ignore bad dvm event kinds
-        dvm_pub_keys = list(
-            db.events.distinct("pubkey", {"kind": {"$gte": 5000, "$lte": 6999}})
+    # get all the stats on all the dvms
+    pipeline = [
+        # Sort by timestamp in descending order
+        {"$sort": {"timestamp": -1}},
+        # Group all documents and get the max timestamp
+        {
+            "$group": {
+                "_id": None,
+                "maxTimestamp": {"$first": "$timestamp"},
+                "docs": {"$push": "$$ROOT"},
+            }
+        },
+        # Unwind the docs array
+        {"$unwind": "$docs"},
+        # Filter to keep only the docs with the max timestamp
+        {"$match": {"$expr": {"$eq": ["$docs.timestamp", "$maxTimestamp"]}}},
+        # Project to return only the original document structure
+        {"$replaceRoot": {"newRoot": "$docs"}},
+        # Sort by number of jobs completed in descending order
+        {"$sort": {"number_jobs_completed": -1}},
+    ]
+
+    # Execute the aggregation pipeline
+    dvm_docs = list(db.new_dvm_stats.aggregate(pipeline))
+
+    context["dvm_stat_docs"] = dvm_docs
+
+    if len(pub_key) > 0:
+        print(f"len of pub_key is: {len(pub_key)}")
+        dvm_events = list(
+            db.events.find({"pubkey": pub_key}).sort("created_at").limit(100)
         )
 
-        # get all dvm pub key names from nip 89s
-        dvm_nip89_profiles = {}
+        # compute the number of results
+        memory_usage = sys.getsizeof(dvm_events)
+        print(f"Memory usage of dvm_events: {memory_usage}")
 
-        for nip89_event in db.events.find({"kind": 31990}):
-            if "pubkey" in nip89_event:
-                try:
-                    dvm_nip89_profiles[nip89_event["pubkey"]] = json.loads(
-                        nip89_event["content"]
-                    )
-                    # print(
-                    #     f"Successfully loaded json from nip89 event for pubkey {nip89_event['pubkey']}"
-                    # )
-                except Exception as e:
-                    # print(f"Error loading json from {nip89_event['content']}")
-                    # print(f"Content is: {nip89_event['content']}")
-                    # print(e)
-                    pass
+        # Convert Unix timestamps to datetime objects
+        for event in dvm_events:
+            event["created_at"] = timezone.make_aware(
+                datetime.fromtimestamp(int(event["created_at"]))
+            )
 
-        dvm_pub_keys_and_names = {}  # key is pub key or dvm name, value is pub key
+        context["dvm_pub_key"] = pub_key
+        context["recent_dvm_events"] = dvm_events
+        most_recent_stats = None
+        try:
+            for dvm_stat in dvm_docs:
+                dvm_doc_metadata = dvm_stat["metadata"]
+                dvm_doc_pub_key_hex = dvm_doc_metadata["dvm_npub_hex"]
+                if dvm_doc_pub_key_hex == pub_key:
+                    most_recent_stats = dvm_stat
+                    break
 
-        for pub_key in dvm_pub_keys:
-            dvm_pub_keys_and_names[pub_key] = pub_key
-            dvm_pub_keys_and_names[helpers.hex_to_npub(pub_key)] = pub_key
-            if pub_key in dvm_nip89_profiles and "name" in dvm_nip89_profiles[pub_key]:
-                dvm_pub_keys_and_names[dvm_nip89_profiles[pub_key]["name"]] = pub_key
-
-        context["dvm_pub_keys_and_names"] = dvm_pub_keys_and_names
-
-        template = loader.get_template("monitor/dvm.html")
-        return HttpResponse(template.render(context, request))
-
-    # get profile information for this dvm
-    # check to see if there is a nip89 profile, if so grab the latest one
-    dvm_nip89_profile_latest = db.events.find_one(
-        {"kind": 31990, "pubkey": pub_key},
-        sort=[("created_at", -1)],
-    )
-
-    if dvm_nip89_profile_latest is not None:
-        context["dvm_nip89_profile"] = json.loads(dvm_nip89_profile_latest["content"])
-
-    # get all events from this dvm_pub_key
-    dvm_events = list(db.events.find({"pubkey": pub_key}))
-
-    memory_usage = sys.getsizeof(dvm_events)
-    print(f"Memory usage of dvm_events: {memory_usage}")
-
-    num_dvm_events = len(dvm_events)
-
-    # compute that number of events per day for the last 30 days
-    # get the current time
-    current_timestamp = Timestamp.now()
-    current_secs = current_timestamp.as_secs()
-
-    num_events_per_day = {}
-
-    context["num_dvm_events"] = num_dvm_events
-    context["dvm_pub_key"] = pub_key
-    context["num_events_per_day"] = num_events_per_day
+            if most_recent_stats:
+                context.update(most_recent_stats)
+        except:
+            print(f"Could not find pub_key {pub_key} in recent dvm_stats")
 
     template = loader.get_template("monitor/dvm.html")
     return HttpResponse(template.render(context, request))
@@ -350,30 +125,61 @@ def kind(request, kind_num=""):
     print(f"Calling kind with kind_num: {kind_num}")
     context = {}
 
-    if kind_num == "":
-        # get all kinds
-        kinds = list(db.events.distinct("kind"))
+    pipeline = [
+        # Sort by timestamp in descending order
+        {"$sort": {"timestamp": -1}},
+        # Group all documents by kind_number and get the most recent document for each kind
+        {"$group": {"_id": "$metadata.kind_number", "doc": {"$first": "$$ROOT"}}},
+        # Replace the root with the original document structure
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        # Sort by total jobs requested in descending order
+        {"$sort": {"total_jobs_requested": -1}},
+    ]
 
-        context["kinds"] = kinds
+    # Execute the aggregation pipeline
+    kind_stat_docs = list(db.new_kind_stats.aggregate(pipeline))
 
-        template = loader.get_template("monitor/kind.html")
-        return HttpResponse(template.render(context, request))
+    context["kind_stat_docs"] = kind_stat_docs
+    context["kinds"] = [doc["metadata"]["kind_number"] for doc in kind_stat_docs]
 
-    # get all events of this kind
-    kind_events = list(db.events.find({"kind": int(kind_num)}))
+    if len(kind_num) > 0:
+        # load the data for this specific kind
+        kind_num = int(kind_num)
+        context["kind"] = kind_num
 
-    # get all unique dvms that have this kind of event, and get the counts for number of events per dvm
-    # TODO - fix this
-    # dvm_pub_keys = list(db.events.distinct("pubkey", {"kind": int(kind_num)}))
+        most_recent_stats = None
+        try:
+            for kind_stat in kind_stat_docs:
+                kind_stat_metadata = kind_stat["metadata"]
+                kind_num_in_doc = kind_stat_metadata["kind_number"]
+                if kind_num == kind_num_in_doc:
+                    most_recent_stats = kind_stat
+                    break
 
-    memory_usage = sys.getsizeof(kind_events)
-    print(f"Memory usage of kind_events: {memory_usage}")
+            if most_recent_stats:
+                # Sort data_per_dvm by jobs_performed
+                if "data_per_dvm" in most_recent_stats:
+                    sorted_data_per_dvm = sorted(
+                        most_recent_stats["data_per_dvm"].items(),
+                        key=lambda x: x[1]["jobs_performed"],
+                        reverse=True,
+                    )
+                    most_recent_stats[
+                        "sorted_data_per_dvm"
+                    ] = sorted_data_per_dvm  # New key for sorted data
 
-    num_kind_events = len(kind_events)
+                context.update(most_recent_stats)
+        except:
+            print(f"Could not find pub_key {kind_num} in recent dvm_stats")
 
-    context["kind"] = kind_num
-    context["num_kind_events"] = num_kind_events
-    context["kind_num"] = kind_num
+        context.update(most_recent_stats)
+
+        # get most recent events
+        recent_events = list(
+            db.events.find({"kind": int(kind_num)}).sort("created_at").limit(100)
+        )
+
+        context["recent_events"] = recent_events
 
     template = loader.get_template("monitor/kind.html")
     return HttpResponse(template.render(context, request))
@@ -674,7 +480,7 @@ def _get_row_data_from_event_dict(event_dict):
             already_processed_quick_details = True
 
     # as a last resort, try the 'i' tag
-    if not already_processed_quick_details:
+    if not already_processed_quick_details and "tags" in event_dict:
         tags_str = event_dict["tags"]
         try:
             tags = ast.literal_eval(tags_str)
@@ -688,6 +494,23 @@ def _get_row_data_from_event_dict(event_dict):
             print(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
             # Skip processing tags for this record and continue with the next one
             pass
+
+    # for invoices, use a message with the amount and a clickable lighting invoice for quick details
+    if (
+        not already_processed_quick_details
+        and "amount" in event_dict
+        and "invoice" in event_dict
+        and "creator_pubkey" in event_dict
+    ):
+        amount_millisats = int(event_dict["amount"])
+        invoice_str = event_dict["invoice"]
+        creator_pubkey_str = event_dict["creator_pubkey"]
+        event_dict["pubkey"] = creator_pubkey_str
+
+        event_dict[
+            "quick_details"
+        ] = f'Invoice for {amount_millisats / 1000 :.2f} sats (<a href="lightning:${invoice_str}">Click to Pay</a>)'
+        already_processed_quick_details = True
 
     if already_processed_quick_details:
         # check to see if the value is a link and if so, make a url
@@ -703,68 +526,64 @@ def get_graph_data(request, request_event_id=""):
     """
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
     """
-
-    # now call neo 4j to get the graph data
-    query = (
-        """
-        MATCH (req:Event {id: '"""
-        + request_event_id
-        + """'})
+    # now call neo4j to get the graph data
+    query = """
+        MATCH (req:Event {id: $request_event_id})
         OPTIONAL MATCH (n)-[r*]->(req)
-        RETURN n, r, req
-        """
+        RETURN req, COLLECT(n) AS related_nodes, COLLECT(r) AS relations
+    """
+
+    print(
+        "Querying neo4j with query: ",
+        query.replace("$request_event_id", f"'{request_event_id}'"),
     )
 
-    print("Querying neo4j with query: ", query)
-
-    data = neo4j_service.run_query(query)
+    params = {"request_event_id": request_event_id}
+    data = neo4j_service.run_query(query, params)
 
     # process the data so it's in an easy format for forming into a graph
     # these will all be triples
     node_relations = []
-
-    # print("Got data from neo4j:")
-    # print(json.dumps(data, indent=2, sort_keys=True))
-
     event_nodes = {}  # key is the event id, value is the event node
-    for record in data:
-        if "n" not in record:
-            print("WARNING!!!! 'n' is not in record:")
-            record_str = json.dumps(record, indent=2, sort_keys=True)
-            print(f"Record: {record_str}")
-            continue
 
+    print(f"Raw data from neo4j:\n{json.dumps(data, default=str, indent=2)}")
+
+    for record in data:
         if "req" not in record:
             print("WARNING!!!! 'req' is not in record:")
             record_str = json.dumps(record, indent=2, sort_keys=True)
             print(f"Record: {record_str}")
             continue
 
-        n_event_id, n_event_data = _get_row_data_from_event_dict(record["n"])
-        if n_event_id and n_event_id not in event_nodes.keys():
-            event_nodes[n_event_id] = n_event_data
-        if "n_type" in record and "neo4j_node_type" not in n_event_data:
-            n_event_data["neo4j_node_type"] = record["n_type"]
-
+        # Process the req node
         req_event_id, req_event_data = _get_row_data_from_event_dict(record["req"])
-        if req_event_id and req_event_id not in event_nodes.keys():
+        if req_event_id and req_event_id not in event_nodes:
             event_nodes[req_event_id] = req_event_data
         if "req_type" in record and "neo4j_node_type" not in req_event_data:
             req_event_data["neo4j_node_type"] = record["req_type"]
 
-        for relation in record["r"]:
-            lhs = relation[0]
-            relation_name = relation[1]
-            rhs = relation[2]
+        # Process related nodes
+        for n in record["related_nodes"]:
+            n_event_id, n_event_data = _get_row_data_from_event_dict(n)
+            if n_event_id and n_event_id not in event_nodes:
+                event_nodes[n_event_id] = n_event_data
+            if "n_type" in n and "neo4j_node_type" not in n_event_data:
+                n_event_data["neo4j_node_type"] = n["n_type"]
 
-            # if the relation is between two events, add it to the list
-            node_relations.append(
-                {
-                    "source_node": lhs,
-                    "target_node": rhs,
-                    "relation": relation_name,
-                }
-            )
+        # Process relations
+        for relation_path in record["relations"]:
+            for relation in relation_path:
+                # Assuming the relation tuple is structured as (start_node, type, end_node)
+                lhs = relation[0]  # start_node id
+                relation_name = relation[1]  # relation type
+                rhs = relation[2]  # end_node id
+                node_relations.append(
+                    {
+                        "source_node": lhs,
+                        "target_node": rhs,
+                        "relation": relation_name,
+                    }
+                )
 
     response_data = {
         "data": data,
@@ -773,3 +592,9 @@ def get_graph_data(request, request_event_id=""):
     }
 
     return JsonResponse(response_data, safe=False)
+
+
+def playground(request):
+    context = {}
+    template = loader.get_template("monitor/playground.html")
+    return HttpResponse(template.render(context, request))

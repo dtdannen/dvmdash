@@ -1,5 +1,13 @@
 # Scripts
 
+
+## make sure you can pull from the repo
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/<your_ssh_key_for_github_here>
+```
+
 ## run_and_monitor_listener.sh
 
 First, make sure you set up the `backend_venv`

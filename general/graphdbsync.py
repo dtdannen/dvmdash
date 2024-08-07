@@ -1,7 +1,7 @@
 import json
-
+import ast
 import neo4j
-
+import uuid
 from general import helpers
 from general.dvm import EventKind
 from tqdm import tqdm
@@ -19,6 +19,12 @@ class GraphDBSync:
         self.request_events = {}  # key is event id, value is event
         self.feedback_events = {}  # key is event id, value is event
         self.response_events = {}  # key is event id, value is event
+        self.feedback_event_invoices = (
+            {}
+        )  # key is a feedback event id, value is a json dict of invoice details
+        self.invoices = (
+            {}
+        )  # key is the lnbc string, value is the json data excluding the lnbc string
 
     def get_all_dvm_nip89_profiles(self):
         """
@@ -74,6 +80,26 @@ class GraphDBSync:
 
         for event in tqdm(feedback_events_ls):
             self.feedback_events[event["id"]] = event
+
+            # create an invoice node
+            invoice_json_data = {}
+            if "tags" in event:
+                for tag in event["tags"]:
+                    if tag[0] == "amount" and len(tag) >= 3:
+                        if tag[2].startswith("lnbc"):
+                            tag_data = tag
+                            invoice_json_data["amount"] = tag[1]
+                            invoice_json_data["invoice"] = tag[2]
+                            # now add the author as an extra field too
+                            invoice_json_data["creator_pubkey"] = event["pubkey"]
+                            invoice_json_data["feedback_event_id"] = event["id"]
+
+                            self.feedback_event_invoices[
+                                event["id"]
+                            ] = invoice_json_data
+
+                            self.invoices[tag[2]] = invoice_json_data
+                            break
 
         self.logger.debug(
             f"Loaded {len(self.feedback_events)} feedback events from mongo"
@@ -138,7 +164,7 @@ class GraphDBSync:
                         if len(str(profile[k]).encode("utf-8")) > self.MAX_FIELD_SIZE:
                             profile[
                                 k
-                            ] = "<data not shown b/c too big, see original event>"
+                            ] = '"<data not shown b/c too big, see original event>"'
 
                     node_data.update(profile)
 
@@ -191,7 +217,7 @@ class GraphDBSync:
                         if len(str(profile[k]).encode("utf-8")) > self.MAX_FIELD_SIZE:
                             profile[
                                 k
-                            ] = "<data not shown b/c too big, see original event>"
+                            ] = '"<data not shown b/c too big, see original event>"'
 
                     node_data.update(profile)  # TODO - add attempt to get profile data
 
@@ -261,7 +287,7 @@ class GraphDBSync:
                 continue
 
             if len(str(original_event[k]).encode("utf-8")) > self.MAX_FIELD_SIZE:
-                neo4j_event[k] = "<data not shown b/c too big, see original event>"
+                neo4j_event[k] = '"<data not shown b/c too big, see original event>"'
             else:
                 neo4j_event[k] = original_event[k]
 
@@ -273,13 +299,48 @@ class GraphDBSync:
 
         json_string = json.dumps(neo4j_event)
 
-        # create the event node
-        query = """
-        MERGE (n:Event {id: $event_id})
-        ON CREATE SET n = apoc.convert.fromJsonMap($json)
-        ON MATCH SET n += apoc.convert.fromJsonMap($json)
-        RETURN n
-        """
+        # create different events based on the kind
+        additional_event_labels = []
+        if 5000 <= neo4j_event["kind"] < 6000:
+            additional_event_labels = ["DVMRequest"]
+        elif 6000 <= neo4j_event["kind"] < 6999:
+            additional_event_labels = ["DVMResult"]
+        elif neo4j_event["kind"] == 7000:
+            # print("event is kind 7000")
+            additional_event_labels.append("Feedback")
+            # check the tags
+            if "tags" in neo4j_event:
+                tags = ast.literal_eval(neo4j_event["tags"])
+                for tag in tags:
+                    # print(f"\ttag is {tag}")
+                    if (
+                        tag[0] == "status"
+                        and len(tag) > 1
+                        and tag[1] == "payment-required"
+                    ):
+                        additional_event_labels.append("FeedbackPaymentRequest")
+                        # print("\tadding the label FeedbackPaymentRequest")
+
+        if additional_event_labels:
+            # create the event node
+            query = (
+                """
+            MERGE (n:Event:"""
+                + ":".join(additional_event_labels)
+                + """ {id: $event_id})
+            ON CREATE SET n = apoc.convert.fromJsonMap($json)
+            ON MATCH SET n += apoc.convert.fromJsonMap($json)
+            RETURN n
+            """
+            )
+        else:
+            # create the event node
+            query = """
+            MERGE (n:Event {id: $event_id})
+            ON CREATE SET n = apoc.convert.fromJsonMap($json)
+            ON MATCH SET n += apoc.convert.fromJsonMap($json)
+            RETURN n
+            """
 
         result = session.run(query, event_id=neo4j_event["id"], json=json_string)
 
@@ -292,6 +353,50 @@ class GraphDBSync:
         else:
             self.logger.debug(
                 f"Node {node.id} was created with the 'Event' label for npub_hex: {original_event['pubkey']}"
+            )
+
+        return True
+
+    def create_invoice_nodes(self):
+        self.logger.info("Creating User nodes...")
+        with self.neo4j_driver.session() as session:
+            for invoice_lnbc_str, json_data in tqdm(self.invoices.items()):
+                # add debugging url
+                json_data["url"] = f"https://dvmdash.live/event/{invoice_lnbc_str}"
+
+                self._create_invoice_node(session, invoice_lnbc_str, json_data)
+
+    def _create_invoice_node(self, session, lnbc_str, invoice_json_data):
+        # create the invoice node
+        # create a uuid for neo4j
+        assert lnbc_str == invoice_json_data["invoice"]
+
+        query = """
+        MERGE (n:Invoice {id: $lnbc_str})
+        ON CREATE SET n += apoc.convert.fromJsonMap($json)
+        ON MATCH SET n += apoc.convert.fromJsonMap($json)
+        RETURN n
+        """
+
+        json_string = json.dumps(invoice_json_data)
+
+        params = {
+            "lnbc_str": lnbc_str,
+            "json": json_string,
+        }
+
+        # Execute the query
+        result = session.run(query, params)
+
+        # Check if the created node has the expected label
+        node = result.single()["n"]
+        if "Invoice" not in node.labels:
+            self.logger.warning(
+                f"Node {node.id} was created !without! the 'Invoice' label for invoice: {lnbc_str}"
+            )
+        else:
+            self.logger.debug(
+                f"Node {node.id} was created with the 'Invoice' label for invoice: {lnbc_str}"
             )
 
         return True
@@ -416,6 +521,33 @@ class GraphDBSync:
                     f" for Request event {request_orig_event_id}"
                 )
 
+                # next, create relationship form invoice to feedback, if the feedback has an invoice
+                if event["id"] in self.feedback_event_invoices:
+                    invoice_data = self.feedback_event_invoices[event["id"]]
+                    invoice_id = invoice_data["invoice"]
+                    query = """
+                        MATCH (i:Invoice {id: $invoice_id})
+                        MATCH (f:Event {id: $event_id})
+                        MERGE (i)-[rel:INVOICE_FROM]->(f)
+                        RETURN rel
+                    """
+
+                    result = session.run(
+                        query, invoice_id=invoice_id, event_id=event["id"]
+                    )
+                    record = result.single()
+
+                    if record is None:
+                        self.logger.error(
+                            f"Failed to create INVOICE_FROM relationship between"
+                            f" Feedback {event['id']} and Request event {invoice_id}"
+                        )
+
+                    self.logger.debug(
+                        f"Invoice {invoice_id} successfully has a INVOICE_FROM relationship"
+                        f" for Feedback event {event['id']}"
+                    )
+
     def create_dvm_response_relations(self):
         with self.neo4j_driver.session() as session:
             for event in tqdm(self.response_events.values()):
@@ -505,14 +637,15 @@ class GraphDBSync:
         self.logger.info("Creating user and dvm nodes...")
         self.get_all_dvm_npubs()
         self.get_all_user_npubs()
-        # self.create_dvm_nodes()
+        self.create_dvm_nodes()
         self.create_user_nodes()
+        self.create_invoice_nodes()
 
         # start creating relations
         self.logger.info("Creating relations...")
-        # self.create_user_request_relations()
-        # self.create_dvm_feedback_relations()
-        # self.create_dvm_response_relations()
+        self.create_user_request_relations()
+        self.create_dvm_feedback_relations()
+        self.create_dvm_response_relations()
 
     def delete_all_neo4j_relationships(self):
         """

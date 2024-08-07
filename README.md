@@ -14,15 +14,30 @@ https://dvmdash.live/
   - As of May 13th, 2024, Python 3.12 is unsupported
 - If you are only using scripts/ (i.e. listengin for DVM events, you should only need requirements_backend.txt)
 
+
+## How to update javascript via npm
+
+- After you've added a new library to the package.json file and made any changes to webpack.config.js, you can run `npm run build` to update the javascript files in the static/ directory in the monitor/static/ directory.
+- Then run `python dvmdash/manage.py collectstatic` to update the static files in the main staticfiles/ directory, which is where static files are served when running locally.
+
+
 ## How to run this locally
 
-Run Mongita or a MongoDB locally
+1. Run Mongita or a MongoDB locally
 
-Run Neo4j
+    - for example, run mongo locally:
+      - `./mongod --dbpath ~/mongodb/data/db`
 
-- See https://neo4j.com/docs/operations-manual/current/installation/
-- Once you have the tar file, you can run it with `./neo4j start`
-- Then check it's running in the web browser at `http://localhost:7474/`
+2. Run Neo4j
+
+   - See https://neo4j.com/docs/operations-manual/current/installation/
+   - Once you have the tar file, you can run it with `./neo4j start`
+     - Or ` ~/bin/neo4j-community-5.20.0/bin/neo4j start`
+   - Then check it's running in the web browser at `http://localhost:7474/`
+
+3. (Optional) Run a local DVM
+4. (Optional) Run a local relay, such as [bucket](https://github.com/coracle-social/bucket)
+   - this is helpful to test local dvms with the playground page, testing sending and receiving DVM events.
 
 
 ### APOC Extension

@@ -1,5 +1,9 @@
+from django.conf import settings
+from django.conf.urls.static import static
+
 from django.urls import path
 from . import views
+from . import api
 
 urlpatterns = [
     path("", views.about, name="about"),
@@ -14,9 +18,18 @@ urlpatterns = [
     path("debug/", views.debug, name="debug"),
     path("debug/<str:event_id>/", views.debug, name="debug"),
     path("recent/", views.recent, name="recent"),
+    path("playground/", views.playground, name="playground"),
     path(
         "api/graph/<str:request_event_id>", views.get_graph_data, name="get_graph_data"
+    ),
+    path(
+        "api/get_payment_request_total/",
+        api.get_payment_request_total,
+        name="get_payment_request_total",
     ),
 ]
 
 handler404 = "monitor.views.custom_404"
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -1,9 +1,5 @@
 {% extends 'monitor/base.html' %}
-
-
-
-<!--    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>-->
-<!--    <meta http-equiv="refresh" content="60">-->
+{%  load humanize %}
 
 {% block content %}
 <div class="text-center">
@@ -17,7 +13,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Requests</h5>
-                    <p class="card-text display-4">{{ num_dvm_request_events }}</p>
+                    <p class="card-text display-4">{{ dvm_requests_all_time|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -25,8 +21,8 @@
         <div class="col-md-3">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">DVM Responses</h5>
-                    <p class="card-text display-4">{{ num_dvm_response_events }}</p>
+                    <h5 class="card-title">DVM Results</h5>
+                    <p class="card-text display-4">{{ dvm_results_all_time|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -35,7 +31,7 @@
             <div class="card text-white bg-mediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Request Kinds Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_request_kinds }}</p>
+                    <p class="card-text display-4">{{ num_dvm_request_kinds|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -44,7 +40,7 @@
             <div class="card text-white bg-mediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Response Kinds Seen</h5>
-                    <p class="card-text display-4">{{ num_dvm_response_kinds }}</p>
+                    <p class="card-text display-4">{{ num_dvm_result_kinds|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -56,7 +52,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Pub Keys Seen</h5>
-                    <p class="card-text display-4">{{ dvm_pub_keys }}</p>
+                    <p class="card-text display-4">{{ dvm_pub_keys|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -65,7 +61,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">DVM Profiles (NIP-89) Seen </h5>
-                    <p class="card-text display-4">{{ dvm_nip_89s }}</p>
+                    <p class="card-text display-4">{{ dvm_nip_89s|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -74,7 +70,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Most Popular DVM</h5>
-                    <p class="card-text display-4" style="font-size: 2.0rem;">{{ most_popular_dvm }}</p>
+                    <p class="card-text display-4" style="font-size: 2.0rem;"><a href="https://dvmdash.live/npub/{{ most_popular_dvm_npub }}">{{ most_popular_dvm_name }}</a></p>
                 </div>
             </div>
         </div>
@@ -95,7 +91,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">(24 hr) DVM Tasks</h5>
-                    <p class="card-text display-4">{{ num_dvm_tasks_24h }}</p>
+                    <p class="card-text display-4">{{ dvm_requests_24_hrs|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -104,7 +100,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">(24 hr) DVM Results</h5>
-                    <p class="card-text display-4">{{ num_dvm_results_24h }}</p>
+                    <p class="card-text display-4">{{ dvm_results_24_hrs|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -112,8 +108,8 @@
                 <div class="col-md-3">
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
-                    <h5 class="card-title">(1 week) DVM Tasks</h5>
-                    <p class="card-text display-4">{{ num_dvm_tasks_1week }}</p>
+                    <h5 class="card-title">(1 week) DVM Requests</h5>
+                    <p class="card-text display-4">{{ dvm_requests_1_week|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -122,317 +118,31 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">(1 week) DVM Results</h5>
-                    <p class="card-text display-4">{{ num_dvm_results_1week }}</p>
+                    <p class="card-text display-4">{{ dvm_results_1_week|intcomma }}</p>
                 </div>
             </div>
         </div>
     </div>
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card text-white bg-darkmediumpurple mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Unique DVM Users</h5>
+                    <p class="card-text display-4">{{ unique_dvm_users|intcomma }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+                <div class="card text-white bg-darkmediumpurple mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Sats Paid to DVMs</h5>
+                        <p class="card-text display-4">{{ total_amount_paid_to_dvm_sats|intcomma }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 </div>
 
-<div class="text-center">
-    <h2>Charts</h2>
-    <h5>Pro tip: click on a bar to go the corresponding page</h5>
-</div>
 
-
-<div id="samplePlot"></div>
-
-
-<!-- Create a div to render the plot -->
-<div id="plotly-bar-chart"></div>
-
-
-<!-- Create a div to render the plot -->
-<div id="plotly-bar-chart-feedback"></div>
-
-<div id="plotly-bar-chart-feedback-dvm"></div>
-
-<div id="plotly-bar-chart-request-pubs"></div>
-
-<script>
-// Create arrays from Django dictionary
-var data = [{% for label, value in request_kinds_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
-
-// Sort the data based on y values in descending order
-data.sort(function(a, b) {
-    return b.y - a.y;
-});
-
-// Separate the sorted data back into x_data and y_data arrays
-var x_data = data.map(function(item) {
-    return item.x;
-});
-
-var y_data = data.map(function(item) {
-    return item.y;
-});
-
-var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
-
-var barColors = [];
-for (var i = 0; i < x_data.length; i++) {
-    barColors.push(colors[i % colors.length]);
-}
-
-var layout = {
-    title: 'Number of DVM Tasks per Tag (w/ overlaps)',
-    xaxis: {
-        title: 'Tags',
-        type: 'category',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    yaxis: {
-        title: 'Number of DVM Tasks',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    paper_bgcolor: '#2a2a2a',
-    plot_bgcolor: '#333333',
-    font: {
-        color: '#eaeaea'
-    }
-};
-
-var data = [{
-    type: 'bar',
-    x: x_data,
-    y: y_data,
-    marker: {
-        color: barColors
-    }
-}];
-
-// Plot the chart
-Plotly.newPlot('plotly-bar-chart', data, layout);
-
-// Get the plot element
-var myPlot = document.getElementById('plotly-bar-chart');
-
-// Add click event listener
-myPlot.on('plotly_click', function(data) {
-    console.log("Bar clicked:", data.points[0].x);
-    var kindLabel = data.points[0].x;
-    if (kindLabel) {
-        window.location.href = "/kind/" + kindLabel;
-    }
-});
-
-</script>
-
-
-<script>
-// Create arrays from Django dictionary
-var data = [{% for label, value in response_kinds_counts.items %}{"x": "{{ label }}", "y": {{ value }}},{% endfor %}];
-
-// Sort the data based on y values in descending order
-data.sort(function(a, b) {
-    return b.y - a.y;
-});
-
-// Separate the sorted data back into x_data and y_data arrays
-var x_data = data.map(function(item) {
-    return item.x;
-});
-
-var y_data = data.map(function(item) {
-    return item.y;
-});
-
-var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
-
-var barColors = [];
-for (var i = 0; i < x_data.length; i++) {
-    barColors.push(colors[i % colors.length]);
-}
-
-var layout = {
-    title: 'Number of DVM Task Job results per Kind (w/ overlaps)',
-    xaxis: {
-        title: 'Tags',
-        type: 'category',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    yaxis: {
-        title: 'Number of DVM Task Job Results by Kind',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    paper_bgcolor: '#2a2a2a',
-    plot_bgcolor: '#333333',
-    font: {
-        color: '#eaeaea'
-    }
-};
-
-var data = [{
-    type: 'bar',
-    x: x_data,
-    y: y_data,
-    marker: {
-        color: barColors
-    }
-}];
-
-// Plot the chart
-Plotly.newPlot('plotly-bar-chart-feedback', data, layout);
-
-// Get the plot element
-var myPlot = document.getElementById('plotly-bar-chart-feedback');
-
-// Add click event listener
-myPlot.on('plotly_click', function(data) {
-    console.log("Bar clicked:", data.points[0].x);
-    var kindLabel = data.points[0].x;
-    if (kindLabel) {
-        window.location.href = "/kind/" + kindLabel;
-    }
-});
-
-</script>
-
-<script>
-// Create arrays from Django dictionary
-var x_data = [{% for label, value in dvm_job_results.items %}"{{ label }}",{% endfor %}];
-var y_data = [{% for label, value in dvm_job_results.items %}{{ value }},{% endfor %}];
-
-// Create a dictionary to map labels to pubkeys
-var labelsToPubkeys = JSON.parse('{{ labels_to_pubkeys|safe }}');
-
-// Combine x_data and y_data into an array of objects
-var data = x_data.map(function(label, index) {
-    return { x: label, y: y_data[index] };
-});
-
-// Sort the data based on y values in descending order
-data.sort(function(a, b) {
-    return b.y - a.y;
-});
-
-// Separate the sorted data back into x_data and y_data arrays
-x_data = data.map(function(item) {
-    return item.x;
-});
-
-y_data = data.map(function(item) {
-    return item.y;
-});
-
-var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
-
-var barColors = [];
-for (var i = 0; i < x_data.length; i++) {
-    barColors.push(colors[i % colors.length]);
-}
-
-var layout = {
-    title: 'Number of DVM Task Feedbacks per DVM ',
-    xaxis: {
-        title: 'Tags',
-        type: 'category',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    yaxis: {
-        title: 'Number of DVM Task Job Results by Kind',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    paper_bgcolor: '#2a2a2a',
-    plot_bgcolor: '#333333',
-    font: {
-        color: '#eaeaea'
-    }
-};
-
-var data = [{
-    type: 'bar',
-    x: x_data,
-    y: y_data,
-    marker: {
-        color: barColors
-    }
-}];
-
-// Plot the chart
-Plotly.newPlot('plotly-bar-chart-feedback-dvm', data, layout);
-
-// Get the plot element
-var myPlot = document.getElementById('plotly-bar-chart-feedback-dvm');
-
-// Add click event listener
-myPlot.on('plotly_click', function(data) {
-    console.log("Bar clicked:", data.points[0].x);
-    var clickedLabel = data.points[0].x;
-    var pubkey = labelsToPubkeys[clickedLabel];
-    if (pubkey) {
-        window.location.href = "/dvm/" + pubkey;
-    }
-});
-
-</script>
-
-<script>
-    // Create arrays from Django dictionary
-var x_data = [{% for label, value in dvm_job_requests.items %}"{{ label }}",{% endfor %}];
-var y_data = [{% for label, value in dvm_job_requests.items %}{{ value }},{% endfor %}];
-
-// Create a dictionary to map labels to pubkeys
-var labelsToPubkeys = JSON.parse('{{ labels_to_pubkeys|safe }}');
-
-var colors = ['#FF5733', '#33FF57', '#5733FF', '#FF33A5', '#33A5FF', '#FFA533'];
-
-var barColors = [];
-for (var i = 0; i < x_data.length; i++) {
-    barColors.push(colors[i % colors.length]);
-}
-
-var layout = {
-    title: 'DVM Requests by User Pub Keys',
-    xaxis: {
-        title: 'User Pub Key',
-        type: 'category',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    yaxis: {
-        title: 'Number of DVM Requests',
-        gridcolor: '#444',
-        zerolinecolor: '#444'
-    },
-    paper_bgcolor: '#2a2a2a',
-    plot_bgcolor: '#333333',
-    font: {
-        color: '#eaeaea'
-    }
-};
-
-var data = [{
-    type: 'bar',
-    x: x_data,
-    y: y_data,
-    marker: {
-        color: barColors
-    }
-}];
-
-// Plot the chart
-Plotly.newPlot('plotly-bar-chart-request-pubs', data, layout);
-
-// Get the plot element
-var myPlot = document.getElementById('plotly-bar-chart-request-pubs');
-
-// Add click event listener
-myPlot.on('plotly_click', function(data) {
-    console.log("Bar clicked:", data.points[0].x);
-    var clickedLabel = data.points[0].x;
-    var pubkey = labelsToPubkeys[clickedLabel];
-    if (pubkey) {
-        window.location.href = "/dvm/" + pubkey;
-    }
-});
-
-</script>
 
 {% endblock %}

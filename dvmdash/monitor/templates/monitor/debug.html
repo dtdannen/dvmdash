@@ -1,7 +1,6 @@
 {% extends 'monitor/base.html' %}
 
 {% block extrahead %}
-<script src="https://d3js.org/d3.v6.min.js"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
 
@@ -50,8 +49,17 @@
 
 {% block content %}
 
+    <!-- Development Banner -->
+    <div class="container-fluid bg-success text-light py-2">
+        <div class="container text-center">
+            <p class="mb-0">
+                This is a demonstration only page and will not work for new dvm events yet.
+            </p>
+        </div>
+    </div>
+
     {% if event_id %}
-        <div id="network-container" style="width: 100%; height: 600px;"></div>
+        <div id="network-container" style="width: 100%; height: 600px; background-color: #f0f0f0;"></div>
     <div class="table-container">
       <table id="dataTable">
         <thead>
@@ -90,9 +98,27 @@
 <script>
 
 document.addEventListener("DOMContentLoaded", function() {
+    console.log("vis.js loaded:", typeof vis !== 'undefined');
   fetch('/api/graph/{{ event_id }}')
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.text();  // Get the raw text instead of parsing JSON immediately
+    })
+    .then(text => {
+        console.log("Raw response:", text);  // Log the raw response
+        try {
+            return JSON.parse(text);  // Try to parse it as JSON
+        } catch (e) {
+            console.error("JSON parse error:", e);
+            console.log("First 100 characters of response:", text.slice(0, 100));
+            throw e;  // Re-throw the error to be caught by the catch block
+        }
+    })
     .then(responseData => {
+        console.log("Parsed data:", responseData);
+        console.log("Received data:", responseData);
         const data = responseData.node_relations;
         const eventNodes = responseData.event_nodes;
 
@@ -101,73 +127,100 @@ document.addEventListener("DOMContentLoaded", function() {
 
         var root_request_node = null;
 
-        data.forEach(item => {
-            const n = item.source_node;
-            const r = item.relation;
-            const req = item.target_node;
-
-            const sourceNode = {
-                id: n.id || n.npub_hex,
-                pubkey: n.npub_hex || n.pubkey,
-                kind: n.kind,
-                raw_created_at: n.created_at,
-                url: n.url,
-                quick_details: n.quick_details,
-                node_type: n.neo4j_node_type,
-                label: n.neo4j_node_type + getLastChars(n.npub_hex || n.id),
-            };
-            const targetNode = {
-                id: req.id || req.npub_hex,
-                pubkey: req.npub_hex || req.pubkey,
-                kind: req.kind,
-                raw_created_at: req.created_at,
-                url: req.url,
-                quick_details: req.quick_details,
-                node_type: req.neo4j_node_type,
-                label: req.neo4j_node_type + getLastChars(req.id),
-            };
-            //console.log("Source Node: ", sourceNode);
-            //console.log("Target Node: ", targetNode);
-            console.log("Relation: ", r);
-            const link = {source: sourceNode.id, target: targetNode.id, label: r};
-
-            // If there is a source node that is from a User and it's pointing to an Event node with a kind between 5000-5999,
-            // then we want to set that source node as the root_user_node
-            if (root_request_node === null) {
-                console.log("Source node: ", sourceNode.node_type, "Target node kind: ", targetNode.kind)
-                if (sourceNode.node_type === "User" && targetNode.kind >= 5000 && targetNode.kind <= 5999) {
-                    root_request_node = targetNode;
-                    console.log("|||||Root User Node: ", root_request_node)
-                }
-            }
-
-            if (!nodes.find(node => node.id === sourceNode.id)) {
-                nodes.push(sourceNode);
-            }
-            if (!nodes.find(node => node.id === targetNode.id)) {
-                nodes.push(targetNode);
-            }
-            // check if undefined
-            if (sourceNode.id === undefined) {
-                console.log('Source id is undefined, here is source object: ', sourceNode);
-                return;
-            }
-
-            // see if there is a link with the same source and target and label
-            if (links.find(l => l.source === sourceNode.id && l.target === targetNode.id && l.label === link.label)) {
-                console.log('Link already exists with source id: ', sourceNode.id, ' and target id: ', targetNode.id);
+        if (data.length === 0) {
+            console.log("data.length === 0");
+            // Handle case with no relations
+            if (eventNodes.length > 0) {
+                console.log("eventNodes.length > 0");
+                const singleNode = eventNodes[0];
+                nodes.push({
+                    id: singleNode.id,
+                    pubkey: singleNode.pubkey || "Unknown", // fallback to id if pubkey is not available
+                    kind: singleNode.kind || 'Unknown',
+                    raw_created_at: singleNode.created_at || null,
+                    url: singleNode.url || '#',
+                    quick_details: singleNode.quick_details || 'No details available',
+                    node_type: singleNode.neo4j_node_type || 'Unknown',
+                    label: (singleNode.neo4j_node_type || 'Node') + getLastChars(singleNode.id),
+                });
+                console.log("nodes has " + nodes.length + " item(s)");
+                console.log("First node:", nodes[0]);  // This will log the details of the node
             } else {
-                console.log('Pushing link with source id: ', sourceNode.id, ' and target id: ', targetNode.id)
-                links.push(link);
-                console.log(`Link: ${sourceNode.kind || sourceNode.node_type} ---${link.label}---> ${targetNode.kind || targetNode.node_type}`);
+                console.log("eventNodes is empty");
             }
+        } else {
+            data.forEach(item => {
+                const n = item.source_node;
+                const r = item.relation;
+                const req = item.target_node;
 
+                const sourceNode = {
+                    id: n.id || n.npub_hex,
+                    pubkey: n.npub_hex || n.pubkey,
+                    kind: n.kind,
+                    raw_created_at: n.created_at,
+                    url: n.url,
+                    quick_details: n.quick_details,
+                    node_type: n.neo4j_node_type,
+                    label: n.neo4j_node_type + getLastChars(n.npub_hex || n.id),
+                };
+                const targetNode = {
+                    id: req.id || req.npub_hex,
+                    pubkey: req.npub_hex || req.pubkey,
+                    kind: req.kind,
+                    raw_created_at: req.created_at,
+                    url: req.url,
+                    quick_details: req.quick_details,
+                    node_type: req.neo4j_node_type,
+                    label: req.neo4j_node_type + getLastChars(req.id),
+                };
+                //console.log("Source Node: ", sourceNode);
+                //console.log("Target Node: ", targetNode);
+                console.log("Relation: ", r);
+                const link = {source: sourceNode.id, target: targetNode.id, label: r};
+
+                // If there is a source node that is from a User and it's pointing to an Event node with a kind between 5000-5999,
+                // then we want to set that source node as the root_user_node
+                if (root_request_node === null) {
+                    console.log("Source node: ", sourceNode.node_type, "Target node kind: ", targetNode.kind)
+                    if (sourceNode.node_type === "User" && targetNode.kind >= 5000 && targetNode.kind <= 5999) {
+                        root_request_node = targetNode;
+                        console.log("|||||Root User Node: ", root_request_node)
+                    }
+                }
+
+                if (!nodes.find(node => node.id === sourceNode.id)) {
+                    nodes.push(sourceNode);
+                }
+                if (!nodes.find(node => node.id === targetNode.id)) {
+                    nodes.push(targetNode);
+                }
+                // check if undefined
+                if (sourceNode.id === undefined) {
+                    console.log('Source id is undefined, here is source object: ', sourceNode);
+                    return;
+                }
+
+                // see if there is a link with the same source and target and label
+                if (links.find(l => l.source === sourceNode.id && l.target === targetNode.id && l.label === link.label)) {
+                    console.log('Link already exists with source id: ', sourceNode.id, ' and target id: ', targetNode.id);
+                } else {
+                    console.log('Pushing link with source id: ', sourceNode.id, ' and target id: ', targetNode.id)
+                    links.push(link);
+                    console.log(`Link: ${sourceNode.kind || sourceNode.node_type} ---${link.label}---> ${targetNode.kind || targetNode.node_type}`);
+                }
+            });
+
+            // log how many nodes and links there are
+            console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
+        }
+
+        if (nodes.length > 0) {
+            console.log("Calling createVisNetwork with nodes:", nodes);
             createVisNetwork(nodes, links);
-        });
-
-        // log how many nodes and links there are
-        console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
-
+        } else {
+            console.log("No nodes to display");
+        }
 
         // Process the 'eventNodes' for the table
       const tableNodes = Object.values(eventNodes);
@@ -175,19 +228,23 @@ document.addEventListener("DOMContentLoaded", function() {
       // Sort tableNodes by created_at in ascending order
       tableNodes.sort((a, b) => a.created_at - b.created_at);
 
-      // Populate the table with data from 'eventNodes'
-      const tableBody = d3.select("#dataTable tbody");
-      tableBody.selectAll("tr")
-        .data(tableNodes)
-        .enter()
-        .append("tr")
-        .html(d => `
-          <td><a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a></td>
-          <td>${d.kind}</td>
-          <td>${d.quick_details}</td>
-          <td><a href="${d.url}" target="_blank">View</a></td>
-          <td>${formatTimestamp(d.created_at)}</td>
-        `);
+      const tableBody = document.querySelector("#dataTable tbody");
+
+        // Clear existing table rows
+        tableBody.innerHTML = '';
+
+        // Populate the table with data from 'tableNodes'
+        tableNodes.forEach(d => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${d.pubkey ? `<a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
+                <td>${d.kind || 'Unknown'}</td>
+                <td>${d.quick_details || 'This event is missing, we only know another event referenced this one'}</td>
+                <td>${d.url ? `<a href="${d.url}" target="_blank">View</a>` : 'N/A'}</td>
+                <td>${d.created_at ? formatTimestamp(d.created_at) : 'Unknown'}</td>
+            `;
+            tableBody.appendChild(row);
+        });
 
 
         function getLastChars(str) {
@@ -259,8 +316,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 return "purple";
             } else if (!node.kind && node.node_type === "DVM") {
                 return "orange";
+            } else if (!node.kind && node.node_type === "Invoice") {
+                return "yellow"
+            }else {
+                return "red";
             }
-            return "#999999";
         }
 
         function getLinkColor(link) {
@@ -270,8 +330,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 return "orange";
             } else if (link.label === "MADE_EVENT") {
                 return "black";
+            } else if (link.label === "INVOICE_FROM") {
+                return "yellow"
+            } else {
+                return "black";
             }
-            return "black";
         }
 
         function printGraphData(nodes, links) {
@@ -297,62 +360,93 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         function createVisNetwork(nodes, links) {
-          const visNodes = nodes.map(node => ({
-            id: node.id,
-            label: `${node.label}\n${node.kind || node.node_type}`,
-            color: getNodeColor(node),
-              url: node.url,
-          }));
+            console.log("Creating network with nodes:", nodes);
+            console.log("Creating network with links:", links);
 
-          const visLinks = links.map(link => ({
-            from: link.source,
-            to: link.target,
-            label: link.label,
-            color: getLinkColor(link),
-              length: 300,
-          }));
+            const visNodes = nodes.map(node => {
+                console.log("Processing node:", node);
+                return {
+                    id: node.id,
+                    label: `${node.label}\n${node.kind || node.node_type || 'Unknown'}`,
+                    color: getNodeColor(node),
+                    url: node.url || '#',
+                };
+            });
 
-          const container = document.getElementById("network-container");
-          const data = {
-            nodes: visNodes,
-            edges: visLinks,
-          };
+            console.log("Processed visNodes:", visNodes);
 
-          const options = {
-            nodes: {
-              shape: "box",
-              font: {
-                size: 14,
-                color: "#ffffff",
-              },
-              margin: 10, // Add margin around nodes
-            },
-            edges: {
-              arrows: "to",
-              font: {
-                size: 12,
-                align: "middle",
-              },
-            },
-            layout: {
-              hierarchical: {
-                direction: "RL",
-                sortMethod: "directed",
-                nodeSpacing: 50, // Increase node spacing
-                treeSpacing: 50, // Increase tree spacing
-                  levelSeparation: 400, // Adjust the distance between levels
-                  blockShifting: true, // Enable block shifting to avoid overlap
-                  edgeMinimization: true,
-              },
-            },
-            physics: {
-              hierarchicalRepulsion: {
-                nodeDistance: 100, // Increase node repulsion distance
-              },
-            },
-          };
+            const visLinks = links.map(link => {
+                console.log("Processing link:", link);
+                return {
+                    from: link.source,
+                    to: link.target,
+                    label: link.label,
+                    color: getLinkColor(link),
+                    length: 300,
+                };
+            });
 
-          const network = new vis.Network(container, data, options);
+            console.log("Processed visLinks:", visLinks);
+
+            const container = document.getElementById("network-container");
+            console.log("Network container:", container);
+
+            const data = {
+                nodes: visNodes,
+                edges: visLinks,
+            };
+
+
+             const options = {
+                nodes: {
+                    shape: "box",
+                    font: {
+                        size: 14,
+                        color: "#ffffff",
+                    },
+                    margin: 10,
+                },
+                edges: {
+                    arrows: "to",
+                    font: {
+                        size: 12,
+                        align: "middle",
+                    },
+                },
+            };
+
+            // If there's only one node, adjust the options
+            if (nodes.length === 1) {
+                options.layout = {
+                    randomSeed: 1
+                };
+                options.physics = {
+                    enabled: false
+                };
+            } else {
+                options.layout = {
+                    hierarchical: {
+                        direction: "RL",
+                        sortMethod: "directed",
+                        nodeSpacing: 50,
+                        treeSpacing: 50,
+                        levelSeparation: 400,
+                        blockShifting: true,
+                        edgeMinimization: true,
+                    },
+                };
+                options.physics = {
+                    hierarchicalRepulsion: {
+                        nodeDistance: 100,
+                    },
+                };
+            }
+
+            console.log("Creating network with data:", data);
+            console.log("Creating network with options:", options);
+
+            const network = new vis.Network(container, data, options);
+            console.log("Network created:", network);
 
           network.on("doubleClick", function (event) {
             if (event.nodes.length > 0) {
@@ -363,8 +457,9 @@ document.addEventListener("DOMContentLoaded", function() {
               }
             }
           });
-
         }
+    }).catch(error => {
+        console.error('Fetch error:', error);
     });
 });
 

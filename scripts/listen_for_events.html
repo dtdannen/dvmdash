@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay Event Listener</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Kind 1 Events</h1>
+        <ul id="eventList"></ul>
+    </div>
+
+    <script>
+        const relays = [
+            'wss://nostr-pub.wellorder.net',
+            'wss://relay.damus.io',
+            'wss://nos.lol',
+            'wss://relay.primal.net',
+            'wss://offchain.pub',
+            'wss://nostr.mom',
+            'wss://relay.nostr.bg',
+            'wss://nostr.oxtr.dev',
+            'wss://nostr-relay.nokotaro.com',
+            'wss://relay.nostr.wirednet.jp'
+        ];
+
+        let ndk;
+
+        async function initNostr() {
+            console.log('Starting Nostr initialization');
+            try {
+                const nip07signer = new NDKNip07Signer();
+                ndk = new NDK({
+                    explicitRelayUrls: relays,
+                    signer: nip07signer
+                });
+
+                console.log('Connecting to NDK...');
+                await ndk.connect();
+                console.log('Connected to NDK');
+
+                startListeningForEvents();
+            } catch (error) {
+                console.error('Error initializing Nostr:', error);
+                const errorMessagesDiv = document.createElement('div');
+                errorMessagesDiv.textContent = `Error initializing Nostr: ${error.message}`;
+                document.body.appendChild(errorMessagesDiv);
+            }
+        }
+
+        function startListeningForEvents() {
+            console.log('Starting to listen for events');
+            const filter = { kinds: [1] };  // Listen for kind 1 events
+            console.log('Subscription filter:', filter);
+
+            const subscription = ndk.subscribe(filter);
+
+            subscription.on("event", (event) => {
+                console.log('Received event:', event);
+
+                if (event.kind === 1) {
+                    const li = document.createElement('li');
+                    li.textContent = event.content;
+                    document.getElementById('eventList').appendChild(li);
+                }
+            });
+
+            subscription.on("eose", () => {
+                console.log("All relays have reached the end of the event stream");
+            });
+
+            subscription.on("close", () => {
+                console.log("Subscription closed");
+            });
+
+            console.log('Subscription created:', subscription);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initNostr().catch(error => {
+                console.error('Error in DOMContentLoaded:', error);
+                const errorMessagesDiv = document.createElement('div');
+                errorMessagesDiv.textContent = `Error in page load: ${error.message}`;
+                document.body.appendChild(errorMessagesDiv);
+            });
+        });
+    </script>
+</body>
+</html>
