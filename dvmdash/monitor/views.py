@@ -20,6 +20,9 @@ from bson import json_util
 from django.utils.safestring import mark_safe
 from .neo4j_service import neo4j_service
 from general.dvm import EventKind
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
@@ -526,33 +529,34 @@ def get_graph_data(request, request_event_id=""):
     """
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
     """
-    # now call neo4j to get the graph data
+    logger.info(f"get_graph_data called with request_event_id: {request_event_id}")
+
     query = """
         MATCH (req:Event {id: $request_event_id})
         OPTIONAL MATCH (n)-[r*]->(req)
         RETURN req, COLLECT(n) AS related_nodes, COLLECT(r) AS relations
     """
-
-    print(
-        "Querying neo4j with query: ",
-        query.replace("$request_event_id", f"'{request_event_id}'"),
-    )
+    new_query = query.replace("$request_event_id", f"'{request_event_id}'")
+    logger.info(f"Querying neo4j with query: {new_query}")
 
     params = {"request_event_id": request_event_id}
-    data = neo4j_service.run_query(query, params)
 
-    # process the data so it's in an easy format for forming into a graph
-    # these will all be triples
+    try:
+        data = neo4j_service.run_query(query, params)
+    except Exception as e:
+        logger.error(f"Error running Neo4j query: {str(e)}")
+        return JsonResponse({"error": "Database query failed"}, status=500)
+
+    if not data:
+        logger.warning("No data returned from Neo4j query")
+        return JsonResponse({"error": "No data found"}, status=404)
+
     node_relations = []
-    event_nodes = {}  # key is the event id, value is the event node
-
-    # print(f"Raw data from neo4j:\n{json.dumps(data, default=str, indent=2)}")
+    event_nodes = {}
 
     for record in data:
         if "req" not in record:
-            print("WARNING!!!! 'req' is not in record:")
-            record_str = json.dumps(record, indent=2, sort_keys=True)
-            print(f"Record: {record_str}")
+            logger.warning(f"'req' not in record: {record}")
             continue
 
         # Process the req node
@@ -590,6 +594,11 @@ def get_graph_data(request, request_event_id=""):
         "event_nodes": list(event_nodes.values()),
         "node_relations": node_relations,
     }
+
+    logger.info(
+        f"Processed {len(event_nodes)} event nodes and {len(node_relations)} relations"
+    )
+    logger.info(f"Response data size: {len(str(response_data))} bytes")
 
     return JsonResponse(response_data, safe=False)
 
