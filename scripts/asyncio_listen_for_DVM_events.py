@@ -917,8 +917,12 @@ async def main():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    # default is 6 hours
     parser.add_argument(
-        "--runtime", type=int, help="Number of minutes to run before exiting"
+        "--runtime",
+        type=int,
+        help="Number of minutes to run before exiting",
+        default=360,
     )
     args = parser.parse_args()
 

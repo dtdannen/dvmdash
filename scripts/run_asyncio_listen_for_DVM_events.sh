@@ -2,7 +2,7 @@
 
 SCRIPT="/home/dvmdash/dvmdash/scripts/asyncio_listen_for_DVM_events.py"
 LOG_DIR="/home/dvmdash/dvmdash/logs"
-LOG_FILE="$LOG_DIR/listen_for_DVM_events_output_$(date +"%Y-%m-%d_%H-%M-%S").log"
+LOG_FILE="$LOG_DIR/asyncio_listen_for_DVM_events_$(date +"%Y-%m-%d_%H-%M-%S").log"
 VENV_PATH="/home/dvmdash/dvmdash/backend_venv"  # Update this with the correct path to your virtual environment
 MAX_LOG_FILES=100
 
@@ -32,7 +32,7 @@ else
 fi
 
 echo "[$(date)] Running the Python script..."
-python $SCRIPT
+python $SCRIPT > $LOG_FILE
 
 if [ $? -ne 0 ]; then
     echo "[$(date)] Python script encountered an error."

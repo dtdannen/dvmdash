@@ -1,0 +1,9 @@
+bech32==1.2.0
+dnspython==2.6.1
+loguru==0.7.2
+motor==3.5.1
+neo4j==5.23.1
+nostr-sdk==0.33.0
+pymongo==4.8.0
+python-dotenv==1.0.1
+pytz==2024.1
