@@ -382,6 +382,10 @@ class NotificationHandler(HandleNotification):
 
             elif 6000 <= event["kind"] < 6999:
                 additional_event_labels = ["DVMResult"]
+                if "tags" in event:
+                    for tag in event["tags"]:
+                        if len(tag) > 0 and tag[0] == "encrypted":
+                            additional_event_labels.append("Encrypted")
             elif event["kind"] == 7000:
                 # print("event is kind 7000")
                 additional_event_labels.append("Feedback")
@@ -402,11 +406,16 @@ class NotificationHandler(HandleNotification):
                             if len(tag) > 2:
                                 additional_properties["invoice_data"] = tag[2]
 
+                        if len(tag) > 0 and tag[0] == "encrypted":
+                            additional_event_labels.append("Encrypted")
+
             # now create the event
             if len(additional_event_labels) > 0:
                 event_query = (
                     """
-                        OPTIONAL MATCH (existing:Event {id: $event_id})
+                        OPTIONAL MATCH (existing:Event"""
+                    + ":".join(additional_event_labels)
+                    + """ {id: $event_id})
                         WITH existing
                         WHERE existing IS NULL
                         CREATE (n:Event:"""
@@ -417,6 +426,7 @@ class NotificationHandler(HandleNotification):
                     """
                 )
             else:
+                LOGGER.warning(f"No additional labels for event: {event}")
                 event_query = """
                             OPTIONAL MATCH (existing:Event {id: $event_id})
                             WITH existing
@@ -425,7 +435,6 @@ class NotificationHandler(HandleNotification):
                                         SET n = apoc.convert.fromJsonMap($json)
                                         RETURN n
                                     """
-            labels = ["Event"] + additional_event_labels
             # do this in this order, so we keep any top level event properties from the original note and don't
             # accidentally overwrite them
             for prop_k, prop_v in additional_properties.items():
@@ -443,7 +452,6 @@ class NotificationHandler(HandleNotification):
                 "query": event_query,
                 "params": {
                     "event_id": event["id"],
-                    "labels": labels,
                     "json": json.dumps(sanitize_json(event)),
                 },
             }
@@ -576,10 +584,10 @@ class NotificationHandler(HandleNotification):
 
                     # now let's make the query to create that node in case it doesn't exist
                     create_dvm_request_if_not_exist_query = """
-                        OPTIONAL MATCH (existing:Event:DVMRequest {id: $event_id})
+                        OPTIONAL MATCH (existing:Event:DVMResult {id: $event_id})
                         WITH existing
                         WHERE existing IS NULL
-                        CREATE (n:Event:DVMRequest {id: $event_id})
+                        CREATE (n:Event:DVMResult {id: $event_id})
                         RETURN n
                     """
 
@@ -629,6 +637,22 @@ class NotificationHandler(HandleNotification):
                     if len(tag) > 1 and tag[0] == "e":
                         dvm_request_event_id = tag[1]
                         break
+
+                # create the MADE_EVENT rel from the DVM to this Feedback event
+                dvm_made_feedback_query = """
+                    MATCH (n:DVM {npub_hex: $npub_hex})
+                    MATCH (r:Event:Feedback {id: $event_id})
+                    WHERE NOT (n)-[:MADE_EVENT]->(r)
+                    CREATE (n)-[rel:MADE_EVENT]->(r)
+                    RETURN rel
+                """
+
+                ready_to_execute_dvm_made_feedback_query = {
+                    "query": dvm_made_feedback_query,
+                    "params": {"npub_hex": event["pubkey"], "event_id": event["id"]},
+                }
+
+                await self.neo4j_queue.put(ready_to_execute_dvm_made_feedback_query)
 
                 if dvm_request_event_id:
                     # let's create an invoice node if there is one
@@ -746,13 +770,13 @@ async def nostr_client():
         await client.add_relay(relay)
     await client.connect()
 
-    now_timestamp = Timestamp.now()
+    # now_timestamp = Timestamp.now()
     # prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
     prev_30days_timestamp = Timestamp.from_secs(
         Timestamp.now().as_secs() - 60 * 60 * 24 * 30
     )
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(now_timestamp)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(prev_30days_timestamp)
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
