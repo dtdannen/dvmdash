@@ -1,12 +1,11 @@
-import ast
 import sys
 from datetime import datetime, timedelta
-import random
+
 from neo4j import (
     GraphDatabase,
 )
 import nostr_sdk
-import pymongo
+
 from pymongo import MongoClient, InsertOne
 import json
 import os
@@ -16,10 +15,6 @@ import loguru
 import dotenv
 from general.dvm import EventKind
 from nostr_sdk import Timestamp, LogLevel
-from tqdm import tqdm
-import re
-from statistics import median
-import traceback
 
 
 def setup_logging():
