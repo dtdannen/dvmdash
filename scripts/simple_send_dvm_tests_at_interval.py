@@ -17,7 +17,7 @@ RELAYS = list(
 
 
 async def send_5000_event():
-    # print("\tStarting to create the BROADCASTING client...")
+    print("Starting up...")
     broadcasting_keys = Keys.generate()
     broadcasting_pk = broadcasting_keys.public_key()
     # print(
@@ -36,7 +36,7 @@ async def send_5000_event():
     ).to_event(broadcasting_keys)
 
     # print(f"event as json: {event_i.as_json()}")
-
+    print("Sending...")
     # print(f"\tSending a {event_i.kind().as_u16()} test note with id: {event_i.id()}")
     output = await broadcasting_client.send_event(event_i)
 
