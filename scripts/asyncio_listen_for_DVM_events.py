@@ -341,9 +341,9 @@ class NotificationHandler(HandleNotification):
                 query = await self.neo4j_queue.get()
                 async with NEO4J_DRIVER.session() as session:
                     try:
-                        LOGGER.debug(
-                            f"Executing query: {query['query']} with params: {query['params']}"
-                        )
+                        # LOGGER.debug(
+                        #     f"Executing query: {query['query']} with params: {query['params']}"
+                        # )
                         result = await session.run(query["query"], **query["params"])
                         await asyncio.sleep(0.001)
                     except Exception as e:
@@ -445,9 +445,9 @@ class NotificationHandler(HandleNotification):
                     "json": json.dumps(sanitize_json(event)),
                 },
             }
-            LOGGER.info(
-                f"ready to execute query:\n{format_query_with_params(ready_to_execute_event_query)}"
-            )
+            # LOGGER.info(
+            #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_event_query)}"
+            # )
             await self.neo4j_queue.put(ready_to_execute_event_query)
 
             # Step 3: Determine what other nodes and relations to also submit based on additional_event_labels
@@ -481,9 +481,9 @@ class NotificationHandler(HandleNotification):
                     "query": user_node_query,
                     "params": user_node_query_params,
                 }
-                LOGGER.info(
-                    f"ready to execute query:\n{format_query_with_params(ready_to_execute_user_query)}"
-                )
+                # LOGGER.info(
+                #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_user_query)}"
+                # )
                 await self.neo4j_queue.put(ready_to_execute_user_query)
 
                 # now do the MADE_EVENT relation
@@ -502,9 +502,9 @@ class NotificationHandler(HandleNotification):
                         "event_id": event["id"],
                     },
                 }
-                LOGGER.info(
-                    f"ready to execute query:\n{format_query_with_params(ready_to_execute_made_event_query)}"
-                )
+                # LOGGER.info(
+                #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_made_event_query)}"
+                # )
                 await self.neo4j_queue.put(ready_to_execute_made_event_query)
             elif additional_event_labels == ["DVMResult"]:
                 # let's get the 'e' tag pointing to the original request and if we can't find it, reject this event
@@ -543,9 +543,9 @@ class NotificationHandler(HandleNotification):
                         "query": dvm_node_query,
                         "params": dvm_node_query_params,
                     }
-                    LOGGER.info(
-                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_node_query)}"
-                    )
+                    # LOGGER.info(
+                    #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_node_query)}"
+                    # )
                     await self.neo4j_queue.put(ready_to_execute_dvm_node_query)
 
                     # now create the MADE_EVENT relation query
@@ -565,9 +565,9 @@ class NotificationHandler(HandleNotification):
                             "event_id": event["id"],
                         },
                     }
-                    LOGGER.info(
-                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_made_event_query)}"
-                    )
+                    # LOGGER.info(
+                    #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_made_event_query)}"
+                    # )
                     await self.neo4j_queue.put(ready_to_execute_dvm_made_event_query)
 
                     # now because this is a DVMResult, we want to add a relation from this to the original DVM Request
@@ -585,9 +585,9 @@ class NotificationHandler(HandleNotification):
                         "query": create_dvm_request_if_not_exist_query,
                         "params": {"event_id": dvm_request_event_id},
                     }
-                    LOGGER.info(
-                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_dvm_request_if_not_exist)}"
-                    )
+                    # LOGGER.info(
+                    #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_dvm_request_if_not_exist)}"
+                    # )
                     await self.neo4j_queue.put(
                         ready_to_execute_create_dvm_request_if_not_exist
                     )
@@ -609,9 +609,9 @@ class NotificationHandler(HandleNotification):
                             "request_event_id": dvm_request_event_id,
                         },
                     }
-                    LOGGER.info(
-                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_result_to_request_rel_query)}"
-                    )
+                    # LOGGER.info(
+                    #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_dvm_result_to_request_rel_query)}"
+                    # )
                     await self.neo4j_queue.put(
                         ready_to_execute_dvm_result_to_request_rel_query
                     )
@@ -673,9 +673,9 @@ class NotificationHandler(HandleNotification):
                             }
 
                             # TODO - put this event into a mongo collection for invoices so we can display this on the webpage
-                            LOGGER.info(
-                                f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_invoice_node_query)}"
-                            )
+                            # LOGGER.info(
+                            #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_invoice_node_query)}"
+                            # )
                             await self.neo4j_queue.put(
                                 ready_to_execute_create_invoice_node_query
                             )
@@ -698,9 +698,9 @@ class NotificationHandler(HandleNotification):
                                 "query": create_invoice_to_feedback_rel_query,
                                 "params": invoice_rel_params,
                             }
-                            LOGGER.info(
-                                f"ready to execute query:\n{format_query_with_params(ready_to_execute_invoice_to_feedback_rel)}"
-                            )
+                            # LOGGER.info(
+                            #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_invoice_to_feedback_rel)}"
+                            # )
                             await self.neo4j_queue.put(
                                 ready_to_execute_invoice_to_feedback_rel
                             )
@@ -726,9 +726,9 @@ class NotificationHandler(HandleNotification):
                             "request_event_id": dvm_request_event_id,
                         },
                     }
-                    LOGGER.info(
-                        f"ready to execute query:\n{format_query_with_params(ready_to_execute_feedback_to_request_rel_query)}"
-                    )
+                    # LOGGER.info(
+                    #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_feedback_to_request_rel_query)}"
+                    # )
                     await self.neo4j_queue.put(
                         ready_to_execute_feedback_to_request_rel_query
                     )

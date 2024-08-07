@@ -968,26 +968,40 @@ def save_new_stats():
     save_kind_stats_to_mongodb()
 
 
+import signal
+
+
+def signal_handler(sig, frame):
+    print("You pressed Ctrl+C!")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     """Usage: python compute_stats.py"""
 
-    try:
-        start_time = datetime.now()
-        compute_basic_stats_from_db_queries()
-        save_new_stats()
+    signal.signal(signal.SIGINT, signal_handler)
 
-        LOGGER.info(
-            f"there are {len(DVM.instances)} DVM Instances and {len(Kind.instances)} Kind Instances"
-        )
+    while True:
+        try:
+            start_time = datetime.now()
+            compute_basic_stats_from_db_queries()
+            save_new_stats()
 
-        LOGGER.info(
-            f"Stats computed and saved to MongoDB. Took {datetime.now() - start_time} seconds."
-        )
-        LOGGER.info("Goodbye!")
+            LOGGER.info(
+                f"there are {len(DVM.instances)} DVM Instances and {len(Kind.instances)} Kind Instances"
+            )
 
-    except Exception as e:
-        import traceback
+            LOGGER.info(
+                f"Stats computed and saved to MongoDB. Took {datetime.now() - start_time} seconds."
+            )
+            LOGGER.info("Iteration complete. Press Ctrl+C to exit.")
 
-        LOGGER.error(f"Exception occurred: {e}")
-        LOGGER.error(traceback.format_exc())
-        LOGGER.info("Goodbye!")
+        except Exception as e:
+            import traceback
+
+            LOGGER.error(f"Exception occurred: {e}")
+            LOGGER.error(traceback.format_exc())
+
+        # Optional: add a delay between iterations
+        # import time
+        time.sleep(0.5)  # Wait for 60 seconds before the next iteration
