@@ -550,11 +550,15 @@ def get_graph_data(request, request_event_id=""):
     """
     new_query = query.replace("$request_event_id", f"'{request_event_id}'")
     logger.warning(f"Querying neo4j with query: {new_query}")
+    logger.warning(f"Actual query sent to neo4j is still: {query}")
 
     params = {"request_event_id": request_event_id}
 
     try:
+        start_time = time.time()
         data = neo4j_service.run_query(query, params)
+        end_time = time.time()
+        logger.warning(f"Query execution time: {end_time - start_time} seconds")
         logger.warning(f"data from neo4j is {data} ")
     except Exception as e:
         logger.error(f"Error running Neo4j query: {str(e)}")

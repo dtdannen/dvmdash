@@ -27,7 +27,7 @@ class Neo4jService:
             logger.warning("Starting to connect to cloud Neo4j")
             URI = os.getenv("NEO4J_URI")
             AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
-
+            logger.warning(f"NEO4J URI: {URI}")
             self._neo4j_driver = GraphDatabase.driver(
                 URI,
                 auth=AUTH,
