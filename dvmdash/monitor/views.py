@@ -555,6 +555,7 @@ def get_graph_data(request, request_event_id=""):
 
     try:
         data = neo4j_service.run_query(query, params)
+        logger.warning(f"data from neo4j is {data} ")
     except Exception as e:
         logger.error(f"Error running Neo4j query: {str(e)}")
         return JsonResponse({"error": "Database query failed"}, status=500)
