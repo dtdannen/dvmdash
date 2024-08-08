@@ -530,7 +530,7 @@ def get_graph_data(request, request_event_id=""):
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
     """
     logger.info(f"get_graph_data called with request_event_id: {request_event_id}")
-
+    logger.warning(f"Hello!")
     try:
         test_data = neo4j_service.run_query(
             "MATCH (n) RETURN count(n) as count LIMIT 1"

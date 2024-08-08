@@ -91,10 +91,6 @@
 
     {%  endif %}
 
-
-
-
-
 <script>
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -244,7 +240,7 @@ document.addEventListener("DOMContentLoaded", function() {
             row.innerHTML = `
                 <td>${d.pubkey ? `<a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
                 <td>${d.kind || 'Unknown'}</td>
-                <td>${d.quick_details || 'This event is missing, we only know another event referenced this one'}</td>
+                <td>${d.quick_details || 'This event is missing, we only know that another event referenced this one'}</td>
                 <td>${d.url ? `<a href="${d.url}" target="_blank">View</a>` : 'N/A'}</td>
                 <td>${d.created_at ? formatTimestamp(d.created_at) : 'Unknown'}</td>
             `;
@@ -306,7 +302,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 return "Result";
             } else if (!node.kind && node.node_type === "User") {
                 return "User";
-            }
+            } else if (!node.kind && node.node_type === "Invoice")
+                return "Invoice";
             return "";
         }
 

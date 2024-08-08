@@ -720,6 +720,7 @@ class NotificationHandler(HandleNotification):
                                 "creator_pubkey": event["pubkey"],
                                 "feedback_event_id": event["id"],
                                 "url": f"https://dvmdash.live/invoice/{additional_properties['invoice_data']}",
+                                "node_type": "Invoice",
                             }
 
                             if "amount" in additional_properties:
