@@ -530,12 +530,12 @@ def get_graph_data(request, request_event_id=""):
     """
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
     """
-    logger.info(f"get_graph_data called with request_event_id: {request_event_id}")
+    logger.debug(f"get_graph_data called with request_event_id: {request_event_id}")
     try:
         test_data = neo4j_service.run_query(
             "MATCH (n) RETURN count(n) as count LIMIT 1"
         )
-        logger.info(f"Neo4j connection test result: {test_data}")
+        logger.debug(f"Neo4j connection test result: {test_data}")
     except Exception as e:
         logger.error(f"Neo4j connection test failed: {str(e)}")
         return JsonResponse({"error": "Database connection failed"}, status=500)
@@ -546,7 +546,7 @@ def get_graph_data(request, request_event_id=""):
         RETURN req, COLLECT(n) AS related_nodes, COLLECT(r) AS relations
     """
     new_query = query.replace("$request_event_id", f"'{request_event_id}'")
-    logger.info(f"Querying neo4j with query: {new_query}")
+    logger.debug(f"Querying neo4j with query: {new_query}")
 
     params = {"request_event_id": request_event_id}
 
@@ -604,10 +604,10 @@ def get_graph_data(request, request_event_id=""):
         "node_relations": node_relations,
     }
 
-    logger.info(
+    logger.debug(
         f"Processed {len(event_nodes)} event nodes and {len(node_relations)} relations"
     )
-    logger.info(f"Response data size: {len(str(response_data))} bytes")
+    logger.debug(f"Response data size: {len(str(response_data))} bytes")
 
     return JsonResponse(response_data, safe=False)
 
