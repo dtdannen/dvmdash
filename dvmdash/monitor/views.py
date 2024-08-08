@@ -23,6 +23,7 @@ from general.dvm import EventKind
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
