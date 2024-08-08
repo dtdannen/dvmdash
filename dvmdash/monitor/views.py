@@ -531,6 +531,15 @@ def get_graph_data(request, request_event_id=""):
     """
     logger.info(f"get_graph_data called with request_event_id: {request_event_id}")
 
+    try:
+        test_data = neo4j_service.run_query(
+            "MATCH (n) RETURN count(n) as count LIMIT 1"
+        )
+        logger.info(f"Neo4j connection test result: {test_data}")
+    except Exception as e:
+        logger.error(f"Neo4j connection test failed: {str(e)}")
+        return JsonResponse({"error": "Database connection failed"}, status=500)
+
     query = """
         MATCH (req:Event {id: $request_event_id})
         OPTIONAL MATCH (n)-[r*]->(req)
