@@ -22,9 +22,9 @@ class Neo4jService:
             )
 
             self._neo4j_driver.verify_connectivity()
-            logger.info("Verified connectivity to local Neo4j")
+            logger.warning("Verified connectivity to local Neo4j")
         else:
-            logger.info("Starting to connect to cloud Neo4j")
+            logger.warning("Starting to connect to cloud Neo4j")
             URI = os.getenv("NEO4J_URI")
             AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 
@@ -34,9 +34,8 @@ class Neo4jService:
                 # encrypted=True,
                 # trust=TRUST_SYSTEM_CA_SIGNED_CERTIFICATES,
             )
-
             self._neo4j_driver.verify_connectivity()
-            logger.info("Verified connectivity to cloud Neo4j")
+            logger.warning("Verified connectivity to cloud Neo4j")
 
     def close(self):
         self._neo4j_driver.close()
