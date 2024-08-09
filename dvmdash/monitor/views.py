@@ -160,13 +160,9 @@ def kind(request, kind_num=""):
         )
 
     pipeline = [
-        # Sort by timestamp in descending order
-        {"$sort": {"timestamp": -1}},
-        # Group all documents by kind_number and get the most recent document for each kind
-        {"$group": {"_id": "$metadata.kind_number", "doc": {"$first": "$$ROOT"}}},
-        # Replace the root with the original document structure
-        {"$replaceRoot": {"newRoot": "$doc"}},
-        # Sort by total jobs requested in descending order
+        # Match documents with the latest timestamp
+        {"$match": {"timestamp": latest_timestamp}},
+        # Sort by number of jobs completed in descending order
         {"$sort": {"total_jobs_requested": -1}},
     ]
 
