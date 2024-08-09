@@ -137,6 +137,28 @@ def kind(request, kind_num=""):
     print(f"Calling kind with kind_num: {kind_num}")
     context = {}
 
+    # Get the most recent global stats document
+    try:
+        global_stats_doc = db.global_stats.find_one(sort=[("timestamp", DESCENDING)])
+        if global_stats_doc:
+            latest_timestamp = global_stats_doc["timestamp"]
+            logger.warning(
+                f"Got a latest_timestamp from global_stats of {latest_timestamp}"
+            )
+        else:
+            raise ValueError("No global stats document found")
+    except Exception as e:
+        logger.error(
+            f"Failed to get latest_timestamp from global stats, error: {str(e)}"
+        )
+        logger.error(traceback.format_exc())
+        return HttpResponse(
+            "Apologies, you have found a bug, "
+            "would you mind sending an email to dustin@dvmdash.live and include the current url?"
+            " This will help us fix it asap.",
+            status=500,
+        )
+
     pipeline = [
         # Sort by timestamp in descending order
         {"$sort": {"timestamp": -1}},
