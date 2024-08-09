@@ -52,7 +52,7 @@ else:
 
 def metrics(request):
     # get the latest stats doc from the stats collection
-    most_recent_stats = db.new_global_stats.find_one(sort=[("timestamp", -1)])
+    most_recent_stats = db.global_stats.find_one(sort=[("timestamp", -1)])
 
     template = loader.get_template("monitor/metrics.html")
     return HttpResponse(template.render(most_recent_stats, request))
@@ -85,7 +85,7 @@ def dvm(request, pub_key=""):
     ]
 
     # Execute the aggregation pipeline
-    dvm_docs = list(db.new_dvm_stats.aggregate(pipeline))
+    dvm_docs = list(db.dvm_stats.aggregate(pipeline))
 
     context["dvm_stat_docs"] = dvm_docs
 
@@ -141,7 +141,7 @@ def kind(request, kind_num=""):
     ]
 
     # Execute the aggregation pipeline
-    kind_stat_docs = list(db.new_kind_stats.aggregate(pipeline))
+    kind_stat_docs = list(db.kind_stats.aggregate(pipeline))
 
     context["kind_stat_docs"] = kind_stat_docs
     context["kinds"] = [doc["metadata"]["kind_number"] for doc in kind_stat_docs]
@@ -395,7 +395,7 @@ def debug(request, event_id=""):
     # get the event with this id
     event = None
     events = list(db.events.find({"id": event_id}))
-    print(f"events are {events}")
+    # print(f"events are {events}")
     if events:
         event = events[0]
 
@@ -534,15 +534,6 @@ def get_graph_data(request, request_event_id=""):
     # Log connection details (be careful not to log sensitive information)
     # Log the type of AUTH, not its contents
 
-    try:
-        test_data = neo4j_service.run_query(
-            "MATCH (n) RETURN count(n) as count LIMIT 1"
-        )
-        logger.warning(f"Neo4j connection test result: {test_data}")
-    except Exception as e:
-        logger.error(f"Neo4j connection test failed: {str(e)}")
-        return JsonResponse({"error": "Database connection failed"}, status=500)
-
     query = """
         MATCH (req:Event {id: $request_event_id})
         OPTIONAL MATCH (n)-[r*]->(req)
@@ -550,7 +541,7 @@ def get_graph_data(request, request_event_id=""):
     """
     new_query = query.replace("$request_event_id", f"'{request_event_id}'")
     logger.warning(f"Querying neo4j with query: {new_query}")
-    logger.warning(f"Actual query sent to neo4j is still: {query}")
+    # logger.warning(f"Actual query sent to neo4j is still: {query}")
 
     params = {"request_event_id": request_event_id}
 
@@ -559,7 +550,7 @@ def get_graph_data(request, request_event_id=""):
         data = neo4j_service.run_query(query, params)
         end_time = time.time()
         logger.warning(f"Query execution time: {end_time - start_time} seconds")
-        logger.warning(f"data from neo4j is {data} ")
+        # logger.warning(f"data from neo4j is {data} ")
     except Exception as e:
         logger.error(f"Error running Neo4j query: {str(e)}")
         return JsonResponse({"error": "Database query failed"}, status=500)

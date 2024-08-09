@@ -194,9 +194,9 @@
                 <tr>
                     <td>{{ doc.timestamp|naturaltime}}</td>
                     {% if doc.profile.name %}
-                        <td><a href="https://dvmdash.live/dvm/{{ doc.metadata.dvm_npub_hex }}">{{ doc.profile.name }}</a></td>
+                        <td><a href="{%  url 'dvm_with_pub_key' doc.metadata.dvm_npub_hex %}">{{ doc.profile.name }}</a></td>
                     {% else %}
-                        <td><a href="https://dvmdash.live/dvm/{{ doc.metadata.dvm_npub_hex }}">{{ doc.metadata.dvm_npub_hex|slice:":8" }}...{{ doc.metadata.dvm_npub_hex|slice:"-4:" }}</a></td>
+                        <td><a href="{%  url 'dvm_with_pub_key' doc.metadata.dvm_npub_hex %}">{{ doc.metadata.dvm_npub_hex|slice:":8" }}...{{ doc.metadata.dvm_npub_hex|slice:"-4:" }}</a></td>
                     {%  endif %}
                     <td>{{ doc.number_jobs_completed|intcomma }}</td>
                     <td>{{ doc.total_sats_received|intcomma }}</td>

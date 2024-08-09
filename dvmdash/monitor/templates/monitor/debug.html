@@ -53,7 +53,7 @@
     <div class="container-fluid bg-success text-light py-2">
         <div class="container text-center">
             <p class="mb-0">
-                This is a demonstration only page and will not work for new dvm events yet.
+                Double click on nodes to open a new tab; zoom in and out with a scroll wheel
             </p>
         </div>
     </div>
@@ -234,11 +234,14 @@ document.addEventListener("DOMContentLoaded", function() {
         // Clear existing table rows
         tableBody.innerHTML = '';
 
+        // Get the current origin
+        const currentOrigin = window.location.origin;
+
         // Populate the table with data from 'tableNodes'
         tableNodes.forEach(d => {
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${d.pubkey ? `<a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
+                <td>${d.pubkey ? `<a href="${currentOrigin}/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
                 <td>${d.kind || 'Unknown'}</td>
                 <td>${d.quick_details || 'This event is missing, we only know that another event referenced this one'}</td>
                 <td>${d.url ? `<a href="${d.url}" target="_blank">View</a>` : 'N/A'}</td>
