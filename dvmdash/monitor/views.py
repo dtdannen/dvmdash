@@ -1,7 +1,7 @@
 import time
 
 from django.shortcuts import render
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
 import os
 import sys
 import ast
@@ -62,24 +62,32 @@ def dvm(request, pub_key=""):
     print(f"Calling dvm with dvm_pub_key: {pub_key}")
     context = {}
 
+    # Get the most recent global stats document
+    try:
+        global_stats_doc = db.global_stats.find_one(sort=[("timestamp", DESCENDING)])
+        if global_stats_doc:
+            latest_timestamp = global_stats_doc["timestamp"]
+            logger.warning(
+                f"Got a latest_timestamp from global_stats of {latest_timestamp}"
+            )
+        else:
+            raise ValueError("No global stats document found")
+    except Exception as e:
+        logger.error(
+            f"Failed to get latest_timestamp from global stats, error: {str(e)}"
+        )
+        logger.error(traceback.format_exc())
+        return HttpResponse(
+            "Apologies, you have found a bug, "
+            "would you mind sending an email to dustin@dvmdash.live and include the current url?"
+            " This will help us fix it asap.",
+            status=500,
+        )
+
     # get all the stats on all the dvms
     pipeline = [
-        # Sort by timestamp in descending order
-        {"$sort": {"timestamp": -1}},
-        # Group all documents and get the max timestamp
-        {
-            "$group": {
-                "_id": None,
-                "maxTimestamp": {"$first": "$timestamp"},
-                "docs": {"$push": "$$ROOT"},
-            }
-        },
-        # Unwind the docs array
-        {"$unwind": "$docs"},
-        # Filter to keep only the docs with the max timestamp
-        {"$match": {"$expr": {"$eq": ["$docs.timestamp", "$maxTimestamp"]}}},
-        # Project to return only the original document structure
-        {"$replaceRoot": {"newRoot": "$docs"}},
+        # Match documents with the latest timestamp
+        {"$match": {"timestamp": latest_timestamp}},
         # Sort by number of jobs completed in descending order
         {"$sort": {"number_jobs_completed": -1}},
     ]

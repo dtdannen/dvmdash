@@ -346,7 +346,7 @@ class Kind:
         cls.instances = {}
 
 
-def save_global_stats_to_mongodb():
+def save_global_stats_to_mongodb(current_timestamp):
     collection_name = "global_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
@@ -361,15 +361,13 @@ def save_global_stats_to_mongodb():
         )
 
     collection = DB[collection_name]
-
-    current_time = datetime.now()
     stats = GlobalStats.compute_stats()
-    stats_document = {"timestamp": current_time, **stats}
+    stats_document = {"timestamp": current_timestamp, **stats}
 
     collection.insert_one(stats_document)
 
 
-def save_dvm_stats_to_mongodb():
+def save_dvm_stats_to_mongodb(current_timestamp):
     collection_name = "dvm_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
@@ -389,13 +387,12 @@ def save_dvm_stats_to_mongodb():
 
     collection = DB[collection_name]
 
-    current_time = datetime.now()
     bulk_operations = []
 
     for dvm in DVM.instances.values():
         stats = dvm.compute_stats()
         stats_document = {
-            "timestamp": current_time,
+            "timestamp": current_timestamp,
             "metadata": {"dvm_npub_hex": dvm.npub_hex},
             **stats,
         }
@@ -408,7 +405,7 @@ def save_dvm_stats_to_mongodb():
         print("No DVM stats to insert")
 
 
-def save_kind_stats_to_mongodb():
+def save_kind_stats_to_mongodb(current_timestamp):
     collection_name = "kind_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
@@ -431,12 +428,11 @@ def save_kind_stats_to_mongodb():
         DB[collection_name].create_index([("total_jobs_requested", -1)])
 
     collection = DB[collection_name]
-    current_time = datetime.now()
     bulk_operations = []
     for kind in Kind.instances.values():
         stats = kind.compute_stats()
         stats_document = {
-            "timestamp": current_time,
+            "timestamp": current_timestamp,
             "metadata": {"kind_number": kind.kind_number},
             **stats,
         }
@@ -1007,9 +1003,13 @@ def compute_basic_stats_from_db_queries():
 
 def save_new_stats():
     """Step 2"""
-    save_global_stats_to_mongodb()
-    save_dvm_stats_to_mongodb()
-    save_kind_stats_to_mongodb()
+
+    # all stats documents will share the exact same timestamp, to make lookup easier
+    current_timestamp = datetime.now()
+
+    save_global_stats_to_mongodb(current_timestamp)
+    save_dvm_stats_to_mongodb(current_timestamp)
+    save_kind_stats_to_mongodb(current_timestamp)
 
 
 import signal

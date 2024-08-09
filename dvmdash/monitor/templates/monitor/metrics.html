@@ -70,7 +70,7 @@
             <div class="card text-white bg-darkmediumpurple mb-3">
                 <div class="card-body">
                     <h5 class="card-title">Most Popular DVM</h5>
-                    <p class="card-text display-4" style="font-size: 2.0rem;"><a href="https://dvmdash.live/npub/{{ most_popular_dvm_npub }}">{{ most_popular_dvm_name }}</a></p>
+                    <p class="card-text display-4" style="font-size: 2.0rem;"><a href="{%  url 'dvm_with_pub_key' most_popular_dvm_npub %}">{{ most_popular_dvm_name }}</a></p>
                 </div>
             </div>
         </div>
