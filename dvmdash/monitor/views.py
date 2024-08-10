@@ -245,8 +245,25 @@ def see_event(request, event_id=""):
 
     # Process the JSON string to convert 'p' tags to links
     event_data = json.loads(event_str)
+
+    debug_event_id = None
+
+    kind_num = None
+    if "kind" in event_data:
+        kind_num = event_data["kind"]
+        if 6000 <= kind_num <= 6999:
+            event_data["kind"] = f'<a href="/kind/{kind_num-1000}">{kind_num}</a>'
+        elif 5000 <= kind_num <= 5999:
+            event_data["kind"] = f'<a href="/kind/{kind_num}">{kind_num}</a>'
+            debug_event_id = event_data["id"]
+        else:
+            # we don't have any page for a kind number outside 5000-6999
+            pass
+
     for tag in event_data.get("tags", []):
         if tag[0] == "e":
+            if 6000 <= kind_num <= 7000:
+                debug_event_id = tag[1]
             tag[1] = f'<a href="/event/{tag[1]}/">{tag[1]}</a>'
         elif tag[0] == "p":
             tag[1] = f'<a href="/npub/{tag[1]}/">{tag[1]}</a>'
@@ -281,9 +298,14 @@ def see_event(request, event_id=""):
             tag[1] = tag[1] = mark_safe(json.dumps(request_as_json, indent=8))
 
     if "pubkey" in event_data:
-        event_data[
-            "pubkey"
-        ] = f'<a href="/npub/{event_data["pubkey"]}/">{event_data["pubkey"]}</a>'
+        if 6000 <= kind_num <= 7000:
+            event_data[
+                "pubkey"
+            ] = f'<a href="/dvm/{event_data["pubkey"]}/">{event_data["pubkey"]}</a>'
+        else:
+            event_data[
+                "pubkey"
+            ] = f'<a href="/npub/{event_data["pubkey"]}/">{event_data["pubkey"]}</a>'
 
         # event_data["request"] = request_as_json
 
@@ -292,11 +314,15 @@ def see_event(request, event_id=""):
     created_at_aware = timezone.make_aware(created_at, timezone.get_current_timezone())
     humanized_date = timesince(created_at_aware, timezone.now())
 
+    created_at_aware_formatted = created_at_aware.strftime("%Y-%m-%d %H:%M:%S")
+
     # Add a description to the context
     context["event_description"] = (
-        f"This is a KIND {event_data.get('kind')} event "
-        f"created on {created_at_aware.strftime('%Y-%m-%d %H:%M:%S')} ({humanized_date} ago)."
+        f"This is a KIND {kind_num} event "
+        f"created on {created_at_aware_formatted} ({humanized_date} ago)."
     )
+
+    context["debug_event_id"] = debug_event_id
 
     # Convert the processed data back to a JSON string
     context["event"] = (
