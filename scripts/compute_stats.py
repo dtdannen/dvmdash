@@ -356,8 +356,8 @@ def save_global_stats_to_mongodb(current_timestamp):
                 "metaField": "metadata",
                 "granularity": "minutes",
             },
-            # capped=True,
-            # size=52428800,  # 50 MB
+            capped=True,
+            size=52428800,  # 50 MB
         )
 
     collection = DB[collection_name]
@@ -377,8 +377,8 @@ def save_dvm_stats_to_mongodb(current_timestamp):
                 "metaField": "metadata",
                 "granularity": "minutes",
             },
-            # capped=True,
-            # size=52428800,  # 50 MB
+            capped=True,
+            size=52428800,  # 50 MB
         )
 
         DB[collection_name].create_index(
@@ -415,8 +415,8 @@ def save_kind_stats_to_mongodb(current_timestamp):
                 "metaField": "metadata",
                 "granularity": "minutes",
             },
-            # capped=True,
-            # size=52428800,  # 50 MB
+            capped=True,
+            size=52428800,  # 50 MB
         )
 
         # Create compound index on timestamp and metadata.kind_number

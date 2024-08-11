@@ -800,7 +800,10 @@ class NotificationHandler(HandleNotification):
                     )
 
 
-async def nostr_client():
+async def nostr_client(days_lookback=0):
+    """
+    days_lookback refers to how many days in the past do you want to ask relays for events
+    """
     keys = Keys.generate()
     pk = keys.public_key()
     LOGGER.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
@@ -810,13 +813,12 @@ async def nostr_client():
         await client.add_relay(relay)
     await client.connect()
 
-    now_timestamp = Timestamp.now()
     # prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
-    # prev_30days_timestamp = Timestamp.from_secs(
-    #     Timestamp.now().as_secs() - 60 * 60 * 24 * 30
-    # )
+    days_timestamp = Timestamp.from_secs(
+        Timestamp.now().as_secs() - (60 * 60 * 24 * days_lookback)
+    )
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(now_timestamp)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(days_timestamp)
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
@@ -923,11 +925,11 @@ async def test_neo4j_connection():
             LOGGER.error("Failed to create test node")
 
 
-async def main():
+async def main(days_lookback=0):
     # await test_neo4j_connection()
 
     try:
-        client, notification_handler = await nostr_client()
+        client, notification_handler = await nostr_client(days_lookback)
 
         # uncomment this to get old events from the db into neo4j
         # Fetch and process documents in batches
@@ -985,8 +987,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--runtime",
         type=int,
-        help="Number of minutes to run before exiting",
+        help="Number of minutes to run before exiting, default is 360 (6 hrs)",
         default=360,
+    )
+    parser.add_argument(
+        "--days_lookback",
+        type=int,
+        help="Number of days in the past to ask relays for events, default is 0",
+        default=0,
     )
     args = parser.parse_args()
 
@@ -999,7 +1007,7 @@ if __name__ == "__main__":
                 minutes=args.runtime
             )
             loop.run_until_complete(
-                asyncio.wait_for(main(), timeout=(args.runtime * 60))
+                asyncio.wait_for(main(args.days_lookback), timeout=(args.runtime * 60))
             )
         else:
             loop.run_until_complete(main())
