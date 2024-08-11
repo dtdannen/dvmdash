@@ -495,7 +495,7 @@ def custom_404(
     return render(request, "monitor/404.html", context, status=404)
 
 
-def _get_row_data_from_event_dict(event_dict):
+def _get_row_data_from_event_dict(event_dict, labels):
     """
     Helper function to parse results from neo4j
 
@@ -508,6 +508,10 @@ def _get_row_data_from_event_dict(event_dict):
         return None, event_dict
 
     already_processed_quick_details = False
+
+    if "Encrypted" in labels:
+        already_processed_quick_details = True
+        event_dict["quick_details"] = "This an encrypted event"
 
     # if the kind is 7000, use the status field
     if (
@@ -575,6 +579,14 @@ def _get_row_data_from_event_dict(event_dict):
                 "quick_details"
             ] = f'<a href="{event_dict["quick_details"]}">Link</a>'
 
+    # if the quick_details get too big, cut them
+    if "quick_details" in event_dict and len(event_dict["quick_details"]) > 200:
+        event_dict["quick_details"] = (
+            event_dict["quick_details"][:50]
+            + "......"
+            + event_dict["quick_details"][-50:]
+        )
+
     return event_dict["id"], event_dict
 
 
@@ -589,7 +601,7 @@ def get_graph_data(request, request_event_id=""):
     query = """
         MATCH (req:Event {id: $request_event_id})
         OPTIONAL MATCH (n)-[r*]->(req)
-        RETURN req, COLLECT(n) AS related_nodes, COLLECT(r) AS relations
+        RETURN req, labels(req) AS req_labels, COLLECT(DISTINCT [n, labels(n)]) AS related_nodes, COLLECT(r) AS relations
     """
     new_query = query.replace("$request_event_id", f"'{request_event_id}'")
     logger.warning(f"Querying neo4j with query: {new_query}")
@@ -620,19 +632,22 @@ def get_graph_data(request, request_event_id=""):
             continue
 
         # Process the req node
-        req_event_id, req_event_data = _get_row_data_from_event_dict(record["req"])
+        req_event_id, req_event_data = _get_row_data_from_event_dict(
+            record["req"], record["req_labels"]
+        )
         if req_event_id and req_event_id not in event_nodes:
             event_nodes[req_event_id] = req_event_data
         if "req_type" in record and "neo4j_node_type" not in req_event_data:
             req_event_data["neo4j_node_type"] = record["req_type"]
 
         # Process related nodes
-        for n in record["related_nodes"]:
-            n_event_id, n_event_data = _get_row_data_from_event_dict(n)
-            if n_event_id and n_event_id not in event_nodes:
-                event_nodes[n_event_id] = n_event_data
-            if "n_type" in n and "neo4j_node_type" not in n_event_data:
-                n_event_data["neo4j_node_type"] = n["n_type"]
+        for n, n_labels in record["related_nodes"]:
+            if n and n_labels:
+                n_event_id, n_event_data = _get_row_data_from_event_dict(n, n_labels)
+                if n_event_id and n_event_id not in event_nodes:
+                    event_nodes[n_event_id] = n_event_data
+                if "n_type" in n and "neo4j_node_type" not in n_event_data:
+                    n_event_data["neo4j_node_type"] = n["n_type"]
 
         # Process relations
         for relation_path in record["relations"]:
