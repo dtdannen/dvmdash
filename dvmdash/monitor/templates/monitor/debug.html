@@ -1,4 +1,5 @@
 {% extends 'monitor/base.html' %}
+{% load humanize %}
 
 {% block extrahead %}
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
@@ -49,16 +50,18 @@
 
 {% block content %}
 
-    <!-- Development Banner -->
-    <div class="container-fluid bg-success text-light py-2">
-        <div class="container text-center">
-            <p class="mb-0">
-                Double click on nodes to open a new tab; zoom in and out with a scroll wheel
-            </p>
-        </div>
-    </div>
+
 
     {% if event_id %}
+        <!-- Development Banner -->
+        <div class="container-fluid bg-success text-light py-2">
+            <div class="container text-center">
+                <p class="mb-0">
+                    Double click on nodes to open a new tab; zoom in and out with a scroll wheel
+                </p>
+            </div>
+        </div>
+
         <div id="network-container" style="width: 100%; height: 600px; background-color: #f0f0f0;"></div>
     <div class="table-container">
       <table id="dataTable">
@@ -76,19 +79,36 @@
       </table>
     </div>
     {% else %}
-    {# Show the input box #}
-        <div class="container">
-        <div class="form-container">
-            <form method="post" class="text-center">
-                {% csrf_token %}
-                <div class="form-group">
-                    <textarea class="form-control" rows="3" name="text_input" placeholder="Paste your text here..."></textarea>
+        {% if recent_events %}
+            <!-- Development Banner -->
+            <div class="container-fluid bg-secondary text-light py-2">
+                <div class="container text-center">
+                    <p class="mb-0">
+                        Choose a recent event to debug or paste any event id (as hex) in the url ../debug/id_as_hex
+                    </p>
                 </div>
-                <button type="submit" class="btn btn-primary">Submit</button>
-            </form>
-        </div>
-    </div>
-
+            </div>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th scope="col">Time of Request</th>
+              <th scope="col">Kind</th>
+              <th scope="col">Event ID Link</th>
+                <th scope="col">Debug Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in recent_events %}
+            <tr>
+              <td>{{ e.created_at|naturaltime }}</td>
+              <td>{{ e.kind }}</td>
+              <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
+                <td><a href="{% url 'debug' event_id=e.debug_event_id %}">Debug this DVM Chain</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
     {%  endif %}
 
 <script>

@@ -444,11 +444,39 @@ def debug(request, event_id=""):
     context = {}
 
     if event_id == "":
-        # show a 404 page with a link back to the homepage and custom message
-        template = loader.get_template("monitor/404.html")
-        return HttpResponseNotFound(
-            template.render({"message": "Sorry, no event ID was provided."}, request)
+        num_events_to_lookback = 200
+        recent_events = list(
+            db.events.find(
+                {
+                    "kind": {
+                        "$gte": 5000,
+                        "$lte": 7000,
+                        "$nin": EventKind.get_bad_dvm_kinds(),
+                    }
+                }
+            )
+            .limit(num_events_to_lookback)
+            .sort("created_at", -1)
         )
+
+        for recent_event in recent_events:
+            # make it readable on the frontend
+            recent_event["created_at"] = datetime.fromtimestamp(
+                recent_event["created_at"]
+            )
+            if "kind" in recent_event and 6000 <= recent_event["kind"] <= 7000:
+                if "tags" in recent_event:
+                    for tag in recent_event["tags"]:
+                        if tag[0] == "e":
+                            recent_event["debug_event_id"] = tag[1]
+                            break
+            else:
+                recent_event["debug_event_id"] = recent_event["id"]
+
+        context["recent_events"] = recent_events
+
+        template = loader.get_template("monitor/debug.html")
+        return HttpResponse(template.render(context, request))
 
     # get the event with this id
     event = None
