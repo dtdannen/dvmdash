@@ -112,6 +112,12 @@ def dvm(request, pub_key=""):
             event["created_at"] = timezone.make_aware(
                 datetime.fromtimestamp(int(event["created_at"]))
             )
+            if "kind" in event and 6000 <= event["kind"] <= 7000:
+                if "tags" in event:
+                    for tag in event["tags"]:
+                        if tag[0] == "e":
+                            event["debug_event_id"] = tag[1]
+                            break
 
         context["dvm_pub_key"] = pub_key
         context["recent_dvm_events"] = dvm_events
