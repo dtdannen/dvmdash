@@ -225,7 +225,7 @@ class NotificationHandler(HandleNotification):
         self.row_count = 0
         self.last_header_time = 0
         self.header_interval = 20  # Print header every 20 rows
-        self.neo4j_semaphore = asyncio.Semaphore(10)
+        self.neo4j_semaphore = asyncio.Semaphore(3)
 
     def count_new_seen_event(self):
         """
@@ -396,19 +396,23 @@ class NotificationHandler(HandleNotification):
                         #     f"Executing query: {query['query']} with params: {query['params']}"
                         # )
                         result = await session.run(query["query"], **query["params"])
-                        await asyncio.sleep(0.0001)
+                        await asyncio.sleep(0.01)
                     except Exception as e:
                         LOGGER.error(f"Error executing query in Neo4j: {str(e)}")
                         LOGGER.error(
                             f"Failed query: {query['query'][:100]}... Params: {query['params']}"
                         )
                         traceback.print_exc()
-                    finally:
-                        self.neo4j_queue.task_done()
+                        # put the query back on the queue then wait a bit before trying
+                        LOGGER.error(
+                            f"Putting query back on the queue then waiting for 5s"
+                        )
+                        await self.neo4j_queue.put(query)
+                        await asyncio.sleep(5)  # Wait a bit before retrying
             except Exception as e:
                 LOGGER.error(f"Unhandled exception in process_neo4j_queries: {e}")
                 traceback.print_exc()
-                await asyncio.sleep(2)  # Wait a bit before retrying
+                await asyncio.sleep(5)  # Wait a bit before retrying
 
     async def process_neo4j_queries(self):
         while True:
