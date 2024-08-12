@@ -589,6 +589,20 @@ def _get_row_data_from_event_dict(event_dict, labels):
             # Skip processing tags for this record and continue with the next one
             pass
 
+    # if no 'i' tag or 'content', try the 'alt' tag
+    if not already_processed_quick_details and "tags" in event_dict:
+        tags_str = event_dict["tags"]
+        try:
+            tags = ast.literal_eval(tags_str)
+            for tag in tags:
+                if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "alt":
+                    event_dict["quick_details"] = tag[1]
+                    already_processed_quick_details = True
+                    break
+        except (ValueError, SyntaxError) as e:
+            print(f"Error parsing tags for record {event_dict['id']}")
+            pass
+
     # for invoices, use a message with the amount and a clickable lighting invoice for quick details
     if (
         not already_processed_quick_details

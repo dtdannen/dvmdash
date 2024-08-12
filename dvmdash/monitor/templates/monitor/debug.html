@@ -45,16 +45,19 @@
       text-align: left;
       border-bottom: 1px solid #ddd;
     }
+
+    .development-banner2 {
+            background-color: #134B70;
+        }
+
   </style>
 {% endblock %}
 
 {% block content %}
 
-
-
     {% if event_id %}
         <!-- Development Banner -->
-        <div class="container-fluid bg-success text-light py-2">
+        <div class="development-banner2 container-fluid text-light py-2">
             <div class="container text-center">
                 <p class="mb-0">
                     Double click on nodes to open a new tab; zoom in and out with a scroll wheel
@@ -62,7 +65,7 @@
             </div>
         </div>
 
-        <div id="network-container" style="width: 100%; height: 600px; background-color: #f0f0f0;"></div>
+        <div id="network-container" style="width: 100%; height: 600px; background-color: #D6D6D6;"></div>
     <div class="table-container">
       <table id="dataTable">
         <thead>
@@ -103,7 +106,7 @@
               <td>{{ e.created_at|naturaltime }}</td>
               <td>{{ e.kind }}</td>
               <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
-                <td><a href="{% url 'debug' event_id=e.debug_event_id %}">Debug this DVM Chain</a></td>
+                <td><a href="{% url 'debug_with_event_id' event_id=e.debug_event_id %}">Debug this DVM Chain</a></td>
             </tr>
             {% endfor %}
           </tbody>

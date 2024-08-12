@@ -20,7 +20,7 @@
           <td>{{ e.created_at|naturaltime }}</td>
           <td>{{ e.kind }}</td>
           <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
-            <td><a href="{% url 'debug' event_id=e.id %}">Debug this DVM Chain</a></td>
+            <td><a href="{% url 'debug_with_event_id' event_id=e.id %}">Debug this DVM Chain</a></td>
         </tr>
         {% endfor %}
       </tbody>

@@ -23,8 +23,8 @@
         <li><a href="{% url 'recent' %}">Recent Requests</a>: Shows recent DVM requests by users, making sure not to show too many of any single kind.</li>
         <li><a href="{% url 'dvm' %}">DVM Browser</a>: Search box to look up DVMs and display information about them. Metrics here need to be added.</li>
         <li><a href="{% url 'kind' %}">Kind Browser</a>: Search box to look up Kinds and display information about them. Metrics here need to be added.</li>
-        <li><a href="{% url 'debug' event_id="1258f00b94102ed3220de6a05897329e5f5e575c07d77966b303e440570c901c" %}">Debug (Demo Only)</a>: Given a request event, this will show a table and graph depicting the interactions among the user and DVMs to accomplish a task.</li>
-        <li><a href="{% url 'playground' %}">Playground (Demo Only)</a>This will allow you to request DVM jobs and pay DVMs, and run a DVM in the browser, side by side for testing purposes.</li>
+        <li><a href="{% url 'debug' %}">Debug</a>: Given a request event, this will show a table and graph depicting the interactions among the user and DVMs to accomplish a task.</li>
+        <li><a href="{% url 'playground' %}">Playground (Demo Only)</a>This will (eventually) allow you to request DVM jobs and pay DVMs, and run a DVM in the browser, side by side for testing purposes.</li>
     </ul>
 
     <img src="{% static 'DVM_Flow_Diagram.png' %}" alt="Image of DVM Flow Diagram">
