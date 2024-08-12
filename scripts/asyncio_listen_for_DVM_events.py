@@ -225,7 +225,7 @@ class NotificationHandler(HandleNotification):
         self.row_count = 0
         self.last_header_time = 0
         self.header_interval = 20  # Print header every 20 rows
-        self.neo4j_semaphore = asyncio.Semaphore(3)
+        self.neo4j_semaphore = asyncio.Semaphore(10)
 
     def count_new_seen_event(self):
         """
@@ -396,7 +396,7 @@ class NotificationHandler(HandleNotification):
                         #     f"Executing query: {query['query']} with params: {query['params']}"
                         # )
                         result = await session.run(query["query"], **query["params"])
-                        await asyncio.sleep(0.001)
+                        await asyncio.sleep(0.0001)
                     except Exception as e:
                         LOGGER.error(f"Error executing query in Neo4j: {str(e)}")
                         LOGGER.error(

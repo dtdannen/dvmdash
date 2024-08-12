@@ -557,7 +557,7 @@ def _get_row_data_from_event_dict(event_dict):
         try:
             tags = ast.literal_eval(tags_str)
             for tag in tags:
-                print(f"Looking at tag: {tag}")
+                # print(f"Looking at tag: {tag}")
                 if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "status":
                     event_dict["quick_details"] = "status: " + tag[-1]
                     already_processed_quick_details = True
@@ -579,7 +579,7 @@ def _get_row_data_from_event_dict(event_dict):
         try:
             tags = ast.literal_eval(tags_str)
             for tag in tags:
-                print(f"Looking at tag: {tag}")
+                # print(f"Looking at tag: {tag}")
                 if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "i":
                     event_dict["quick_details"] = tag[1]
                     already_processed_quick_details = True
@@ -647,7 +647,7 @@ def get_graph_data(request, request_event_id=""):
     # Log the type of AUTH, not its contents
 
     query = """
-        MATCH (req:Event {id: '26e32159613d44efa0c4ab8d09a1b966210d045316730ecb6cd6a98df7ce3660'})
+        MATCH (req:Event {id: $request_event_id})
         OPTIONAL MATCH path = (n)-[r*]->(req)
         UNWIND relationships(path) AS rel
         RETURN 
