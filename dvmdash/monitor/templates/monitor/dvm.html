@@ -73,7 +73,7 @@
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-3 text-center">
-                                    <img src="{% if profile.image %}{{ profile.image }}{% else %}{% static 'images/temp_dvm_pic.png' %}{% endif %}" alt="{{ profile.name }}" class="img-fluid rounded-circle mb-3" style="max-width: 200px;">
+                                    <img src="{% if profile.image %}{{ profile.image }}{% else %}https://image.nostr.build/02f17c99b5f548eba32d69f46c9e4b816fe292e52c11b455b150eeb1c7e45422.png{% endif %}" alt="{{ profile.name }}" class="img-fluid rounded-circle mb-3" style="max-width: 200px;">
                                     <h3 class="card-title">{{ profile.name }}</h3>
                                 </div>
                                 <div class="col-md-9">
