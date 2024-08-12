@@ -990,36 +990,6 @@ async def main(days_lookback=0):
             days_lookback
         )
 
-        # uncomment this to get old events from the db into neo4j
-        # Fetch and process documents in batches
-        # batch_size = 10  # Adjust based on your needs
-        # cursor = OLD_ASYNC_MONGO_DB.events.find().batch_size(batch_size)
-        #
-        # async for doc in cursor:
-        #     LOGGER.info("Received a doc from old db")
-        #     # LOGGER.info(f"doc is: {doc}")
-        #     # Ensure doc is treated as a dictionary here
-        #     if isinstance(doc, dict):  # Check if doc is indeed a dictionary
-        #         doc.pop("_id", None)  # Safely remove '_id' if it exists
-        #     else:
-        #         LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
-        #         continue
-        #
-        #     # Convert document to JSON string
-        #     doc_json_str = dumps(doc)
-        #
-        #     # Call your manual Nostr handler for each document
-        #     await notification_handler.manual_insert(doc_json_str)
-        #     await asyncio.sleep(0.1)
-        #     if (
-        #         notification_handler.neo4j_queue.qsize() > 2000
-        #         or notification_handler.event_queue.qsize() > 2000
-        #     ):
-        #         LOGGER.warning(
-        #             f"One of the queues is over 2000, pausing for 10 seconds"
-        #         )
-        #         await asyncio.sleep(10)
-
         # We'll create a task for client.handle_notifications, which is already running
         handle_notifications_task = asyncio.current_task()
 
