@@ -1,4 +1,5 @@
 {% extends 'monitor/base.html' %}
+{% load humanize %}
 
 {% block extrahead %}
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
@@ -44,22 +45,27 @@
       text-align: left;
       border-bottom: 1px solid #ddd;
     }
+
+    .development-banner2 {
+            background-color: #134B70;
+        }
+
   </style>
 {% endblock %}
 
 {% block content %}
 
-    <!-- Development Banner -->
-    <div class="container-fluid bg-success text-light py-2">
-        <div class="container text-center">
-            <p class="mb-0">
-                This is a demonstration only page and will not work for new dvm events yet.
-            </p>
-        </div>
-    </div>
-
     {% if event_id %}
-        <div id="network-container" style="width: 100%; height: 600px; background-color: #f0f0f0;"></div>
+        <!-- Development Banner -->
+        <div class="development-banner2 container-fluid text-light py-2">
+            <div class="container text-center">
+                <p class="mb-0">
+                    Double click on nodes to open a new tab; zoom in and out with a scroll wheel
+                </p>
+            </div>
+        </div>
+
+        <div id="network-container" style="width: 100%; height: 600px; background-color: #D6D6D6;"></div>
     <div class="table-container">
       <table id="dataTable">
         <thead>
@@ -76,19 +82,36 @@
       </table>
     </div>
     {% else %}
-    {# Show the input box #}
-        <div class="container">
-        <div class="form-container">
-            <form method="post" class="text-center">
-                {% csrf_token %}
-                <div class="form-group">
-                    <textarea class="form-control" rows="3" name="text_input" placeholder="Paste your text here..."></textarea>
+        {% if recent_events %}
+            <!-- Development Banner -->
+            <div class="container-fluid bg-secondary text-light py-2">
+                <div class="container text-center">
+                    <p class="mb-0">
+                        Choose a recent event to debug or paste any event id (as hex) in the url ../debug/id_as_hex
+                    </p>
                 </div>
-                <button type="submit" class="btn btn-primary">Submit</button>
-            </form>
-        </div>
-    </div>
-
+            </div>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th scope="col">Time of Request</th>
+              <th scope="col">Kind</th>
+              <th scope="col">Event ID Link</th>
+                <th scope="col">Debug Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in recent_events %}
+            <tr>
+              <td>{{ e.created_at|naturaltime }}</td>
+              <td>{{ e.kind }}</td>
+              <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
+                <td><a href="{% url 'debug_with_event_id' event_id=e.debug_event_id %}">Debug this DVM Chain</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
     {%  endif %}
 
 <script>
@@ -143,6 +166,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     quick_details: singleNode.quick_details || 'No details available',
                     node_type: singleNode.neo4j_node_type || 'Unknown',
                     label: (singleNode.neo4j_node_type || 'Node') + getLastChars(singleNode.id),
+                    labels: [(singleNode.neo4j_node_type || 'Node') + getLastChars(singleNode.id)],
                 });
                 console.log("nodes has " + nodes.length + " item(s)");
                 console.log("First node:", nodes[0]);  // This will log the details of the node
@@ -155,7 +179,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 const r = item.relation;
                 const req = item.target_node;
 
+                console.log('item.source_node is ', item.source_node)
+                console.log('item.target_node is ', item.target_node)
+
                 const sourceNode = {
+                    ...n,
                     id: n.id || n.npub_hex,
                     pubkey: n.npub_hex || n.pubkey,
                     kind: n.kind,
@@ -163,9 +191,10 @@ document.addEventListener("DOMContentLoaded", function() {
                     url: n.url,
                     quick_details: n.quick_details,
                     node_type: n.neo4j_node_type,
-                    label: n.neo4j_node_type + getLastChars(n.npub_hex || n.id),
+                    label: n.labels ? n.labels.join('\n') : 'Unknown',
                 };
                 const targetNode = {
+                    ...req,
                     id: req.id || req.npub_hex,
                     pubkey: req.npub_hex || req.pubkey,
                     kind: req.kind,
@@ -173,8 +202,10 @@ document.addEventListener("DOMContentLoaded", function() {
                     url: req.url,
                     quick_details: req.quick_details,
                     node_type: req.neo4j_node_type,
-                    label: req.neo4j_node_type + getLastChars(req.id),
+                    label:  req.labels ? req.labels.join('\n') : 'Unknown',
                 };
+                console.log("source node label is ", sourceNode.label)
+                console.log("target node label is ", targetNode.label)
                 //console.log("Source Node: ", sourceNode);
                 //console.log("Target Node: ", targetNode);
                 console.log("Relation: ", r);
@@ -234,18 +265,26 @@ document.addEventListener("DOMContentLoaded", function() {
         // Clear existing table rows
         tableBody.innerHTML = '';
 
+        // Get the current origin
+        const currentOrigin = window.location.origin;
+
         // Populate the table with data from 'tableNodes'
         tableNodes.forEach(d => {
             const row = document.createElement('tr');
+            const pubkeyUrl = (6000 <= d.kind && d.kind <= 7000) ?
+                `${currentOrigin}/dvm/${d.pubkey}` :
+                `${currentOrigin}/npub/${d.pubkey}`;
+
             row.innerHTML = `
-                <td>${d.pubkey ? `<a href="https://dvmdash.live/npub/${d.pubkey}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
-                <td>${d.kind || 'Unknown'}</td>
+                <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
+                <td>${d.kind || ''}</td>
                 <td>${d.quick_details || 'This event is missing, we only know that another event referenced this one'}</td>
-                <td>${d.url ? `<a href="${d.url}" target="_blank">View</a>` : 'N/A'}</td>
-                <td>${d.created_at ? formatTimestamp(d.created_at) : 'Unknown'}</td>
+                <td>${d.id ? `<a href="${currentOrigin}/event/${d.id}" target="_blank">View</a>` : 'N/A'}</td>
+                <td>${d.created_at ? formatTimestamp(d.created_at) : ''}</td>
             `;
             tableBody.appendChild(row);
         });
+
 
 
         function getLastChars(str) {
@@ -293,33 +332,19 @@ document.addEventListener("DOMContentLoaded", function() {
             return `${month} ${day}${daySuffix}, ${year} at ${hours}:${minutes}:${seconds}`;
         }
 
-        function getNodeLabel(node) {
-            if (node.kind >= 5000 && node.kind <= 5999) {
-                return "Request";
-            } else if (node.kind === 7000) {
-                return "Feedback";
-            } else if (node.kind >= 6000 && node.kind <= 6999) {
-                return "Result";
-            } else if (!node.kind && node.node_type === "User") {
-                return "User";
-            } else if (!node.kind && node.node_type === "Invoice")
-                return "Invoice";
-            return "";
-        }
-
         function getNodeColor(node) {
             if (node.kind >= 5000 && node.kind <= 5999) {
                 return "green";
             } else if (node.kind === 7000) {
-                return "blue";
+                return "#4C3BCF";
             } else if (node.kind >= 6000 && node.kind <= 6999) {
-                return "pink";
+                return "darkgreen";
             } else if (!node.kind && node.node_type === "User") {
-                return "purple";
+                return "#4F1787";
             } else if (!node.kind && node.node_type === "DVM") {
-                return "orange";
-            } else if (!node.kind && node.node_type === "Invoice") {
-                return "yellow"
+                return "#A0153E";
+            } else if (node.labels.includes("Invoice")) {
+                return "#F97300"
             }else {
                 return "red";
             }
@@ -339,27 +364,7 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         }
 
-        function printGraphData(nodes, links) {
-            let graphString = "digraph {\n";
-            graphString += "  graph [rankdir=RL];\n";
-            graphString += "  node [shape=record];\n";
 
-            nodes.forEach(node => {
-                const label = `"${node.id}" [label="${node.label}\\n${node.kind || node.node_type}", color=${getNodeColor(node)}]`;
-                graphString += `  ${label};\n`;
-            });
-
-            links.forEach(link => {
-                const source = nodes.find(node => node.id === link.source);
-                const target = nodes.find(node => node.id === link.target);
-                const edgeLabel = `"${source.id}" -> "${target.id}" [label="${link.label}", color=${getLinkColor(link)}]`;
-                graphString += `  ${edgeLabel};\n`;
-            });
-
-            graphString += "}";
-            console.log(graphString);
-            return graphString;
-        }
 
         function createVisNetwork(nodes, links) {
             console.log("Creating network with nodes:", nodes);
@@ -367,11 +372,26 @@ document.addEventListener("DOMContentLoaded", function() {
 
             const visNodes = nodes.map(node => {
                 console.log("Processing node:", node);
+
+                // This is where we do the final processing before nodes are visualized
+                if (node.labels && node.labels.includes('Invoice') && node.amount){
+                    node.label = `${node.label}\n${node.amount / 1000} sats`;
+                    node.url = null;
+                }
+                else if (node.labels && node.labels.includes('DVM') && node.id) {
+                    node.url = `/dvm/${node.id}`;
+                }
+                else if (node.labels && node.labels.includes('User') && node.npub_hex) {
+                    node.url = `/npub/${node.npub_hex}`;
+                } else if (node.labels && node.labels.includes('Event') && node.id) {
+                    node.url = `/event/${node.id}`;
+                }
+
                 return {
                     id: node.id,
-                    label: `${node.label}\n${node.kind || node.node_type || 'Unknown'}`,
+                    label: `${node.label}`,
                     color: getNodeColor(node),
-                    url: node.url || '#',
+                    url: node.url || null,
                 };
             });
 

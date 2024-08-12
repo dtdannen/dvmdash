@@ -31,7 +31,7 @@
     <!-- ... (existing head content) ... -->
     <style>
         .navbar-custom {
-            background-color: #343a40; /* Dark gray background color */
+            background-color: #134B70; /* Dark gray background color */
         }
         .navbar-custom .navbar-brand,
         .navbar-custom .navbar-nav .nav-link {
@@ -43,21 +43,27 @@
         }
         .navbar-custom .navbar-nav .nav-link:hover {
         color: #ffc107; /* Yellow hover color */
-    }
+        }
+        .development-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+            background-color: #508C9B;
+        }
+
+        body {
+            padding-bottom: 50px; /* Adjust this value based on your banner's height */
+        }
     </style>
+
+
 
     {% block extrahead %}{% endblock %}
 </head>
 
 <body>
-    <!-- Development Banner -->
-    <div class="container-fluid bg-warning text-dark py-2">
-        <div class="container text-center">
-            <p class="mb-0">
-                <strong>Note:</strong> Under active development, may break anytime. <a href="https://github.com/dtdannen/dvmdash" target="_blank" class="text-dark">GitHub</a> & <a href="https://njump.me/nprofile1qyghwumn8ghj7mn0wd68ytnhd9hx2tcpzdmhxue69uhhqatjwpkx2urpvuhx2ue0qqsd5x8fscqypualfyu8dlqkkx539tj6dah634g4ns779wpr8gxes5grkwu97" target="_blank" class="text-dark">Reach out</a>.
-            </p>
-        </div>
-    </div>
 
     <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark navbar-custom">
@@ -83,7 +89,7 @@
                         <a class="nav-link" href="{% url 'kind' %}">Kind Browser</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'debug' event_id="1258f00b94102ed3220de6a05897329e5f5e575c07d77966b303e440570c901c" %}">Debug</a>
+                        <a class="nav-link" href="{% url 'debug' %}">Debug</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'playground' %}">Playground</a>
@@ -103,7 +109,13 @@
         {% endblock %}
     </div>
 
-
+<div class="development-banner container-fluid text-dark py-2">
+    <div class="container text-center">
+        <p class="mb-0">
+            <strong>Note:</strong> Under active development, if you find a bug, <a href="https://github.com/dtdannen/dvmdash/issues/new" class="text-dark">please report it here</a>  <a href="https://github.com/dtdannen/dvmdash" target="_blank" class="text-dark">GitHub</a> & <a href="https://njump.me/nprofile1qyghwumn8ghj7mn0wd68ytnhd9hx2tcpzdmhxue69uhhqatjwpkx2urpvuhx2ue0qqsd5x8fscqypualfyu8dlqkkx539tj6dah634g4ns779wpr8gxes5grkwu97" target="_blank" class="text-dark">Reach out</a>.
+        </p>
+    </div>
+</div>
 
 </body>
 </html>

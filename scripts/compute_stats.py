@@ -6,7 +6,7 @@ from neo4j import (
 )
 import nostr_sdk
 
-from pymongo import MongoClient, InsertOne
+from pymongo import MongoClient, InsertOne, DESCENDING
 import json
 import os
 import time
@@ -58,8 +58,8 @@ def setup_database():
     db = mongo_client["dvmdash"]
 
     try:
-        result = db["events"].count_documents({})
-        LOGGER.info(f"There are {result} documents in events collection")
+        result = db["prod_events"].count_documents({})
+        LOGGER.info(f"There are {result} documents in prod_events collection")
     except Exception as e:
         LOGGER.error("Could not count documents in db")
         import traceback
@@ -346,8 +346,8 @@ class Kind:
         cls.instances = {}
 
 
-def save_global_stats_to_mongodb():
-    collection_name = "new_global_stats"
+def save_global_stats_to_mongodb(current_timestamp):
+    collection_name = "global_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
             collection_name,
@@ -356,19 +356,18 @@ def save_global_stats_to_mongodb():
                 "metaField": "metadata",
                 "granularity": "minutes",
             },
+            expireAfterSeconds=6 * 30 * 24 * 60 * 60,  # only keep data 6 months
         )
 
     collection = DB[collection_name]
-
-    current_time = datetime.now()
     stats = GlobalStats.compute_stats()
-    stats_document = {"timestamp": current_time, **stats}
+    stats_document = {"timestamp": current_timestamp, **stats}
 
     collection.insert_one(stats_document)
 
 
-def save_dvm_stats_to_mongodb():
-    collection_name = "new_dvm_stats"
+def save_dvm_stats_to_mongodb(current_timestamp):
+    collection_name = "dvm_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
             collection_name,
@@ -377,17 +376,21 @@ def save_dvm_stats_to_mongodb():
                 "metaField": "metadata",
                 "granularity": "minutes",
             },
+            expireAfterSeconds=6 * 30 * 24 * 60 * 60,  # only keep data 6 months
+        )
+
+        DB[collection_name].create_index(
+            [("timestamp", DESCENDING), ("number_jobs_completed", DESCENDING)]
         )
 
     collection = DB[collection_name]
 
-    current_time = datetime.now()
     bulk_operations = []
 
     for dvm in DVM.instances.values():
         stats = dvm.compute_stats()
         stats_document = {
-            "timestamp": current_time,
+            "timestamp": current_timestamp,
             "metadata": {"dvm_npub_hex": dvm.npub_hex},
             **stats,
         }
@@ -400,8 +403,8 @@ def save_dvm_stats_to_mongodb():
         print("No DVM stats to insert")
 
 
-def save_kind_stats_to_mongodb():
-    collection_name = "new_kind_stats"
+def save_kind_stats_to_mongodb(current_timestamp):
+    collection_name = "kind_stats"
     if collection_name not in DB.list_collection_names():
         DB.create_collection(
             collection_name,
@@ -410,15 +413,23 @@ def save_kind_stats_to_mongodb():
                 "metaField": "metadata",
                 "granularity": "minutes",
             },
+            expireAfterSeconds=6 * 30 * 24 * 60 * 60,  # only keep data 6 months
         )
 
+        # Create compound index on timestamp and metadata.kind_number
+        DB[collection_name].create_index(
+            [("timestamp", -1), ("metadata.kind_number", 1)]
+        )
+
+        # Create index on total_jobs_requested
+        DB[collection_name].create_index([("total_jobs_requested", -1)])
+
     collection = DB[collection_name]
-    current_time = datetime.now()
     bulk_operations = []
     for kind in Kind.instances.values():
         stats = kind.compute_stats()
         stats_document = {
-            "timestamp": current_time,
+            "timestamp": current_timestamp,
             "metadata": {"kind_number": kind.kind_number},
             **stats,
         }
@@ -753,7 +764,7 @@ def global_stats_via_big_mongo_query():
         },
     ]
 
-    results = DB.events.aggregate(pipeline)
+    results = DB.prod_events.aggregate(pipeline)
 
     # Since $facet returns a single document, we take the first (and only) result
     facet_results = next(results, None)
@@ -873,14 +884,13 @@ def dvm_specific_stats_from_neo4j():
     neo4j_query_feedback_events = """
         MATCH (u:User)-[:MADE_EVENT]->(nr:Event:DVMRequest)
         MATCH (d:DVM)-[:MADE_EVENT]->(ns:Event:DVMResult)-[:RESULT_FOR]->(nr)
-        MATCH (d:DVM)-[:MADE_EVENT]->(f:FeedbackPaymentRequest)-[:FEEDBACK_FOR]->(nr)
+        OPTIONAL MATCH (d:DVM)-[:MADE_EVENT]->(f:FeedbackPaymentRequest)-[:FEEDBACK_FOR]->(nr)
         WITH d, nr, ns, f,
              ns.created_at - nr.created_at AS response_time_secs,
-             apoc.convert.fromJsonList(f.tags) AS parsed_tags,
+             CASE WHEN f IS NOT NULL THEN apoc.convert.fromJsonList(f.tags) ELSE [] END AS parsed_tags,
              nr.kind AS request_kind
         WITH d, response_time_secs, request_kind, parsed_tags,
-             [tag IN parsed_tags WHERE tag[0] = 'amount'][0][1] AS amount_str
-        WHERE amount_str IS NOT NULL
+             CASE WHEN f IS NOT NULL THEN [tag IN parsed_tags WHERE tag[0] = 'amount'][0][1] ELSE '0' END AS amount_str
         WITH d, response_time_secs, request_kind, toInteger(amount_str) AS amount
         WHERE amount IS NOT NULL
         WITH 
@@ -897,6 +907,7 @@ def dvm_specific_stats_from_neo4j():
             total_amount: total_amount
         }) AS dvm_kind_stats
         
+        // The rest of the query remains the same
         // Calculate DVM totals
         UNWIND dvm_kind_stats AS stat
         WITH dvm_kind_stats, stat.dvm_npub_hex AS dvm, 
@@ -989,9 +1000,13 @@ def compute_basic_stats_from_db_queries():
 
 def save_new_stats():
     """Step 2"""
-    save_global_stats_to_mongodb()
-    save_dvm_stats_to_mongodb()
-    save_kind_stats_to_mongodb()
+
+    # all stats documents will share the exact same timestamp, to make lookup easier
+    current_timestamp = datetime.now()
+
+    save_global_stats_to_mongodb(current_timestamp)
+    save_dvm_stats_to_mongodb(current_timestamp)
+    save_kind_stats_to_mongodb(current_timestamp)
 
 
 import signal

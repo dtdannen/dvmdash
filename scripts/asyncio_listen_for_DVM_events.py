@@ -18,6 +18,7 @@ from nostr_sdk import (
     NostrSigner,
     Kind,
     Event,
+    NostrError,
 )
 from neo4j import AsyncGraphDatabase
 import motor.motor_asyncio
@@ -28,6 +29,9 @@ from general.helpers import hex_to_npub, sanitize_json, format_query_with_params
 import traceback
 import argparse
 import datetime
+
+# import dumps from bson
+from bson.json_util import dumps
 
 
 def setup_logging():
@@ -69,16 +73,46 @@ def setup_database():
     LOGGER.debug("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
 
     # connect to db synchronously
-    sync_mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
-    sync_db = sync_mongo_client["dvmdash"]
+    # sync_mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
+    # sync_db = sync_mongo_client["dvmdash"]
+
+    # connect to old db
+    old_async_mongo_client = motor.motor_asyncio.AsyncIOMotorClient(
+        os.getenv("OLD_MONGO_URI")
+    )
+    old_async_db = old_async_mongo_client["dvmdash"]
+
+    sync_db_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
+    sync_db = sync_db_client["dvmdash"]
+
+    # check if the database doesn't already exist, and if so create it with the right indexes
+    collection_name = "prod_events"
+    if collection_name not in sync_db.list_collection_names():
+        sync_db.create_collection(
+            collection_name,
+        )
+
+        sync_db[collection_name].create_index([("kind", 1)])
+
+        sync_db[collection_name].create_index([("created_at", -1)])
+
+        sync_db[collection_name].create_index([("kind", 1), ("created_at", 1)])
+
+        sync_db[collection_name].create_index([("pubkey", 1), ("created_at", 1)])
+
+        # Keep the existing text index on 'id'
+        sync_db[collection_name].create_index([("id", "text")], unique=True)
+
+        # now disconnect because we don't need it anymore
+        sync_db.close()
 
     # connect to async db
     async_mongo_client = motor.motor_asyncio.AsyncIOMotorClient(os.getenv("MONGO_URI"))
     async_db = async_mongo_client["dvmdash"]
 
     try:
-        result = async_db["events"].count_documents({})
-        LOGGER.info(f"There are {result} documents in events collection")
+        result = async_db["prod_events"].count_documents({})
+        LOGGER.info(f"There are {result} documents in prod_events collection")
     except Exception as e:
         LOGGER.error("Could not count documents in async_db")
         import traceback
@@ -115,10 +149,15 @@ def setup_database():
         neo4j_driver.verify_connectivity()
         LOGGER.info("Verified connectivity to cloud Neo4j")
 
-    return sync_db, async_db, neo4j_driver
+    return None, async_db, old_async_db, neo4j_driver
 
 
-SYNC_MONGO_DB, ASYNC_MONGO_DB, NEO4J_DRIVER = setup_database()
+(
+    SYNC_MONGO_DB,
+    ASYNC_MONGO_DB,
+    OLD_ASYNC_MONGO_DB,
+    NEO4J_DRIVER,
+) = setup_database()
 NEO4J_BOOKMARK_MANAGER = AsyncGraphDatabase.bookmark_manager()
 
 
@@ -186,7 +225,7 @@ class NotificationHandler(HandleNotification):
         self.row_count = 0
         self.last_header_time = 0
         self.header_interval = 20  # Print header every 20 rows
-        self.neo4j_semaphore = asyncio.Semaphore(3)
+        self.neo4j_semaphore = asyncio.Semaphore(10)
 
     def count_new_seen_event(self):
         """
@@ -269,15 +308,23 @@ class NotificationHandler(HandleNotification):
 
         :param event_json: A JSON string representing the event to be inserted.
         """
-        # Convert the JSON string back to an Event object
-        event = Event.from_json(event_json)
+        try:
+            # Convert the JSON string back to an Event object
+            event = Event.from_json(event_json)
 
-        # Check if the event kind is relevant
-        if event.kind() in RELEVANT_KINDS:
-            await self.event_queue.put(json.loads(event.as_json()))
+            # Check if the event kind is relevant
+            if event.kind() in RELEVANT_KINDS:
+                await self.event_queue.put(json.loads(event_json))
 
-            # Optionally, call print_queue_sizes or any other method to handle the event as needed
-            await self.print_queue_sizes()
+                # Optionally, call print_queue_sizes or any other method to handle the event as needed
+                await self.print_queue_sizes()
+        except NostrError as e:
+            LOGGER.error(f"Error parsing event JSON: {e}")
+            LOGGER.debug(
+                f"Problematic JSON: {event_json[:100]}..."
+            )  # Log the first 100 characters of the JSON for debugging
+        except Exception as e:
+            LOGGER.error(f"Unexpected error in manual_insert: {e}")
 
     async def process_events(self):
         while True:
@@ -323,7 +370,9 @@ class NotificationHandler(HandleNotification):
     async def async_write_to_mongo_db(self, events):
         if len(events) > 0:
             try:
-                result = await ASYNC_MONGO_DB.events.insert_many(events, ordered=False)
+                result = await ASYNC_MONGO_DB.prod_events.insert_many(
+                    events, ordered=False
+                )
                 # LOGGER.info(
                 #    f"Finished writing events to db with result: {len(result.inserted_ids)}"
                 # )
@@ -347,7 +396,7 @@ class NotificationHandler(HandleNotification):
                         #     f"Executing query: {query['query']} with params: {query['params']}"
                         # )
                         result = await session.run(query["query"], **query["params"])
-                        await asyncio.sleep(0.001)
+                        await asyncio.sleep(0.0001)
                     except Exception as e:
                         LOGGER.error(f"Error executing query in Neo4j: {str(e)}")
                         LOGGER.error(
@@ -800,7 +849,10 @@ class NotificationHandler(HandleNotification):
                     )
 
 
-async def nostr_client():
+async def nostr_client(days_lookback=0):
+    """
+    days_lookback refers to how many days in the past do you want to ask relays for events
+    """
     keys = Keys.generate()
     pk = keys.public_key()
     LOGGER.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()} ")
@@ -810,13 +862,12 @@ async def nostr_client():
         await client.add_relay(relay)
     await client.connect()
 
-    now_timestamp = Timestamp.now()
     # prev_24hr_timestamp = Timestamp.from_secs(Timestamp.now().as_secs() - 60 * 60 * 24)
-    # prev_30days_timestamp = Timestamp.from_secs(
-    #     Timestamp.now().as_secs() - 60 * 60 * 24 * 30
-    # )
+    days_timestamp = Timestamp.from_secs(
+        Timestamp.now().as_secs() - (60 * 60 * 24 * days_lookback)
+    )
 
-    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(now_timestamp)
+    dvm_filter = Filter().kinds(RELEVANT_KINDS).since(days_timestamp)
     await client.subscribe([dvm_filter])
 
     # Your existing code without the while True loop
@@ -825,8 +876,12 @@ async def nostr_client():
     process_neo4j_queries = asyncio.create_task(
         notification_handler.process_neo4j_queries()
     )
-    await client.handle_notifications(notification_handler)
-    return client, notification_handler  # Return the client for potential cleanup
+    # Create a task for handle_notifications instead of awaiting it
+    handle_notifications_task = asyncio.create_task(
+        client.handle_notifications(notification_handler)
+    )
+
+    return client, notification_handler, handle_notifications_task
 
 
 def create_test_events_collection():
@@ -923,31 +978,43 @@ async def test_neo4j_connection():
             LOGGER.error("Failed to create test node")
 
 
-async def main():
+async def main(days_lookback=0):
     # await test_neo4j_connection()
 
     try:
-        client, notification_handler = await nostr_client()
+        client, notification_handler, handle_notifications_task = await nostr_client(
+            days_lookback
+        )
 
         # uncomment this to get old events from the db into neo4j
         # Fetch and process documents in batches
-        # batch_size = 10  # Adjust based on your needs
-        # cursor = ASYNC_MONGO_DB.events.find().batch_size(batch_size)
-        #
-        # async for doc in cursor:
-        #     # LOGGER.info(f"doc is: {doc}")
-        #     # Ensure doc is treated as a dictionary here
-        #     if isinstance(doc, dict):  # Check if doc is indeed a dictionary
-        #         doc.pop("_id", None)  # Safely remove '_id' if it exists
-        #     else:
-        #         LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
-        #         continue
-        #
-        #     # Convert document to JSON string
-        #     doc_json_str = dumps(doc)
-        #
-        #     # Call your manual Nostr handler for each document
-        #     await notification_handler.manual_insert(doc_json_str)
+        batch_size = 10  # Adjust based on your needs
+        cursor = OLD_ASYNC_MONGO_DB.events.find().batch_size(batch_size)
+
+        async for doc in cursor:
+            LOGGER.info("Received a doc from old db")
+            # LOGGER.info(f"doc is: {doc}")
+            # Ensure doc is treated as a dictionary here
+            if isinstance(doc, dict):  # Check if doc is indeed a dictionary
+                doc.pop("_id", None)  # Safely remove '_id' if it exists
+            else:
+                LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
+                continue
+
+            # Convert document to JSON string
+            doc_json_str = dumps(doc)
+
+            # Call your manual Nostr handler for each document
+            await notification_handler.manual_insert(doc_json_str)
+            await asyncio.sleep(0.1)
+            if (
+                notification_handler.neo4j_queue.qsize() > 2000
+                or notification_handler.event_queue.qsize() > 2000
+            ):
+                LOGGER.warning(
+                    f"One of the queues is over 2000, pausing for 10 seconds"
+                )
+                await asyncio.sleep(10)
 
         # We'll create a task for client.handle_notifications, which is already running
         handle_notifications_task = asyncio.current_task()
@@ -985,8 +1052,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--runtime",
         type=int,
-        help="Number of minutes to run before exiting",
+        help="Number of minutes to run before exiting, default is 360 (6 hrs)",
         default=360,
+    )
+    parser.add_argument(
+        "--days_lookback",
+        type=int,
+        help="Number of days in the past to ask relays for events, default is 0",
+        default=0,
     )
     args = parser.parse_args()
 
@@ -999,7 +1072,7 @@ if __name__ == "__main__":
                 minutes=args.runtime
             )
             loop.run_until_complete(
-                asyncio.wait_for(main(), timeout=(args.runtime * 60))
+                asyncio.wait_for(main(args.days_lookback), timeout=(args.runtime * 60))
             )
         else:
             loop.run_until_complete(main())

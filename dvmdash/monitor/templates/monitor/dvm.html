@@ -1,4 +1,5 @@
 {% extends 'monitor/base.html' %}
+{%  load static %}
 {% load humanize %}
 {% load custom_template_filters %}
 {% block extrahead %}
@@ -72,7 +73,7 @@
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-3 text-center">
-                                    <img src="{{ profile.image }}" alt="{{ profile.name }}" class="img-fluid rounded-circle mb-3" style="max-width: 200px;">
+                                    <img src="{% if profile.image %}{{ profile.image }}{% else %}{% static 'images/temp_dvm_pic.png' %}{% endif %}" alt="{{ profile.name }}" class="img-fluid rounded-circle mb-3" style="max-width: 200px;">
                                     <h3 class="card-title">{{ profile.name }}</h3>
                                 </div>
                                 <div class="col-md-9">
@@ -168,7 +169,7 @@
                   <td>{{ e.created_at|naturaltime }}</td>
                   <td>{{ e.kind }}</td>
                   <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
-                    <td><a href="{% url 'debug' event_id=e.id %}">Debug this DVM Chain</a></td>
+                    <td><a href="{% if e.debug_event_id %}{% url 'debug_with_event_id' event_id=e.debug_event_id %}{%  else %}{% url 'debug_with_event_id' event_id=e.id %}{% endif %}">Debug this DVM Chain</a></td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -194,9 +195,9 @@
                 <tr>
                     <td>{{ doc.timestamp|naturaltime}}</td>
                     {% if doc.profile.name %}
-                        <td><a href="https://dvmdash.live/dvm/{{ doc.metadata.dvm_npub_hex }}">{{ doc.profile.name }}</a></td>
+                        <td><a href="{%  url 'dvm_with_pub_key' doc.metadata.dvm_npub_hex %}">{{ doc.profile.name }}</a></td>
                     {% else %}
-                        <td><a href="https://dvmdash.live/dvm/{{ doc.metadata.dvm_npub_hex }}">{{ doc.metadata.dvm_npub_hex|slice:":8" }}...{{ doc.metadata.dvm_npub_hex|slice:"-4:" }}</a></td>
+                        <td><a href="{%  url 'dvm_with_pub_key' doc.metadata.dvm_npub_hex %}">{{ doc.metadata.dvm_npub_hex|slice:":8" }}...{{ doc.metadata.dvm_npub_hex|slice:"-4:" }}</a></td>
                     {%  endif %}
                     <td>{{ doc.number_jobs_completed|intcomma }}</td>
                     <td>{{ doc.total_sats_received|intcomma }}</td>

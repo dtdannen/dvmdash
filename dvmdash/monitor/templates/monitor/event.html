@@ -7,7 +7,7 @@
     <div class="row">
         <div class="col-md-12">
             <h1 class="mb-4">Event Details</h1>
-            <p>{{ event_description }}</p>
+            <p>{{ event_description }} {%  if debug_event_id %} <a href="/debug/{{  debug_event_id }}">Debug this event chain.</a> {%  endif %}</p>
             <div class="card">
                 <div class="card-body">
                     <pre class="bg-dark p-3 rounded">{{ event|safe }}</pre>

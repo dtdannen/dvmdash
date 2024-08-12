@@ -133,7 +133,7 @@
                         </td>
                         {%  else %}
                         <td>
-                            {{ dvm_npub|slice:":8" }}...{{ dvm_npub|slice:"-8:" }}
+                            <a href="{%  url 'dvm_with_pub_key' dvm_npub %}">{{ dvm_npub|slice:":8" }}...{{ dvm_npub|slice:"-8:" }}</a>
                         </td>
                         {%  endif %}
                         <td>{{ data.jobs_performed|intcomma }}</td>
@@ -164,7 +164,7 @@
                 {% for doc in kind_stat_docs %}
                 <tr>
                     <td>{{ doc.timestamp|naturaltime }}</td>
-                    <td><a href="https://dvmdash.live/kind/{{ doc.metadata.kind_number }}">{{ doc.metadata.kind_number }}</a></td>
+                    <td><a href="{%  url 'kind_with_kind_num' doc.metadata.kind_number  %}">{{ doc.metadata.kind_number }}</a></td>
                     <td>{{ doc.total_jobs_requested|intcomma }}</td>
                     <td>{{ doc.total_jobs_performed|intcomma }}</td>
                     <td>{{ doc.total_sats_paid_to_dvms|intcomma }}</td>
