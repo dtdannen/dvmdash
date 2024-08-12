@@ -152,7 +152,6 @@
         <table class="table table-striped table-dark">
             <thead>
                 <tr>
-                    <th>Timestamp</th>
                     <th>Kind Number</th>
                     <th>Total Jobs Requested</th>
                     <th>Total Jobs Performed</th>
@@ -163,7 +162,6 @@
             <tbody>
                 {% for doc in kind_stat_docs %}
                 <tr>
-                    <td>{{ doc.timestamp|naturaltime }}</td>
                     <td><a href="{%  url 'kind_with_kind_num' doc.metadata.kind_number  %}">{{ doc.metadata.kind_number }}</a></td>
                     <td>{{ doc.total_jobs_requested|intcomma }}</td>
                     <td>{{ doc.total_jobs_performed|intcomma }}</td>

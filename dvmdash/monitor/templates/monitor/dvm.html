@@ -183,7 +183,6 @@
         <table class="table table-striped table-dark">
             <thead>
                 <tr>
-                    <th>Timestamp</th>
                     <th>Name or NPub Hex</th>
                     <th>Jobs Completed</th>
                     <th>Total Sats Received</th>
@@ -193,7 +192,6 @@
             <tbody>
                 {% for doc in dvm_stat_docs %}
                 <tr>
-                    <td>{{ doc.timestamp|naturaltime}}</td>
                     {% if doc.profile.name %}
                         <td><a href="{%  url 'dvm_with_pub_key' doc.metadata.dvm_npub_hex %}">{{ doc.profile.name }}</a></td>
                     {% else %}
