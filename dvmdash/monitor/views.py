@@ -529,7 +529,7 @@ def custom_404(
     return render(request, "monitor/404.html", context, status=404)
 
 
-def _get_row_data_from_event_dict(event_dict, labels):
+def _get_row_data_from_event_dict(event_dict):
     """
     Helper function to parse results from neo4j
 
@@ -543,7 +543,7 @@ def _get_row_data_from_event_dict(event_dict, labels):
 
     already_processed_quick_details = False
 
-    if "Encrypted" in labels:
+    if "Encrypted" in event_dict["labels"]:
         already_processed_quick_details = True
         event_dict["quick_details"] = "This an encrypted event"
 
@@ -607,7 +607,7 @@ def _get_row_data_from_event_dict(event_dict, labels):
     if (
         not already_processed_quick_details
         and "amount" in event_dict
-        and "Invoice" in labels
+        and "Invoice" in event_dict["labels"]
         and "creator_pubkey" in event_dict
     ):
         amount_millisats = int(event_dict["amount"])
@@ -647,9 +647,24 @@ def get_graph_data(request, request_event_id=""):
     # Log the type of AUTH, not its contents
 
     query = """
-        MATCH (req:Event {id: $request_event_id})
-        OPTIONAL MATCH (n)-[r*]->(req)
-        RETURN req, labels(req) AS req_labels, COLLECT(DISTINCT [n, labels(n)]) AS related_nodes, COLLECT(r) AS relations
+        MATCH (req:Event {id: '26e32159613d44efa0c4ab8d09a1b966210d045316730ecb6cd6a98df7ce3660'})
+        OPTIONAL MATCH path = (n)-[r*]->(req)
+        UNWIND relationships(path) AS rel
+        RETURN 
+          {
+            startNode: {
+              labels: labels(startNode(rel)),
+              properties: properties(startNode(rel))
+            },
+            relationship: {
+              type: type(rel),
+              properties: properties(rel)
+            },
+            endNode: {
+              labels: labels(endNode(rel)),
+              properties: properties(endNode(rel))
+            }
+          } AS relationData, req
     """
     new_query = query.replace("$request_event_id", f"'{request_event_id}'")
     logger.warning(f"Querying neo4j with query: {new_query}")
@@ -674,43 +689,55 @@ def get_graph_data(request, request_event_id=""):
     node_relations = []
     event_nodes = {}
 
+    original_request_node = None
+
     for record in data:
         if "req" not in record:
             logger.warning(f"'req' not in record: {record}")
             continue
 
-        # Process the req node
-        req_event_id, req_event_data = _get_row_data_from_event_dict(
-            record["req"], record["req_labels"]
-        )
-        if req_event_id and req_event_id not in event_nodes:
-            event_nodes[req_event_id] = req_event_data
-        if "req_type" in record and "neo4j_node_type" not in req_event_data:
-            req_event_data["neo4j_node_type"] = record["req_type"]
+        if original_request_node is None:
+            original_request_node = record["req"]
+
+            if "labels" not in original_request_node:
+                original_request_node["labels"] = ["DVMRequest"]
+
+            # Process the req node
+            req_event_id, req_event_data = _get_row_data_from_event_dict(
+                original_request_node
+            )
+
+            if req_event_id not in event_nodes:
+                event_nodes[req_event_id] = req_event_data
 
         # Process related nodes
-        for n, n_labels in record["related_nodes"]:
-            if n and n_labels:
-                n_event_id, n_event_data = _get_row_data_from_event_dict(n, n_labels)
-                if n_event_id and n_event_id not in event_nodes:
-                    event_nodes[n_event_id] = n_event_data
-                if "n_type" in n and "neo4j_node_type" not in n_event_data:
-                    n_event_data["neo4j_node_type"] = n["n_type"]
+        relation_data = record["relationData"]
+        relationship = relation_data["relationship"]["type"]
+        start_node = relation_data["startNode"]
+        end_node = relation_data["endNode"]
 
-        # Process relations
-        for relation_path in record["relations"]:
-            for relation in relation_path:
-                # Assuming the relation tuple is structured as (start_node, type, end_node)
-                lhs = relation[0]  # start_node id
-                relation_name = relation[1]  # relation type
-                rhs = relation[2]  # end_node id
-                node_relations.append(
-                    {
-                        "source_node": lhs,
-                        "target_node": rhs,
-                        "relation": relation_name,
-                    }
-                )
+        start_node_final = start_node["properties"]
+        start_node_final["labels"] = start_node["labels"]
+
+        end_node_final = end_node["properties"]
+        end_node_final["labels"] = end_node["labels"]
+
+        start_node_id, start_node_data = _get_row_data_from_event_dict(start_node_final)
+        end_node_id, end_node_data = _get_row_data_from_event_dict(end_node_final)
+
+        if start_node_id not in event_nodes:
+            event_nodes[start_node_id] = start_node_data
+
+        if end_node_id not in event_nodes:
+            event_nodes[end_node_id] = end_node_data
+
+        node_relations.append(
+            {
+                "source_node": start_node_data,
+                "target_node": end_node_data,
+                "relation": relationship,
+            }
+        )
 
     response_data = {
         "data": data,
