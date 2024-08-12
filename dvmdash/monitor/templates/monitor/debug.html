@@ -343,7 +343,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 return "#4F1787";
             } else if (!node.kind && node.node_type === "DVM") {
                 return "#A0153E";
-            } else if (!node.kind && node.node_type === "Invoice") {
+            } else if (node.labels.includes("Invoice")) {
                 return "#F97300"
             }else {
                 return "red";
@@ -375,19 +375,23 @@ document.addEventListener("DOMContentLoaded", function() {
 
                 // This is where we do the final processing before nodes are visualized
                 if (node.labels && node.labels.includes('Invoice') && node.amount){
-                    node.label = `${node.label}\n${node.amount / 1000} sats`
+                    node.label = `${node.label}\n${node.amount / 1000} sats`;
+                    node.url = null;
                 }
-                //else if ('DVM' in node.labels) {
-                //    node.label =
-                //}
-
-
+                else if (node.labels && node.labels.includes('DVM') && node.id) {
+                    node.url = `/dvm/${node.id}`;
+                }
+                else if (node.labels && node.labels.includes('User') && node.npub_hex) {
+                    node.url = `/npub/${node.npub_hex}`;
+                } else if (node.labels && node.labels.includes('Event') && node.id) {
+                    node.url = `/event/${node.id}`;
+                }
 
                 return {
                     id: node.id,
                     label: `${node.label}`,
                     color: getNodeColor(node),
-                    url: node.url || '#',
+                    url: node.url || null,
                 };
             });
 
