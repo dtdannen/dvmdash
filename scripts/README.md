@@ -57,6 +57,12 @@ Add this line to the crontab file:
 */5 * * * * /path/to/run_listen_for_DVM_events.sh
 ```
 
+or consider this specific example:
+```commandline
+* * * * * /home/dvmdash/dvmdash/scripts/run_asyncio_listen_for_DVM_events.sh --runtime=4320  >> /home/dvmdash/dvmdash/logs/cron_output.log 2>&1
+* * * * * /home/dvmdash/dvmdash/scripts/run_compute_stats.sh  >> /home/dvmdash/dvmdash/logs/cron_output.log 2>&1
+```
+
 ## Stat docs
 
 For faster rendering of general stats and metrics, we will compute stats for each dvm, user,
