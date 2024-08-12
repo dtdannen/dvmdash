@@ -29,6 +29,9 @@ import traceback
 import argparse
 import datetime
 
+# import dumps from bson
+from bson.json_util import dumps
+
 
 def setup_logging():
     # Create a logs directory if it doesn't exist
@@ -69,16 +72,40 @@ def setup_database():
     LOGGER.debug("os.getenv('USE_MONGITA', False): ", os.getenv("USE_MONGITA", False))
 
     # connect to db synchronously
-    sync_mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
-    sync_db = sync_mongo_client["dvmdash"]
+    # sync_mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
+    # sync_db = sync_mongo_client["dvmdash"]
+
+    # connect to old db
+    old_async_mongo_client = motor.motor_asyncio.AsyncIOMotorClient(
+        os.getenv("OLD_MONGO_URI")
+    )
+    old_async_db = old_async_mongo_client["dvmdash"]
 
     # connect to async db
     async_mongo_client = motor.motor_asyncio.AsyncIOMotorClient(os.getenv("MONGO_URI"))
     async_db = async_mongo_client["dvmdash"]
 
+    # check if the database doesn't already exist, and if so create it with the right indexes
+    collection_name = "prod_events"
+    if collection_name not in async_db.list_collection_names():
+        async_db.create_collection(
+            collection_name,
+        )
+
+        async_db[collection_name].create_index([("kind", 1)])
+
+        async_db[collection_name].create_index([("created_at", -1)])
+
+        async_db[collection_name].create_index([("kind", 1), ("created_at", 1)])
+
+        async_db[collection_name].create_index([("pubkey", 1), ("created_at", 1)])
+
+        # Keep the existing text index on 'id'
+        async_db[collection_name].create_index([("id", "text")], unique=True)
+
     try:
-        result = async_db["events"].count_documents({})
-        LOGGER.info(f"There are {result} documents in events collection")
+        result = async_db["prod_events"].count_documents({})
+        LOGGER.info(f"There are {result} documents in prod_events collection")
     except Exception as e:
         LOGGER.error("Could not count documents in async_db")
         import traceback
@@ -115,10 +142,10 @@ def setup_database():
         neo4j_driver.verify_connectivity()
         LOGGER.info("Verified connectivity to cloud Neo4j")
 
-    return sync_db, async_db, neo4j_driver
+    return None, async_db, old_async_db, neo4j_driver
 
 
-SYNC_MONGO_DB, ASYNC_MONGO_DB, NEO4J_DRIVER = setup_database()
+SYNC_MONGO_DB, ASYNC_MONGO_DB, OLD_ASYNC_MONGO_DB, NEO4J_DRIVER = setup_database()
 NEO4J_BOOKMARK_MANAGER = AsyncGraphDatabase.bookmark_manager()
 
 
@@ -323,7 +350,9 @@ class NotificationHandler(HandleNotification):
     async def async_write_to_mongo_db(self, events):
         if len(events) > 0:
             try:
-                result = await ASYNC_MONGO_DB.events.insert_many(events, ordered=False)
+                result = await ASYNC_MONGO_DB.prod_events.insert_many(
+                    events, ordered=False
+                )
                 # LOGGER.info(
                 #    f"Finished writing events to db with result: {len(result.inserted_ids)}"
                 # )
@@ -933,23 +962,24 @@ async def main(days_lookback=0):
 
         # uncomment this to get old events from the db into neo4j
         # Fetch and process documents in batches
-        # batch_size = 10  # Adjust based on your needs
-        # cursor = ASYNC_MONGO_DB.events.find().batch_size(batch_size)
-        #
-        # async for doc in cursor:
-        #     # LOGGER.info(f"doc is: {doc}")
-        #     # Ensure doc is treated as a dictionary here
-        #     if isinstance(doc, dict):  # Check if doc is indeed a dictionary
-        #         doc.pop("_id", None)  # Safely remove '_id' if it exists
-        #     else:
-        #         LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
-        #         continue
-        #
-        #     # Convert document to JSON string
-        #     doc_json_str = dumps(doc)
-        #
-        #     # Call your manual Nostr handler for each document
-        #     await notification_handler.manual_insert(doc_json_str)
+        batch_size = 10  # Adjust based on your needs
+        cursor = OLD_ASYNC_MONGO_DB.events.find().batch_size(batch_size)
+
+        async for doc in cursor:
+            # LOGGER.info(f"doc is: {doc}")
+            # Ensure doc is treated as a dictionary here
+            if isinstance(doc, dict):  # Check if doc is indeed a dictionary
+                doc.pop("_id", None)  # Safely remove '_id' if it exists
+            else:
+                LOGGER.warning(f"doc from DB was NOT a dict: {doc}")
+                continue
+
+            # Convert document to JSON string
+            doc_json_str = dumps(doc)
+
+            # Call your manual Nostr handler for each document
+            await notification_handler.manual_insert(doc_json_str)
+            await asyncio.sleep(0.2)
 
         # We'll create a task for client.handle_notifications, which is already running
         handle_notifications_task = asyncio.current_task()

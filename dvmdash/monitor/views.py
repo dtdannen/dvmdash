@@ -39,8 +39,8 @@ else:
     db = mongo_client["dvmdash"]
 
     try:
-        result = db["events"].count_documents({})
-        print(f"There are {result} documents in events collection")
+        result = db["prod_events"].count_documents({})
+        print(f"There are {result} documents in prod_events collection")
     except Exception as e:
         print("Could not count documents in db")
         import traceback
@@ -100,7 +100,7 @@ def dvm(request, pub_key=""):
     if len(pub_key) > 0:
         print(f"len of pub_key is: {len(pub_key)}")
         dvm_events = list(
-            db.events.find({"pubkey": pub_key}).sort("created_at").limit(100)
+            db.prod_events.find({"pubkey": pub_key}).sort("created_at").limit(100)
         )
 
         # compute the number of results
@@ -212,7 +212,7 @@ def kind(request, kind_num=""):
 
         # get most recent events
         recent_events = list(
-            db.events.find({"kind": int(kind_num)}).sort("created_at").limit(100)
+            db.prod_events.find({"kind": int(kind_num)}).sort("created_at").limit(100)
         )
 
         context["recent_events"] = recent_events
@@ -234,7 +234,7 @@ def see_event(request, event_id=""):
         return HttpResponseNotFound(template.render(context, request))
 
     # get the event with this id
-    event = db.events.find_one({"id": event_id})
+    event = db.prod_events.find_one({"id": event_id})
 
     if not event:
         # If no event is found, show a 404 page
@@ -351,7 +351,7 @@ def see_npub(request, npub=""):
         )
 
     # see if we can get a nip-89 profile for this npub
-    nip89_profile = db.events.find_one({"kind": 31990, "pubkey": npub})
+    nip89_profile = db.prod_events.find_one({"kind": 31990, "pubkey": npub})
     if nip89_profile:
         print("About to redirect with pub_key: ", npub)
         return redirect("dvm_with_pub_key", pub_key=npub)
@@ -360,7 +360,7 @@ def see_npub(request, npub=""):
 
     # get the npub details (assuming `db.events` is your collection for npub data)
     npub_data_cursor = (
-        db.events.find({"pubkey": npub}).sort("created_at", -1).limit(20)
+        db.prod_events.find({"pubkey": npub}).sort("created_at", -1).limit(20)
     )  # -1 for descending order, limit to 20
 
     if not npub_data_cursor:
@@ -390,7 +390,7 @@ def recent(request):
     num_events_to_show_per_kind = 3
     context = {}
     recent_requests = list(
-        db.events.find(
+        db.prod_events.find(
             {
                 "kind": {
                     "$gte": 5000,
@@ -446,7 +446,7 @@ def debug(request, event_id=""):
     if event_id == "":
         num_events_to_lookback = 200
         recent_events = list(
-            db.events.find(
+            db.prod_events.find(
                 {
                     "kind": {
                         "$gte": 5000,
@@ -480,7 +480,7 @@ def debug(request, event_id=""):
 
     # get the event with this id
     event = None
-    events = list(db.events.find({"id": event_id}))
+    events = list(db.prod_events.find({"id": event_id}))
     # print(f"events are {events}")
     if events:
         event = events[0]

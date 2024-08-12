@@ -58,8 +58,8 @@ def setup_database():
     db = mongo_client["dvmdash"]
 
     try:
-        result = db["events"].count_documents({})
-        LOGGER.info(f"There are {result} documents in events collection")
+        result = db["prod_events"].count_documents({})
+        LOGGER.info(f"There are {result} documents in prod_events collection")
     except Exception as e:
         LOGGER.error("Could not count documents in db")
         import traceback
@@ -764,7 +764,7 @@ def global_stats_via_big_mongo_query():
         },
     ]
 
-    results = DB.events.aggregate(pipeline)
+    results = DB.prod_events.aggregate(pipeline)
 
     # Since $facet returns a single document, we take the first (and only) result
     facet_results = next(results, None)
