@@ -865,6 +865,9 @@ def global_stats_via_big_mongo_query():
                         )
                         pass
 
+                if DVM.get_instance(stat["pubkey"]).jobs_completed_from_mongo > 0:
+                    LOGGER.warning("DVM already has jobs completed for mongo")
+
                 DVM.get_instance(stat["pubkey"]).jobs_completed_from_mongo = stat[
                     "kind_6000_6999_count"
                 ]

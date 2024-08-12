@@ -54,6 +54,46 @@ def metrics(request):
     # get the latest stats doc from the stats collection
     most_recent_stats = db.global_stats.find_one(sort=[("timestamp", -1)])
 
+    try:
+        latest_timestamp = most_recent_stats["timestamp"]
+
+        # get all the stats on all the dvms
+        pipeline = [
+            # Match documents with the latest timestamp
+            {"$match": {"timestamp": latest_timestamp}},
+            # Sort by number of jobs completed in descending order
+            {"$sort": {"number_jobs_completed": -1}},
+        ]
+
+        # Execute the aggregation pipeline
+        dvm_docs = list(db.dvm_stats.aggregate(pipeline))
+
+        most_popular_dvm = dvm_docs[0]
+
+        if "profile" in most_popular_dvm and "name" in most_popular_dvm["profile"]:
+            most_recent_stats["most_popular_dvm_name"] = most_popular_dvm["profile"][
+                "name"
+            ]
+        else:
+            most_recent_stats["most_popular_dvm_name"] = most_popular_dvm["metadata"][
+                "dvm_npub_hex"
+            ]
+
+        if len(most_recent_stats["most_popular_dvm_name"]) > 50:
+            most_recent_stats["most_popular_dvm_name"] = (
+                most_recent_stats["most_popular_dvm_name"][:10]
+                + "..."
+                + most_recent_stats["most_popular_dvm_name"][-10:]
+            )
+
+        most_recent_stats["most_popular_dvm_npub"] = most_popular_dvm["metadata"][
+            "dvm_npub_hex"
+        ]
+
+    except Exception as e:
+        logger.warning(f"Could not get dvm stats from db: {e}")
+        pass
+
     template = loader.get_template("monitor/metrics.html")
     return HttpResponse(template.render(most_recent_stats, request))
 
