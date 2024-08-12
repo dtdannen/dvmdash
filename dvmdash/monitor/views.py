@@ -607,11 +607,11 @@ def _get_row_data_from_event_dict(event_dict, labels):
     if (
         not already_processed_quick_details
         and "amount" in event_dict
-        and "invoice" in event_dict
+        and "Invoice" in labels
         and "creator_pubkey" in event_dict
     ):
         amount_millisats = int(event_dict["amount"])
-        invoice_str = event_dict["invoice"]
+        invoice_str = event_dict["id"]
         creator_pubkey_str = event_dict["creator_pubkey"]
         event_dict["pubkey"] = creator_pubkey_str
 

@@ -269,10 +269,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
             row.innerHTML = `
                 <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
-                <td>${d.kind || 'Unknown'}</td>
+                <td>${d.kind || ''}</td>
                 <td>${d.quick_details || 'This event is missing, we only know that another event referenced this one'}</td>
                 <td>${d.id ? `<a href="${currentOrigin}/event/${d.id}" target="_blank">View</a>` : 'N/A'}</td>
-                <td>${d.created_at ? formatTimestamp(d.created_at) : 'Unknown'}</td>
+                <td>${d.created_at ? formatTimestamp(d.created_at) : ''}</td>
             `;
             tableBody.appendChild(row);
         });
@@ -342,15 +342,15 @@ document.addEventListener("DOMContentLoaded", function() {
             if (node.kind >= 5000 && node.kind <= 5999) {
                 return "green";
             } else if (node.kind === 7000) {
-                return "blue";
+                return "#4C3BCF";
             } else if (node.kind >= 6000 && node.kind <= 6999) {
-                return "pink";
+                return "darkgreen";
             } else if (!node.kind && node.node_type === "User") {
-                return "purple";
+                return "#4F1787";
             } else if (!node.kind && node.node_type === "DVM") {
-                return "orange";
+                return "#A0153E";
             } else if (!node.kind && node.node_type === "Invoice") {
-                return "yellow"
+                return "#F97300"
             }else {
                 return "red";
             }
