@@ -461,7 +461,7 @@ class NotificationHandler(HandleNotification):
             # now create the event
             if len(additional_event_labels) == 0:
                 # do nothing for now
-                pass
+                continue
 
             event_query = (
                 """
