@@ -270,19 +270,21 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // Populate the table with data from 'tableNodes'
         tableNodes.forEach(d => {
-            const row = document.createElement('tr');
-            const pubkeyUrl = (6000 <= d.kind && d.kind <= 7000) ?
-                `${currentOrigin}/dvm/${d.pubkey}` :
-                `${currentOrigin}/npub/${d.pubkey}`;
+            if (d.kind && d.quick_details && d.id) {
+                const row = document.createElement('tr');
+                const pubkeyUrl = (6000 <= d.kind && d.kind <= 7000) ?
+                    `${currentOrigin}/dvm/${d.pubkey}` :
+                    `${currentOrigin}/npub/${d.pubkey}`;
 
-            row.innerHTML = `
-                <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
-                <td>${d.kind || ''}</td>
-                <td>${d.quick_details || 'This event is missing, we only know that another event referenced this one'}</td>
-                <td>${d.id ? `<a href="${currentOrigin}/event/${d.id}" target="_blank">View</a>` : 'N/A'}</td>
-                <td>${d.created_at ? formatTimestamp(d.created_at) : ''}</td>
-            `;
-            tableBody.appendChild(row);
+                row.innerHTML = `
+                    <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
+                    <td>${d.kind}</td>
+                    <td>${d.quick_details}</td>
+                    <td><a href="${currentOrigin}/event/${d.id}" target="_blank">View</a></td>
+                    <td>${d.created_at ? formatTimestamp(d.created_at) : ''}</td>
+                `;
+                tableBody.appendChild(row);
+            }
         });
 
 
