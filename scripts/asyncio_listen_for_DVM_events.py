@@ -467,20 +467,30 @@ class NotificationHandler(HandleNotification):
                 # do nothing for now
                 continue
 
-            event_query = (
-                """
-                    OPTIONAL MATCH (existing:Event"""
-                + ":".join(additional_event_labels)
-                + """ {id: $event_id})
-                    WITH existing
-                    WHERE existing IS NULL
-                    CREATE (n:Event:"""
-                + ":".join(additional_event_labels)
-                + """{id: $event_id}) 
-                    SET n += apoc.convert.fromJsonMap($json)
+            # OLD
+            # event_query = (
+            #     """
+            #         OPTIONAL MATCH (existing:Event"""
+            #     + ":".join(additional_event_labels)
+            #     + """ {id: $event_id})
+            #         WITH existing
+            #         WHERE existing IS NULL
+            #         CREATE (n:Event:"""
+            #     + ":".join(additional_event_labels)
+            #     + """{id: $event_id})
+            #         SET n += apoc.convert.fromJsonMap($json)
+            #         RETURN n
+            #     """
+            # )
+
+            # new
+            labels = ":".join(["Event"] + additional_event_labels)
+            event_query = f"""
+                    MERGE (n:{labels} {{id: $event_id}})
+                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
                     RETURN n
                 """
-            )
 
             # else:
             #     pass
@@ -521,12 +531,21 @@ class NotificationHandler(HandleNotification):
             # Step 3: Determine what other nodes and relations to also submit based on additional_event_labels
             if additional_event_labels == ["DVMRequest"]:
                 # if this is a DVMRequest, then we need (1) a User Node and (2) a MADE_EVENT relation
+
+                # OLD
+                # user_node_query = """
+                #     OPTIONAL MATCH (existing:User {npub_hex: $npub_hex})
+                #     WITH existing
+                #     WHERE existing IS NULL
+                #     CREATE (n:User {npub_hex: $npub_hex})
+                #     SET n += apoc.convert.fromJsonMap($json)
+                #     RETURN n
+                # """
+
                 user_node_query = """
-                    OPTIONAL MATCH (existing:User {npub_hex: $npub_hex})
-                    WITH existing
-                    WHERE existing IS NULL
-                    CREATE (n:User {npub_hex: $npub_hex})
-                    SET n += apoc.convert.fromJsonMap($json)
+                    MERGE (n:User {npub_hex: $npub_hex})
+                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
                     RETURN n
                 """
 
@@ -534,11 +553,13 @@ class NotificationHandler(HandleNotification):
                 user_node_query_params = {
                     "npub_hex": event["pubkey"],
                     "json": json.dumps(
-                        {
-                            "npub": user_npub,
-                            "url": "https://dvmdash.live/npub/" + user_npub,
-                            "neo4j_node_type": "User",
-                        }
+                        sanitize_json(
+                            {
+                                "npub": user_npub,
+                                "url": "https://dvmdash.live/npub/" + user_npub,
+                                "neo4j_node_type": "User",
+                            }
+                        )
                     ),
                 }
 
@@ -555,11 +576,22 @@ class NotificationHandler(HandleNotification):
                 await self.neo4j_queue.put(ready_to_execute_user_query)
 
                 # now do the MADE_EVENT relation
+                # OLD
+                # made_event_query = """
+                #     MATCH (n:User {npub_hex: $npub_hex})
+                #     MATCH (r:Event:DVMRequest {id: $event_id})
+                #     WHERE NOT (n)-[:MADE_EVENT]->(r)
+                #     CREATE (n)-[rel:MADE_EVENT]->(r)
+                #     RETURN rel
+                # """
+
+                # new
                 made_event_query = """
                     MATCH (n:User {npub_hex: $npub_hex})
                     MATCH (r:Event:DVMRequest {id: $event_id})
-                    WHERE NOT (n)-[:MADE_EVENT]->(r)
-                    CREATE (n)-[rel:MADE_EVENT]->(r)
+                    MERGE (n)-[rel:MADE_EVENT]->(r)
+                    ON CREATE SET rel.created_at = timestamp()
+                    ON MATCH SET rel.updated_at = timestamp()
                     RETURN rel
                 """
 
@@ -583,11 +615,9 @@ class NotificationHandler(HandleNotification):
                         break
 
                 if dvm_request_event_id:
+                    # new
                     dvm_node_query = """
-                        OPTIONAL MATCH (existing:DVM {npub_hex: $npub_hex})
-                        WITH existing
-                        WHERE existing IS NULL
-                        CREATE (n:DVM {npub_hex: $npub_hex})
+                        MERGE (n:DVM {npub_hex: $npub_hex})
                         SET n += apoc.convert.fromJsonMap($json)
                         RETURN n
                     """
@@ -596,11 +626,13 @@ class NotificationHandler(HandleNotification):
                     dvm_node_query_params = {
                         "npub_hex": event["pubkey"],
                         "json": json.dumps(
-                            {
-                                "npub": dvm_npub,
-                                "url": "https://dvmdash.live/dvm/" + dvm_npub,
-                                "neo4j_node_type": "DVM",
-                            }
+                            sanitize_json(
+                                {
+                                    "npub": dvm_npub,
+                                    "url": "https://dvmdash.live/dvm/" + dvm_npub,
+                                    "neo4j_node_type": "DVM",
+                                }
+                            )
                         ),
                     }
 
@@ -618,11 +650,22 @@ class NotificationHandler(HandleNotification):
 
                     # now create the MADE_EVENT relation query
 
+                    # OLD
+                    # dvm_made_event_query = """
+                    #     MATCH (n:DVM {npub_hex: $npub_hex})
+                    #     MATCH (r:Event:DVMResult {id: $event_id})
+                    #     WHERE NOT (n)-[:MADE_EVENT]->(r)
+                    #     CREATE (n)-[rel:MADE_EVENT]->(r)
+                    #     RETURN rel
+                    # """
+
+                    # new
                     dvm_made_event_query = """
                         MATCH (n:DVM {npub_hex: $npub_hex})
                         MATCH (r:Event:DVMResult {id: $event_id})
-                        WHERE NOT (n)-[:MADE_EVENT]->(r)
-                        CREATE (n)-[rel:MADE_EVENT]->(r)
+                        MERGE (n)-[rel:MADE_EVENT]->(r)
+                        ON CREATE SET rel.created_at = timestamp()
+                        ON MATCH SET rel.updated_at = timestamp()
                         RETURN rel
                     """
 
@@ -641,17 +684,29 @@ class NotificationHandler(HandleNotification):
                     # now because this is a DVMResult, we want to add a relation from this to the original DVM Request
 
                     # now let's make the query to create that node in case it doesn't exist
-                    create_dvm_request_if_not_exist_query = """
-                        OPTIONAL MATCH (existing:Event:DVMResult {id: $event_id})
-                        WITH existing
-                        WHERE existing IS NULL
-                        CREATE (n:Event:DVMResult {id: $event_id})
+                    # OLD
+                    # create_dvm_request_if_not_exist_query = """
+                    #     OPTIONAL MATCH (existing:Event:DVMRequest {id: $event_id})
+                    #     WITH existing
+                    #     WHERE existing IS NULL
+                    #     CREATE (n:Event:DVMRequest {id: $event_id})
+                    #     RETURN n
+                    # """
+
+                    # new
+                    create_dvm_request_query = """
+                        MERGE (n:Event:DVMRequest {id: $event_id})
+                        ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                        ON MATCH SET n += apoc.convert.fromJsonMap($json)
                         RETURN n
                     """
 
                     ready_to_execute_create_dvm_request_if_not_exist = {
-                        "query": create_dvm_request_if_not_exist_query,
-                        "params": {"event_id": dvm_request_event_id},
+                        "query": create_dvm_request_query,
+                        "params": {
+                            "event_id": dvm_request_event_id,
+                            "json": json.dumps({}),
+                        },
                     }
                     # LOGGER.info(
                     #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_dvm_request_if_not_exist)}"
@@ -662,11 +717,22 @@ class NotificationHandler(HandleNotification):
 
                     # now make the relation from the DVMResult to the DVMRequest
 
+                    # OLD
+                    # dvm_result_to_request_relation_query = """
+                    #     MATCH (result:Event:DVMResult {id: $result_event_id})
+                    #     MATCH (request:Event:DVMRequest {id: $request_event_id})
+                    #     WHERE NOT (result)-[:RESULT_FOR]->(request)
+                    #     CREATE (result)-[rel:RESULT_FOR]->(request)
+                    #     RETURN rel
+                    # """
+
+                    # new
                     dvm_result_to_request_relation_query = """
                         MATCH (result:Event:DVMResult {id: $result_event_id})
                         MATCH (request:Event:DVMRequest {id: $request_event_id})
-                        WHERE NOT (result)-[:RESULT_FOR]->(request)
-                        CREATE (result)-[rel:RESULT_FOR]->(request)
+                        MERGE (result)-[rel:RESULT_FOR]->(request)
+                        ON CREATE SET rel.created_at = timestamp()
+                        ON MATCH SET rel.updated_at = timestamp()
                         RETURN rel
                     """
 
@@ -697,12 +763,20 @@ class NotificationHandler(HandleNotification):
                         break
 
                 # create the DVM node if it doesn't exist yet
+                # OLD
+                # dvm_node_query = """
+                #     OPTIONAL MATCH (existing:DVM {npub_hex: $npub_hex})
+                #     WITH existing
+                #     WHERE existing IS NULL
+                #     CREATE (n:DVM {npub_hex: $npub_hex})
+                #     SET n += apoc.convert.fromJsonMap($json)
+                #     RETURN n
+                # """
+
                 dvm_node_query = """
-                    OPTIONAL MATCH (existing:DVM {npub_hex: $npub_hex})
-                    WITH existing
-                    WHERE existing IS NULL
-                    CREATE (n:DVM {npub_hex: $npub_hex})
-                    SET n += apoc.convert.fromJsonMap($json)
+                    MERGE (n:DVM {npub_hex: $npub_hex})
+                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
                     RETURN n
                 """
 
@@ -710,11 +784,13 @@ class NotificationHandler(HandleNotification):
                 dvm_node_query_params = {
                     "npub_hex": event["pubkey"],
                     "json": json.dumps(
-                        {
-                            "npub": dvm_npub,
-                            "url": "https://dvmdash.live/dvm/" + dvm_npub,
-                            "neo4j_node_type": "DVM",
-                        }
+                        sanitize_json(
+                            {
+                                "npub": dvm_npub,
+                                "url": "https://dvmdash.live/dvm/" + dvm_npub,
+                                "neo4j_node_type": "DVM",
+                            }
+                        )
                     ),
                 }
 
@@ -731,11 +807,21 @@ class NotificationHandler(HandleNotification):
                 await self.neo4j_queue.put(ready_to_execute_dvm_node_query)
 
                 # create the MADE_EVENT rel from the DVM to this Feedback event
+                # OLD
+                # dvm_made_feedback_query = """
+                #     MATCH (n:DVM {npub_hex: $npub_hex})
+                #     MATCH (r:Event:Feedback {id: $event_id})
+                #     WHERE NOT (n)-[:MADE_EVENT]->(r)
+                #     CREATE (n)-[rel:MADE_EVENT]->(r)
+                #     RETURN rel
+                # """
+
                 dvm_made_feedback_query = """
                     MATCH (n:DVM {npub_hex: $npub_hex})
                     MATCH (r:Event:Feedback {id: $event_id})
-                    WHERE NOT (n)-[:MADE_EVENT]->(r)
-                    CREATE (n)-[rel:MADE_EVENT]->(r)
+                    MERGE (n)-[rel:MADE_EVENT]->(r)
+                    ON CREATE SET rel.created_at = timestamp()
+                    ON MATCH SET rel.updated_at = timestamp()
                     RETURN rel
                 """
 
@@ -760,12 +846,21 @@ class NotificationHandler(HandleNotification):
                                     f"invoice data for feedback event {event['id']} does not start with 'lnbc'"
                                 )
 
+                            # OLD
+                            # create_invoice_node_query = """
+                            #     OPTIONAL MATCH (existing:Invoice {id: $invoice_data})
+                            #     WITH existing
+                            #     WHERE existing IS NULL
+                            #     CREATE (n:Invoice {id: $invoice_data})
+                            #     SET n += apoc.convert.fromJsonMap($json)
+                            #     RETURN n
+                            # """
+
+                            # new
                             create_invoice_node_query = """
-                                OPTIONAL MATCH (existing:Invoice {id: $invoice_data})
-                                WITH existing
-                                WHERE existing IS NULL
-                                CREATE (n:Invoice {id: $invoice_data})
-                                SET n += apoc.convert.fromJsonMap($json)
+                                MERGE (n:Invoice {id: $invoice_data})
+                                ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                                ON MATCH SET n += apoc.convert.fromJsonMap($json)
                                 RETURN n
                             """
 
@@ -783,7 +878,7 @@ class NotificationHandler(HandleNotification):
 
                             invoice_params = {
                                 "invoice_data": additional_properties["invoice_data"],
-                                "json": json.dumps(json_inner_params),
+                                "json": json.dumps(sanitize_json(json_inner_params)),
                             }
 
                             ready_to_execute_create_invoice_node_query = {
@@ -800,11 +895,22 @@ class NotificationHandler(HandleNotification):
                             )
 
                             # now create a relation to this invoice from the feedback event
+                            # OLD
+                            # create_invoice_to_feedback_rel_query = """
+                            #     MATCH (i:Invoice {id: $invoice_data})
+                            #     MATCH (f:Event {id: $event_id})
+                            #     WHERE NOT (i)-[:INVOICE_FROM]->(f)
+                            #     CREATE (i)-[rel:INVOICE_FROM]->(f)
+                            #     RETURN rel
+                            # """
+
+                            # new
                             create_invoice_to_feedback_rel_query = """
                                 MATCH (i:Invoice {id: $invoice_data})
                                 MATCH (f:Event {id: $event_id})
-                                WHERE NOT (i)-[:INVOICE_FROM]->(f)
-                                CREATE (i)-[rel:INVOICE_FROM]->(f)
+                                MERGE (i)-[rel:INVOICE_FROM]->(f)
+                                ON CREATE SET rel.created_at = timestamp()
+                                ON MATCH SET rel.updated_at = timestamp()
                                 RETURN rel
                             """
 
@@ -830,13 +936,24 @@ class NotificationHandler(HandleNotification):
                             )
 
                     # now create a relation from the feedback to the original DVM Request
+                    # OLD
+                    #  create_feedback_to_original_request_query = """
+                    #     MATCH (feedback:Event {id: $feedback_event_id})
+                    #     MATCH (request:Event {id: $request_event_id})
+                    #     WHERE NOT (feedback)-[:FEEDBACK_FOR]->(request)
+                    #     CREATE (feedback)-[rel:FEEDBACK_FOR]->(request)
+                    #     RETURN rel
+                    # """
+
+                    # new
                     create_feedback_to_original_request_query = """
-                       MATCH (feedback:Event {id: $feedback_event_id})
-                       MATCH (request:Event {id: $request_event_id})
-                       WHERE NOT (feedback)-[:FEEDBACK_FOR]->(request)
-                       CREATE (feedback)-[rel:FEEDBACK_FOR]->(request)
-                       RETURN rel
-                   """
+                        MATCH (feedback:Event {id: $feedback_event_id})
+                        MATCH (request:Event {id: $request_event_id})
+                        MERGE (feedback)-[rel:FEEDBACK_FOR]->(request)
+                        ON CREATE SET rel.created_at = timestamp()
+                        ON MATCH SET rel.updated_at = timestamp()
+                        RETURN rel
+                    """
 
                     ready_to_execute_feedback_to_request_rel_query = {
                         "query": create_feedback_to_original_request_query,

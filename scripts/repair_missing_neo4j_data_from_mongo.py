@@ -117,20 +117,14 @@ def create_neo4j_queries(event):
         )
         return []
 
-    event_query = (
-        """
-                OPTIONAL MATCH (existing:Event"""
-        + ":".join(additional_event_labels)
-        + """ {id: $event_id})
-            WITH existing
-            WHERE existing IS NULL
-            CREATE (n:Event:"""
-        + ":".join(additional_event_labels)
-        + """{id: $event_id}) 
-            SET n += apoc.convert.fromJsonMap($json)
-            RETURN n
-        """
-    )
+    # new
+    labels = ":".join(["Event"] + additional_event_labels)
+    event_query = f"""
+                    MERGE (n:{labels} {{id: $event_id}})
+                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                    RETURN n
+                """
 
     # else:
     #     pass
@@ -172,23 +166,23 @@ def create_neo4j_queries(event):
     if additional_event_labels == ["DVMRequest"]:
         # if this is a DVMRequest, then we need (1) a User Node and (2) a MADE_EVENT relation
         user_node_query = """
-            OPTIONAL MATCH (existing:User {npub_hex: $npub_hex})
-            WITH existing
-            WHERE existing IS NULL
-            CREATE (n:User {npub_hex: $npub_hex})
-            SET n += apoc.convert.fromJsonMap($json)
-            RETURN n
-        """
+                            MERGE (n:User {npub_hex: $npub_hex})
+                            ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                            ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                            RETURN n
+                        """
 
         user_npub = hex_to_npub(event["pubkey"])
         user_node_query_params = {
             "npub_hex": event["pubkey"],
             "json": json.dumps(
-                {
-                    "npub": user_npub,
-                    "url": "https://dvmdash.live/npub/" + user_npub,
-                    "neo4j_node_type": "User",
-                }
+                sanitize_json(
+                    {
+                        "npub": user_npub,
+                        "url": "https://dvmdash.live/npub/" + user_npub,
+                        "neo4j_node_type": "User",
+                    }
+                )
             ),
         }
 
@@ -206,12 +200,13 @@ def create_neo4j_queries(event):
 
         # now do the MADE_EVENT relation
         made_event_query = """
-            MATCH (n:User {npub_hex: $npub_hex})
-            MATCH (r:Event:DVMRequest {id: $event_id})
-            WHERE NOT (n)-[:MADE_EVENT]->(r)
-            CREATE (n)-[rel:MADE_EVENT]->(r)
-            RETURN rel
-        """
+                            MATCH (n:User {npub_hex: $npub_hex})
+                            MATCH (r:Event:DVMRequest {id: $event_id})
+                            MERGE (n)-[rel:MADE_EVENT]->(r)
+                            ON CREATE SET rel.created_at = timestamp()
+                            ON MATCH SET rel.updated_at = timestamp()
+                            RETURN rel
+                        """
 
         ready_to_execute_made_event_query = {
             "query": made_event_query,
@@ -234,23 +229,22 @@ def create_neo4j_queries(event):
 
         if dvm_request_event_id:
             dvm_node_query = """
-                OPTIONAL MATCH (existing:DVM {npub_hex: $npub_hex})
-                WITH existing
-                WHERE existing IS NULL
-                CREATE (n:DVM {npub_hex: $npub_hex})
-                SET n += apoc.convert.fromJsonMap($json)
-                RETURN n
-            """
+                                    MERGE (n:DVM {npub_hex: $npub_hex})
+                                    SET n += apoc.convert.fromJsonMap($json)
+                                    RETURN n
+                                """
 
             dvm_npub = hex_to_npub(event["pubkey"])
             dvm_node_query_params = {
                 "npub_hex": event["pubkey"],
                 "json": json.dumps(
-                    {
-                        "npub": dvm_npub,
-                        "url": "https://dvmdash.live/dvm/" + dvm_npub,
-                        "neo4j_node_type": "DVM",
-                    }
+                    sanitize_json(
+                        {
+                            "npub": dvm_npub,
+                            "url": "https://dvmdash.live/dvm/" + dvm_npub,
+                            "neo4j_node_type": "DVM",
+                        }
+                    )
                 ),
             }
 
@@ -269,12 +263,13 @@ def create_neo4j_queries(event):
             # now create the MADE_EVENT relation query
 
             dvm_made_event_query = """
-                MATCH (n:DVM {npub_hex: $npub_hex})
-                MATCH (r:Event:DVMResult {id: $event_id})
-                WHERE NOT (n)-[:MADE_EVENT]->(r)
-                CREATE (n)-[rel:MADE_EVENT]->(r)
-                RETURN rel
-            """
+                                    MATCH (n:DVM {npub_hex: $npub_hex})
+                                    MATCH (r:Event:DVMResult {id: $event_id})
+                                    MERGE (n)-[rel:MADE_EVENT]->(r)
+                                    ON CREATE SET rel.created_at = timestamp()
+                                    ON MATCH SET rel.updated_at = timestamp()
+                                    RETURN rel
+                                """
 
             ready_to_execute_dvm_made_event_query = {
                 "query": dvm_made_event_query,
@@ -291,17 +286,16 @@ def create_neo4j_queries(event):
             # now because this is a DVMResult, we want to add a relation from this to the original DVM Request
 
             # now let's make the query to create that node in case it doesn't exist
-            create_dvm_request_if_not_exist_query = """
-                OPTIONAL MATCH (existing:Event:DVMResult {id: $event_id})
-                WITH existing
-                WHERE existing IS NULL
-                CREATE (n:Event:DVMResult {id: $event_id})
-                RETURN n
-            """
+            create_dvm_request_query = """
+                                    MERGE (n:Event:DVMRequest {id: $event_id})
+                                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                                    RETURN n
+                                """
 
             ready_to_execute_create_dvm_request_if_not_exist = {
-                "query": create_dvm_request_if_not_exist_query,
-                "params": {"event_id": dvm_request_event_id},
+                "query": create_dvm_request_query,
+                "params": {"event_id": dvm_request_event_id, "json": json.dumps({})},
             }
             # LOGGER.info(
             #     f"ready to execute query:\n{format_query_with_params(ready_to_execute_create_dvm_request_if_not_exist)}"
@@ -313,12 +307,13 @@ def create_neo4j_queries(event):
             # now make the relation from the DVMResult to the DVMRequest
 
             dvm_result_to_request_relation_query = """
-                MATCH (result:Event:DVMResult {id: $result_event_id})
-                MATCH (request:Event:DVMRequest {id: $request_event_id})
-                WHERE NOT (result)-[:RESULT_FOR]->(request)
-                CREATE (result)-[rel:RESULT_FOR]->(request)
-                RETURN rel
-            """
+                                    MATCH (result:Event:DVMResult {id: $result_event_id})
+                                    MATCH (request:Event:DVMRequest {id: $request_event_id})
+                                    MERGE (result)-[rel:RESULT_FOR]->(request)
+                                    ON CREATE SET rel.created_at = timestamp()
+                                    ON MATCH SET rel.updated_at = timestamp()
+                                    RETURN rel
+                                """
 
             ready_to_execute_dvm_result_to_request_rel_query = {
                 "query": dvm_result_to_request_relation_query,
@@ -348,23 +343,23 @@ def create_neo4j_queries(event):
 
         # create the DVM node if it doesn't exist yet
         dvm_node_query = """
-            OPTIONAL MATCH (existing:DVM {npub_hex: $npub_hex})
-            WITH existing
-            WHERE existing IS NULL
-            CREATE (n:DVM {npub_hex: $npub_hex})
-            SET n += apoc.convert.fromJsonMap($json)
-            RETURN n
-        """
+                            MERGE (n:DVM {npub_hex: $npub_hex})
+                            ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                            ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                            RETURN n
+                        """
 
         dvm_npub = hex_to_npub(event["pubkey"])
         dvm_node_query_params = {
             "npub_hex": event["pubkey"],
             "json": json.dumps(
-                {
-                    "npub": dvm_npub,
-                    "url": "https://dvmdash.live/dvm/" + dvm_npub,
-                    "neo4j_node_type": "DVM",
-                }
+                sanitize_json(
+                    {
+                        "npub": dvm_npub,
+                        "url": "https://dvmdash.live/dvm/" + dvm_npub,
+                        "neo4j_node_type": "DVM",
+                    }
+                )
             ),
         }
 
@@ -382,12 +377,13 @@ def create_neo4j_queries(event):
 
         # create the MADE_EVENT rel from the DVM to this Feedback event
         dvm_made_feedback_query = """
-            MATCH (n:DVM {npub_hex: $npub_hex})
-            MATCH (r:Event:Feedback {id: $event_id})
-            WHERE NOT (n)-[:MADE_EVENT]->(r)
-            CREATE (n)-[rel:MADE_EVENT]->(r)
-            RETURN rel
-        """
+                            MATCH (n:DVM {npub_hex: $npub_hex})
+                            MATCH (r:Event:Feedback {id: $event_id})
+                            MERGE (n)-[rel:MADE_EVENT]->(r)
+                            ON CREATE SET rel.created_at = timestamp()
+                            ON MATCH SET rel.updated_at = timestamp()
+                            RETURN rel
+                        """
 
         ready_to_execute_dvm_made_feedback_query = {
             "query": dvm_made_feedback_query,
@@ -409,13 +405,11 @@ def create_neo4j_queries(event):
                         )
 
                     create_invoice_node_query = """
-                        OPTIONAL MATCH (existing:Invoice {id: $invoice_data})
-                        WITH existing
-                        WHERE existing IS NULL
-                        CREATE (n:Invoice {id: $invoice_data})
-                        SET n += apoc.convert.fromJsonMap($json)
-                        RETURN n
-                    """
+                                                    MERGE (n:Invoice {id: $invoice_data})
+                                                    ON CREATE SET n += apoc.convert.fromJsonMap($json)
+                                                    ON MATCH SET n += apoc.convert.fromJsonMap($json)
+                                                    RETURN n
+                                                """
 
                     json_inner_params = {
                         "creator_pubkey": event["pubkey"],
@@ -429,7 +423,7 @@ def create_neo4j_queries(event):
 
                     invoice_params = {
                         "invoice_data": additional_properties["invoice_data"],
-                        "json": json.dumps(json_inner_params),
+                        "json": json.dumps(sanitize_json(json_inner_params)),
                     }
 
                     ready_to_execute_create_invoice_node_query = {
@@ -447,12 +441,13 @@ def create_neo4j_queries(event):
 
                     # now create a relation to this invoice from the feedback event
                     create_invoice_to_feedback_rel_query = """
-                        MATCH (i:Invoice {id: $invoice_data})
-                        MATCH (f:Event {id: $event_id})
-                        WHERE NOT (i)-[:INVOICE_FROM]->(f)
-                        CREATE (i)-[rel:INVOICE_FROM]->(f)
-                        RETURN rel
-                    """
+                                                    MATCH (i:Invoice {id: $invoice_data})
+                                                    MATCH (f:Event {id: $event_id})
+                                                    MERGE (i)-[rel:INVOICE_FROM]->(f)
+                                                    ON CREATE SET rel.created_at = timestamp()
+                                                    ON MATCH SET rel.updated_at = timestamp()
+                                                    RETURN rel
+                                                """
 
                     invoice_rel_params = {
                         "invoice_data": additional_properties["invoice_data"],
@@ -477,12 +472,13 @@ def create_neo4j_queries(event):
 
             # now create a relation from the feedback to the original DVM Request
             create_feedback_to_original_request_query = """
-               MATCH (feedback:Event {id: $feedback_event_id})
-               MATCH (request:Event {id: $request_event_id})
-               WHERE NOT (feedback)-[:FEEDBACK_FOR]->(request)
-               CREATE (feedback)-[rel:FEEDBACK_FOR]->(request)
-               RETURN rel
-           """
+                                    MATCH (feedback:Event {id: $feedback_event_id})
+                                    MATCH (request:Event {id: $request_event_id})
+                                    MERGE (feedback)-[rel:FEEDBACK_FOR]->(request)
+                                    ON CREATE SET rel.created_at = timestamp()
+                                    ON MATCH SET rel.updated_at = timestamp()
+                                    RETURN rel
+                                """
 
             ready_to_execute_feedback_to_request_rel_query = {
                 "query": create_feedback_to_original_request_query,
@@ -501,8 +497,7 @@ def create_neo4j_queries(event):
     return neo4j_queries_in_order
 
 
-BATCH_SIZE = 2000
-MAX_TRANSACTION_SIZE = 1000
+BATCH_SIZE = 500
 
 
 def execute_bulk_queries(tx, queries):
@@ -554,7 +549,11 @@ def process_mongo_to_neo4j():
 
     total_documents = sync_db.prod_events.count_documents({})
 
-    for skip in range(0, total_documents, BATCH_SIZE):
+    # this is used to recover from failures in the middle
+    # SKIP_AHEAD = 0
+    SKIP_AHEAD = 89000
+
+    for skip in range(SKIP_AHEAD, total_documents, BATCH_SIZE):
         batch = list(sync_db.prod_events.find().skip(skip).limit(BATCH_SIZE))
 
         with neo4j_driver.session() as session:
