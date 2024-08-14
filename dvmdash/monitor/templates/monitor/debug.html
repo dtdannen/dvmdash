@@ -270,14 +270,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // Populate the table with data from 'tableNodes'
         tableNodes.forEach(d => {
-            if (d.kind && d.quick_details && d.id) {
+            if (d.quick_details && d.id) {
                 const row = document.createElement('tr');
                 const pubkeyUrl = (6000 <= d.kind && d.kind <= 7000) ?
                     `${currentOrigin}/dvm/${d.pubkey}` :
                     `${currentOrigin}/npub/${d.pubkey}`;
 
-                const kindRowVal = (5000 <= d.kind <= 6999) ? `<td><a href="${currentOrigin}/kind/${d.kind}">${d.kind}</a></td>` :
-                    `<td>${d.kind}</td>`;
+
+                const kindRowVal = !d.kind ? `<td></td>` : (5000 <= d.kind && d.kind <= 6999) ? `<td><a href="${currentOrigin}/kind/${d.kind}">${d.kind}</a></td>` : `<td>${d.kind}</td>`;
 
                 row.innerHTML = `
                     <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
