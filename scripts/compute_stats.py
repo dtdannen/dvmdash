@@ -1052,4 +1052,4 @@ if __name__ == "__main__":
 
         # Optional: add a delay between iterations
         # import time
-        time.sleep(0.5)  # Wait for 60 seconds before the next iteration
+        time.sleep(30)  # Wait for 60 seconds before the next iteration
