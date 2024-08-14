@@ -158,6 +158,8 @@ def dvm(request, pub_key=""):
                         if tag[0] == "e":
                             event["debug_event_id"] = tag[1]
                             break
+            if "debug_event_id" not in event:
+                event["debug_event_id"] = "Missing 'e' tag"
 
         context["dvm_pub_key"] = pub_key
         context["recent_dvm_events"] = dvm_events

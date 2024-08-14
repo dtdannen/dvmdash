@@ -104,7 +104,7 @@
             {% for e in recent_events %}
             <tr>
               <td>{{ e.created_at|naturaltime }}</td>
-              <td>{{ e.kind }}</td>
+                <td><a href="{%  url 'kind_with_kind_num' kind_num=e.kind %}">{{ e.kind }}</a></td>
               <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
                 <td><a href="{% url 'debug_with_event_id' event_id=e.debug_event_id %}">Debug this DVM Chain</a></td>
             </tr>
@@ -276,9 +276,12 @@ document.addEventListener("DOMContentLoaded", function() {
                     `${currentOrigin}/dvm/${d.pubkey}` :
                     `${currentOrigin}/npub/${d.pubkey}`;
 
+                const kindRowVal = (5000 <= d.kind <= 6999) ? `<td><a href="${currentOrigin}/kind/${d.kind}">${d.kind}</a></td>` :
+                    `<td>${d.kind}</td>`;
+
                 row.innerHTML = `
                     <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
-                    <td>${d.kind}</td>
+                    ${kindRowVal}
                     <td>${d.quick_details}</td>
                     <td><a href="${currentOrigin}/event/${d.id}" target="_blank">View</a></td>
                     <td>${d.created_at ? formatTimestamp(d.created_at) : ''}</td>
