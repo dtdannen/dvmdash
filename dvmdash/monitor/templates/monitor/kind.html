@@ -129,7 +129,7 @@
                     <tr>
                         {%  if data.name %}
                         <td>
-                            {{ data.name }}
+                            <a href="{%  url 'dvm_with_pub_key' dvm_npub %}">{{ data.name }}</a>
                         </td>
                         {%  else %}
                         <td>
