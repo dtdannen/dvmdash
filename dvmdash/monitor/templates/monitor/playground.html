@@ -4,7 +4,7 @@
 {% block title %}Listen{% endblock %}
 
 {% block extrahead %}
-    <script src="{% static 'js/bundle.js' %}"></script>
+    <script src="https://dvmdashbucket.nyc3.digitaloceanspaces.com/bundle.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -138,13 +138,13 @@
                             console.log('invoice:', invoice);
                             const li = document.createElement('li');
                             console.log('created li item:', li);
-                            li.innerHTML = `Referenced Event from ${event.pubkey}: ${event.content}. Please <a href="lightning:${invoice}"> pay this lnurl: </a> for ${amountValue} sats`;
+                            li.innerHTML = `DVM ${event.pubkey}: ${event.content}. Please <a href="lightning:${invoice}"> pay this lnurl: </a> for ${amountValue} sats`;
                             console.log('created inner html tag')
                             const responseList = document.getElementById('responseList');
                             responseList.insertBefore(li, responseList.firstChild);
                         } else {
                             const li = document.createElement('li');
-                            li.textContent = `Referenced Event from ${event.pubkey}: ${event.content}`;
+                            li.textContent = `DVM ${event.pubkey}: ${event.content}`;
                             const responseList = document.getElementById('responseList');
                             responseList.insertBefore(li, responseList.firstChild);
                         }
@@ -152,7 +152,7 @@
                 } else {
                     if (isRelevant) {
                         const li = document.createElement('li');
-                        li.textContent = `Referenced Event from ${event.pubkey}: ${event.content}`;
+                        li.textContent = `DVM ${event.pubkey}: ${event.content}`;
                         const responseList = document.getElementById('responseList');
                         responseList.insertBefore(li, responseList.firstChild);
                     } else {
@@ -203,8 +203,9 @@
                 sentEventIds.push(event.id);
 
                 const li = document.createElement('li');
+
                 if (userProfile) {
-                    li.textContent = `${userProfile.name} published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
+                    li.innerHTML = `${userProfile.name} published '${event.content}' from ${event.pubkey.slice(0, 8)}. <a href="https://dvmdash.live/debug/${event.id}">Debug this DVM Job</a>`;
                 } else {
                     li.textContent = `User published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
                 }
