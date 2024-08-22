@@ -4,12 +4,11 @@
 {% block title %}Listen{% endblock %}
 
 {% block extrahead %}
-    <script src="https://dvmdashbucket.nyc3.digitaloceanspaces.com/bundle.js"></script>
+    <script src="{% static 'js/bundle.js' %}"></script>
 {% endblock %}
 
 {% block content %}
-
-        <!-- Development Banner -->
+    <!-- Development Banner -->
     <div class="container-fluid bg-danger text-light py-2">
         <div class="container text-center">
             <p class="mb-0">
@@ -20,212 +19,15 @@
 
     <div class="container">
         <h3 class="mt-4" id="logged_in_status">Not logged in</h3>
-        <div class="form-container">
-            <div class="form-group">
-                <textarea id="eventContent" class="form-control" rows="3" placeholder="Enter a message here"></textarea>
-            </div>
-            <button id="sendButton" class="btn btn-primary">Send Data Vending Machine Event</button>
-        </div>
-        <div id="responses" class="mt-4">
-            <h3>Activity:</h3>
-            <ul id="responseList"></ul>
-        </div>
+        <div id="chat-root"></div>
     </div>
 
     <script>
-        const relays = [
-            'wss://nostr-pub.wellorder.net',
-            'wss://relay.damus.io',
-            'wss://nos.lol',
-            'wss://relay.primal.net',
-            'wss://offchain.pub',
-            'wss://nostr.mom',
-            'wss://relay.nostr.bg',
-            'wss://nostr.oxtr.dev',
-            'wss://nostr-relay.nokotaro.com',
-            'wss://relay.nostr.wirednet.jp',
-            'localhost:4736',
-        ];
-
-        let ndk;
-        let userProfile;
-        let sentEventIds = [];
-
-        async function initNostr() {
-            console.log('Starting Nostr initialization');
-            try {
-                const nip07signer = new NDKNip07Signer();
-                ndk = new NDK({
-                    explicitRelayUrls: relays,
-                    signer: nip07signer
-                });
-
-                console.log('Nip07-signer-relays are:', nip07signer.relays());
-
-                console.log('Connecting to NDK...');
-                await ndk.connect();
-                console.log('Connected to NDK');
-
-                startListeningForEvents();
-
-                console.log('About to call nip07signer.user()');
-                await nip07signer.user().then(async (user) => {
-                    if (!!user.npub) {
-                        console.log("Permission granted to read their public key:", user.npub);
-                        signer = nip07signer;
-                    } else {
-                        console.log("Permission denied to read their public key");
-                    }
-                });
-
-                console.log('About to fetch user profile');
-                try {
-                    user = await nip07signer.user();
-                    userProfile = await user.fetchProfile();
-                    console.log('User profile:', userProfile);
-
-                    if (userProfile) {
-                        console.log(`Fetched profile for ${userProfile.name || 'unnamed user'}`);
-                        // get the logged in h3 tag
-                        const loggedInStatus = document.getElementById('logged_in_status');
-                        loggedInStatus.textContent = `Logged in as ${userProfile.name || 'unnamed user'}`;
-                    } else {
-                        console.log('No profile found for user');
-                    }
-                } catch (error) {
-                    console.error('Error fetching user profile:', error);
-                }
-
-            } catch (error) {
-                console.error('Error initializing Nostr:', error);
-                const errorMessagesDiv = document.createElement('div');
-                errorMessagesDiv.textContent = `Error initializing Nostr: ${error.message}`;
-                document.body.appendChild(errorMessagesDiv);
-            }
-        }
-
-        function startListeningForEvents() {
-            console.log('Starting to listen for events');
-            const filter = { kinds: [5050, 6050, 7000] };
-            console.log('Subscription filter:', filter);
-
-            const subscription = ndk.subscribe(filter);
-
-            subscription.on("event", (event) => {
-                // Check if the event has an 'e' tag with a value in sentEventIds
-                const eTags = event.tags.filter(tag => tag[0] === 'e');
-                const isRelevant = eTags.some(tag => sentEventIds.includes(tag[1]));
-
-                if (event.kind === 7000) {
-                    if (isRelevant) {
-                        // print event tags
-                        console.log('event kind 7000 is relevant and has tags:', event.tags);
-
-                        // check if the event has an amount tag
-                        const amountTag = event.tags.find(tag => tag[0] === 'amount');
-                        console.log('amount tag is:', amountTag);
-
-                        // Extract amount and invoice from the amountTag if it exists
-                        let amountValue = null;
-                        let invoice = null;
-                        if (amountTag) {
-                            console.log('amountTag:', amountTag);
-                            amountValue = amountTag[1];
-                            console.log('amountValue:', amountValue);
-                            // divide amountValue by 1000
-                            amountValue = amountValue / 1000;
-                            invoice = amountTag[2];
-                            console.log('invoice:', invoice);
-                            const li = document.createElement('li');
-                            console.log('created li item:', li);
-                            li.innerHTML = `DVM ${event.pubkey}: ${event.content}. Please <a href="lightning:${invoice}"> pay this lnurl: </a> for ${amountValue} sats`;
-                            console.log('created inner html tag')
-                            const responseList = document.getElementById('responseList');
-                            responseList.insertBefore(li, responseList.firstChild);
-                        } else {
-                            const li = document.createElement('li');
-                            li.textContent = `DVM ${event.pubkey}: ${event.content}`;
-                            const responseList = document.getElementById('responseList');
-                            responseList.insertBefore(li, responseList.firstChild);
-                        }
-                    }
-                } else {
-                    if (isRelevant) {
-                        const li = document.createElement('li');
-                        li.textContent = `DVM ${event.pubkey}: ${event.content}`;
-                        const responseList = document.getElementById('responseList');
-                        responseList.insertBefore(li, responseList.firstChild);
-                    } else {
-                    }
-                }
-            });
-
-
-            subscription.on("eose", () => {
-                console.log("All relays have reached the end of the event stream");
-            });
-
-            subscription.on("close", () => {
-                console.log("Subscription closed");
-            });
-
-            console.log('Subscription created:', subscription);
-        }
-
-        async function sendEvent() {
-            const content = document.getElementById('eventContent').value;
-            try {
-                const event = new NDKEvent(ndk);
-                event.kind = 5050;
-                event.content = content;
-
-                // Add relays tag
-                const relayUrls = [
-                    'wss://nostr-pub.wellorder.net',
-                    'wss://relay.damus.io',
-                    'wss://nos.lol',
-                    'wss://relay.primal.net',
-                    'wss://offchain.pub',
-                    'wss://nostr.mom',
-                    'wss://relay.nostr.bg',
-                    'wss://nostr.oxtr.dev',
-                    'wss://nostr-relay.nokotaro.com',
-                    'wss://relay.nostr.wirednet.jp',
-                    'localhost:4736',
-                ];
-
-                event.tags.push(["relays", ...relayUrls]);
-
-                await event.sign(signer);
-                await ndk.publish(event);
-                console.log('Data Vending Machine Event published:', event);
-                console.log('Event ID:', event.id);
-                sentEventIds.push(event.id);
-
-                const li = document.createElement('li');
-
-                if (userProfile) {
-                    li.innerHTML = `${userProfile.name} published '${event.content}' from ${event.pubkey.slice(0, 8)}. <a href="https://dvmdash.live/debug/${event.id}">Debug this DVM Job</a>`;
-                } else {
-                    li.textContent = `User published '${event.content}' from ${event.pubkey.slice(0, 8)}`;
-                }
-                const responseList = document.getElementById('responseList');
-                responseList.insertBefore(li, responseList.firstChild);
-
-            } catch (error) {
-                console.error('Failed to publish event:', error);
-                document.getElementById('errorMessages').textContent = `Failed to publish event: ${error.message}`;
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            initNostr().catch(error => {
-                console.error('Error in DOMContentLoaded:', error);
-                const errorMessagesDiv = document.createElement('div');
-                errorMessagesDiv.textContent = `Error in page load: ${error.message}`;
-                document.body.appendChild(errorMessagesDiv);
-            });
-            document.getElementById('sendButton').addEventListener('click', sendEvent);
+        document.addEventListener('DOMContentLoaded', function() {
+            ReactDOM.render(
+                React.createElement(ChatInterface),
+                document.getElementById('chat-root')
+            );
         });
     </script>
 {% endblock %}
