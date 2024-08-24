@@ -146,6 +146,35 @@
         </div>
     </div>
 
+        {% if recent_events %}
+        <div class="container mt-5">
+        <h2>100 Most Recent Events for Kind {{ kind }}</h2>
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th scope="col">Time of Request</th>
+                  <th scope="col">Event ID Link</th>
+                    <th scope="col">Debug Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for e in recent_events %}
+                <tr>
+                  <td>{{ e.created_at|naturaltime }}</td>
+                  <td><a href="{% url 'see_event' event_id=e.id %}">{{ e.id }}</a></td>
+                {%  if e.debug_event_id == "Missing 'e' tag" %}
+                    <td>Missing 'e' tag</td>
+                {% else %}
+                    <td><a href="{% if e.debug_event_id %}{% url 'debug_with_event_id' event_id=e.debug_event_id %}{%  else %}{% url 'debug_with_event_id' event_id=e.id %}{% endif %}">Debug this DVM Chain</a></td>
+                {%  endif %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+
     {%  elif kind_stat_docs %}
         <div class="container mt-5">
         <h2>Kinds at a Glance</h2>
@@ -174,6 +203,8 @@
         </div>
 
     {% endif %}
+
+
 
     <script>
 function redirectToKIND() {

@@ -140,7 +140,7 @@ def dvm(request, pub_key=""):
     if len(pub_key) > 0:
         print(f"len of pub_key is: {len(pub_key)}")
         dvm_events = list(
-            db.prod_events.find({"pubkey": pub_key}).sort("created_at").limit(100)
+            db.prod_events.find({"pubkey": pub_key}).sort("created_at", -1).limit(100)
         )
 
         # compute the number of results
@@ -254,10 +254,24 @@ def kind(request, kind_num=""):
 
         # get most recent events
         recent_events = list(
-            db.prod_events.find({"kind": int(kind_num)}).sort("created_at").limit(100)
+            db.prod_events.find({"kind": int(kind_num)})
+            .sort("created_at", -1)
+            .limit(100)
         )
 
+        # compute the number of results
+        memory_usage = sys.getsizeof(recent_events)
+        print(f"Memory usage of dvm_events: {memory_usage}")
+
+        # Convert Unix timestamps to datetime objects
+        for event in recent_events:
+            event["created_at"] = timezone.make_aware(
+                datetime.fromtimestamp(int(event["created_at"]))
+            )
+
         context["recent_events"] = recent_events
+
+        print(f"recent_events has {len(recent_events)}")
 
     template = loader.get_template("monitor/kind.html")
     return HttpResponse(template.render(context, request))
