@@ -113,7 +113,8 @@
             subscription.on("event", (event) => {
                 // Check if the event has an 'e' tag with a value in sentEventIds
                 const eTags = event.tags.filter(tag => tag[0] === 'e');
-                const isRelevant = eTags.some(tag => sentEventIds.includes(tag[1]));
+                //const isRelevant = eTags.some(tag => sentEventIds.includes(tag[1]));
+                const isRelevant = true;
 
                 if (event.kind === 7000) {
                     if (isRelevant) {
