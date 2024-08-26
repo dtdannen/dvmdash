@@ -27,7 +27,7 @@
             <button id="sendButton" class="btn btn-primary">Send Data Vending Machine Event</button>
         </div>
         <div id="responses" class="mt-4">
-            <h3>Activity:</h3>
+            <h3>Recent Kind 5050 Activity:</h3>
             <ul id="responseList"></ul>
         </div>
     </div>
@@ -105,7 +105,13 @@
 
         function startListeningForEvents() {
             console.log('Starting to listen for events');
-            const filter = { kinds: [5050, 6050, 7000] };
+            // Calculate the timestamp for 1 minute ago
+            const oneMinuteAgo = Math.floor(Date.now() / 1000) - 60;
+
+            const filter = {
+                kinds: [5050, 6050, 7000],
+                since: oneMinuteAgo
+            };
             console.log('Subscription filter:', filter);
 
             const subscription = ndk.subscribe(filter);
