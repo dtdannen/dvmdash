@@ -178,10 +178,10 @@
                 event.kind = 5050;
                 event.content = content;
 
-                // Add relays tag
-                const relayUrls = [
+                const relays = [
                     'wss://nostr-pub.wellorder.net',
                     'wss://relay.damus.io',
+                    'wss://relay.primal.net',
                     'wss://nos.lol',
                     'wss://relay.primal.net',
                     'wss://offchain.pub',
@@ -189,8 +189,6 @@
                     'wss://relay.nostr.bg',
                     'wss://nostr.oxtr.dev',
                     'wss://nostr-relay.nokotaro.com',
-                    'wss://relay.nostr.wirednet.jp',
-                    'localhost:4736',
                 ];
 
                 event.tags.push(["relays", ...relayUrls]);
