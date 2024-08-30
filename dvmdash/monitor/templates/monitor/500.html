@@ -1,0 +1,23 @@
+{% extends 'monitor/base.html' %}
+
+{% block title %}Internal Server Error{% endblock %}
+
+{% block content %}
+<div class="container text-center mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h1 class="display-1">500</h1>
+                    <h2 class="mb-4">Internal Server Error</h2>
+                    <p class="mb-4">There is no spoon, and right now, there's no page either.</p>
+                    <p class="mb-4">Please wait a few minutes and try again. This error may be caused by high load.</p>
+                    <p class="mb-4">If the problem persists, we'd appreciate it if you could report this issue on our GitHub page. Please include the url of the page you were trying to access.</p>
+                    <a href="{% url 'about' %}" class="btn btn-primary mr-2">Go to Homepage</a>
+                    <a href="https://github.com/dtdannen/dvmdash/issues" class="btn btn-secondary" target="_blank">Report on GitHub</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

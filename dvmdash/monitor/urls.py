@@ -30,6 +30,7 @@ urlpatterns = [
 ]
 
 handler404 = "monitor.views.custom_404"
+handler500 = "monitor.views.custom_500"  # Add this line
 
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
