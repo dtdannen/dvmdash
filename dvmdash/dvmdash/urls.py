@@ -21,3 +21,6 @@ urlpatterns = [
     path("", include("monitor.urls")),
     path("admin/", admin.site.urls),
 ]
+
+handler404 = "monitor.views.custom_404"
+handler500 = "monitor.views.custom_500"

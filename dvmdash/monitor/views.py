@@ -498,7 +498,6 @@ def recent(request):
 
 def debug(request, event_id=""):
     context = {}
-
     if event_id == "":
         num_events_to_lookback = 200
         recent_events = list(
@@ -583,6 +582,10 @@ def custom_404(
 ):
     context = {"message": message}
     return render(request, "monitor/404.html", context, status=404)
+
+
+def custom_500(request):
+    return render(request, "monitor/500.html", status=500)
 
 
 def _get_row_data_from_event_dict(event_dict):
