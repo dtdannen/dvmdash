@@ -10,10 +10,11 @@ https://dvmdash.live/
 
 ## Install
 
-- Use Python3.11
-  - As of May 13th, 2024, Python 3.12 is unsupported
-- If you are only using scripts/ (i.e. listening for DVM events, you should only need requirements_backend.txt)
+Better installation instructions are coming soon!
 
+Besides the Django web app, the following scripts should be running with access to the same databases used by the webapp:
+- [run_asyncio_listen_for_DVM_events.sh](scripts%2Frun_asyncio_listen_for_DVM_events.sh)
+- [run_compute_stats.sh](scripts%2Frun_compute_stats.sh)
 
 ## How to update javascript via npm
 
@@ -23,7 +24,7 @@ https://dvmdash.live/
 
 ## How to run this locally
 
-1. Run Mongita or a MongoDB locally
+1. Run a MongoDB locally
 
     - for example, run mongo locally:
       - `./mongod --dbpath ~/mongodb/data/db`
@@ -47,7 +48,7 @@ https://dvmdash.live/
 - Open the neo4j.conf configuration file located in the conf directory of your Neo4j installation.
 - Uncomment or add the following line to the neo4j.conf file to enable the APOC library: `dbms.security.procedures.unrestricted=apoc.*`
 
-## Graph Structure
+## Neo4j Graph Structure
 
 ![DVM_Process_Flow.png](docs%2FDVM_Process_Flow.png)
 
