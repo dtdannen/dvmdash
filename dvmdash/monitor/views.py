@@ -223,6 +223,10 @@ def kind(request, kind_num=""):
     if len(kind_num) > 0:
         # load the data for this specific kind
         kind_num = int(kind_num)
+
+        if 6000 <= kind_num <= 6999:
+            kind_num = kind_num - 1000
+
         context["kind"] = kind_num
 
         most_recent_stats = None
