@@ -15,6 +15,7 @@ from django.core.management.utils import get_random_secret_key
 import os
 import sys
 import dj_database_url
+from .git_commit import GIT_COMMIT
 
 
 try:
@@ -87,6 +88,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "dvmdash.context_processors.git_commit",
             ],
         },
     },
