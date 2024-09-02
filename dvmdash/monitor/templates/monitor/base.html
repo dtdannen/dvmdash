@@ -62,6 +62,12 @@
             font-size: 0.8em;
             color: #6c757d;
         }
+        .git-commit a {
+            text-decoration: none;
+        }
+        .git-commit .hash {
+            text-decoration: underline;
+        }
     </style>
 
     {% block extrahead %}{% endblock %}
@@ -102,7 +108,7 @@
             </div>
             <span class="navbar-text git-commit">
                 <a href="https://github.com/dtdannen/dvmdash/commit/{{ git_commit }}" target="_blank" class="text-light">
-                    <i class="fab fa-github"></i> commit: {{ git_commit|truncatechars:7 }}
+                    <i class="fab fa-github"></i> commit: <span class="hash">{{ git_commit|truncatechars:7 }}</span>
                 </a>
             </span>
         </div>
