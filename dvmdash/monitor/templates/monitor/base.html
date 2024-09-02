@@ -56,9 +56,11 @@
         body {
             padding-bottom: 50px; /* Adjust this value based on your banner's height */
         }
+        .git-commit {
+            font-size: 0.8em;
+            color: #6c757d;
+        }
     </style>
-
-
 
     {% block extrahead %}{% endblock %}
 </head>
@@ -96,11 +98,11 @@
                     </li>
                 </ul>
             </div>
-
+            <span class="navbar-text git-commit">
+                <a href="https://github.com/dtdannen/dvmdash/commit/{{ git_commit }}" target="_blank" class="text-light">{{ git_commit|truncatechars:7 }}</a>
+            </span>
         </div>
     </nav>
-
-
 
     <!-- Main content block (where other templates will be inserted) -->
     <div class="container mt-4">
