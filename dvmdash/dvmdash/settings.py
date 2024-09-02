@@ -15,7 +15,7 @@ from django.core.management.utils import get_random_secret_key
 import os
 import sys
 import dj_database_url
-from ..git_commit import GIT_COMMIT
+from dvmdash.git_commit import GIT_COMMIT
 
 
 try:
