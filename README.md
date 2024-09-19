@@ -7,7 +7,38 @@ A version of the website is running here:
 
 https://dvmdash.live/
 
-## Install
+## Overview
+
+DVMDash consists of two main parts:
+- Django web app displaying metrics, events, playground, and more
+- Scripts running in the background to listen for DVM events from relays and compute stats
+
+The scripts run independently of the Django web app and populate two databases:
+- a mongo db containing raw DVM events and stats
+- a neo4j db containing a graph structure of the DVM events which is primarily used for the debug page
+  - however some metrics, like estimated earnings, are also calculated from the neo4j db
+
+## Setup
+
+1. Populate the .env file with the necessary environment variables (see env_default for an example)
+   - RELAYS: a comma-separated list of relay URLs to watch for DVM events
+   - MONGO_URI: the URI for the mongo db
+   - NEO4J_URI: the URI for the neo4j db
+   - NEO4J_USER: the username for the neo4j db
+   - NEO4J_PASSWORD: the password for the neo4j db
+   - DEBUG: set to True to enable debug mode (do not use in production, this is used by the Django web app)
+   - DEVELOPMENT_MODE: if True, uses a sql lite DB for Django (note that unlike other Django apps, we currently do not use the Django ORM for anything at the moment)
+   
+2. Setup the python environment for the background scripts
+   - `python3.12 -m venv scripts_venv`
+   - `source scripts_venv/bin/activate`
+   - `pip install -r requirements_scripts.txt`
+
+
+
+
+
+
 
 Better installation instructions are coming soon!
 
