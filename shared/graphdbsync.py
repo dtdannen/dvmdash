@@ -2,8 +2,8 @@ import json
 import ast
 import neo4j
 import uuid
-from general import helpers
-from general.dvm import EventKind
+from shared import helpers
+from shared.dvm import EventKind
 from tqdm import tqdm
 
 

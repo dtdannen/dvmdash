@@ -19,7 +19,7 @@ import monitor.helpers as helpers
 from bson import json_util
 from django.utils.safestring import mark_safe
 from .neo4j_service import neo4j_service
-from general.dvm import EventKind
+from shared.dvm import EventKind
 import logging
 
 logger = logging.getLogger(__name__)

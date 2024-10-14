@@ -11,7 +11,7 @@ https://dvmdash.live/
 
 DVMDash consists of two main parts:
 - Django + Bootstrap web app displaying metrics, events, playground, and more
-- Python server scripts listening for DVM events from relays, processing the data for a no sql and graph databases, and computing metrics 
+- Python server scripts located in `nostr_workers\ ` listening for DVM events from relays, processing the data for a no sql and graph databases, and computing metrics 
   - The scripts run independently of the Django web app and populate two databases:
     - a mongo db containing raw DVM events and stats
     - a neo4j db containing a graph structure of the DVM events which is primarily used for the debug page

@@ -1,14 +1,15 @@
+# Default environment variables; cp this file to .env to use
 RELAYS=wss://relay.current.fyi,wss://nostr1.current.fyi,wss://nostr-pub.wellorder.net,wss://relay.damus.io,wss://nostr-relay.wlvs.space,wss://nostr.zebedee.cloud,wss://student.chadpolytechnic.com,wss://global.relay.red,wss://nos.lol,wss://relay.primal.net,wss://nostr21.com,wss://offchain.pub,wss://relay.plebstr.com,wss://nostr.mom,wss://relay.nostr.bg,wss://nostr.oxtr.dev,wss://relay.nostr.bg,wss://no.str.cr,wss://nostr-relay.nokotaro.com,wss://relay.nostr.wirednet.jp
 MONGO_URI=<your mongo uri here>
 
-# If running Mongo locally, URI is likely:
+# Uncomment to use local mongo:
 # MONGO_LOCAL_URI="mongodb://localhost:27017/?ssl=false"
 
 NEO4J_URI=<your neo4j uri here>
 NEO4J_USER=<your neo4j user here>
 NEO4J_PASSWORD=<your neo4j password here>
 
-# If running Neo4j locally, URI is likely:
+# Uncomment to use local neo4j:
 # NEO4J_LOCAL_URI="bolt://localhost:7687"
 
 # This is to display the full stack trace from the nostr_sdk python library

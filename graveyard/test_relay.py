@@ -44,7 +44,7 @@ from neo4j import AsyncGraphDatabase
 import motor.motor_asyncio
 import pymongo  # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError
-from general.dvm import EventKind
+from shared.dvm import EventKind
 
 RELEVANT_KINDS = [Kind(x) for x in [1]]
 

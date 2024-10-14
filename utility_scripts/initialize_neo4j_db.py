@@ -15,17 +15,17 @@ from neo4j import (
 )
 from neo4j.exceptions import ServiceUnavailable
 import json
-import general.helpers as helpers
+import shared.helpers as helpers
 from tqdm import tqdm
 import hashlib
 from pathlib import Path
 import dotenv
 import ssl
-from general.dvm import EventKind
+from shared.dvm import EventKind
 import certifi
 import time
 
-from general.graphdbsync import GraphDBSync
+from shared.graphdbsync import GraphDBSync
 
 
 def setup_logging():

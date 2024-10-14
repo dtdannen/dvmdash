@@ -24,8 +24,8 @@ from neo4j import AsyncGraphDatabase
 import motor.motor_asyncio
 import pymongo  # used only to create new collections if they don't exist
 from pymongo.errors import BulkWriteError, InvalidOperation
-from general.dvm import EventKind
-from general.helpers import hex_to_npub, sanitize_json, format_query_with_params
+from shared.dvm import EventKind
+from shared.helpers import hex_to_npub, sanitize_json, format_query_with_params
 import traceback
 import argparse
 import datetime

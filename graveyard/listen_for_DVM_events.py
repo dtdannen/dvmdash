@@ -29,7 +29,7 @@ from nostr_sdk import (
     Event,
 )
 from pymongo.errors import BulkWriteError
-from general.dvm import EventKind
+from shared.dvm import EventKind
 
 
 def setup_logging():

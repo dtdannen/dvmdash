@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 import loguru
 import dotenv
-from general.dvm import EventKind
+from shared.dvm import EventKind
 from nostr_sdk import Timestamp, LogLevel
 from tqdm import tqdm
 import re
