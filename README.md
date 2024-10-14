@@ -1,6 +1,6 @@
 # dvmdash
 
-DVMDash aims to be a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
+DVMDash is a webapp to monitor and debug Data Vending Machine (DVM) activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
 
 
 A version of the website is running here:
@@ -10,13 +10,12 @@ https://dvmdash.live/
 ## Overview
 
 DVMDash consists of two main parts:
-- Django web app displaying metrics, events, playground, and more
-- Scripts running in the background to listen for DVM events from relays and compute stats
-
-The scripts run independently of the Django web app and populate two databases:
-- a mongo db containing raw DVM events and stats
-- a neo4j db containing a graph structure of the DVM events which is primarily used for the debug page
-  - however some metrics, like estimated earnings, are also calculated from the neo4j db
+- Django + Bootstrap web app displaying metrics, events, playground, and more
+- Python server scripts listening for DVM events from relays, processing the data for a no sql and graph databases, and computing metrics 
+  - The scripts run independently of the Django web app and populate two databases:
+    - a mongo db containing raw DVM events and stats
+    - a neo4j db containing a graph structure of the DVM events which is primarily used for the debug page
+      - however some metrics, like estimated earnings, are also calculated from the neo4j db
 
 ## Setup
 
@@ -34,7 +33,7 @@ The scripts run independently of the Django web app and populate two databases:
    - `source scripts_venv/bin/activate`
    - `pip install -r requirements_scripts.txt`
 
-
+3. 
 
 
 
