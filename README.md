@@ -7,13 +7,60 @@ A version of the website is running here:
 
 https://dvmdash.live/
 
-## Install
+## Run Locally
 
-Better installation instructions are coming soon!
+These instructions aren't complete but hopefully are helpful for those with some experience with Django, mongo db, and neo4j. Feel free to open an issue if you have any problems running this locally. We will write better instructions after we refactor the backend architecture. 
 
-Besides the Django web app, the following scripts should be running with access to the same databases used by the webapp:
-- [run_asyncio_listen_for_DVM_events.sh](scripts%2Frun_asyncio_listen_for_DVM_events.sh)
-- [run_compute_stats.sh](scripts%2Frun_compute_stats.sh)
+1. Clone the repo and create a virtual env (tested with Python3.12 but other versions may work)
+
+```commandline
+git clone https://github.com/dtdannen/dvmdash.git
+cd dvmdash
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -e . # this is so the general/ folder is available to the django app
+```
+
+2. Get a neo4j and mongo db running
+
+- Neo4j is used to store the graph of DVM events 
+  - You can use hosted instances or local instances.
+  - Neo4j offers a free hosted solution for testing, which has enough capacity to test out the system. See https://neo4j.com/product/auradb/?ref=neo4j-home-hero
+  - If you are running neo4j locally, 
+    - See https://neo4j.com/docs/operations-manual/current/installation/
+    - Once you have the tar file, you can run it with `./neo4j start`
+       - Or ` ~/bin/neo4j-community-5.20.0/bin/neo4j start`
+   - Then check it's running in the web browser at `http://localhost:7474/`
+
+
+- Mongo DB should be straightforward 
+  - Often, running mongodb locally looks like: 
+    ```commandline
+    ./mongod --dbpath ~/mongodb/data/db
+    ```
+    
+3. Populate the .env file with the connection parameters for your databases
+
+- You can copy the .env.example file to .env and fill in the connection parameters for your databases.
+
+4. Run the background scripts to start collecting DVM related events from relays. If you don't do this step, the django web app will not have any data or metrics to show. Run each one of them in their own terminal window. If running these on a server, consider `screen` or run them as a cron job.
+ 
+   - [run_asyncio_listen_for_DVM_events.sh](scripts%2Frun_asyncio_listen_for_DVM_events.sh)
+   - [run_compute_stats.sh](scripts%2Frun_compute_stats.sh)
+
+5. Run the Django web app
+
+```commandline
+# ensure virtualenv is activated (i.e. source venv/bin/activate)
+# ensure you're at the project root
+python dvmdash/manage.py runserver
+```
+
+It may take a few seconds to connect to both neo4j and mongo databases. Once it's running, you can view the web app at `http://localhost:8000/`
+
+
+# Other Misc Notes
 
 ## How to update javascript via npm
 

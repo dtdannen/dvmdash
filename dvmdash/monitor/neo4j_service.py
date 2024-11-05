@@ -1,53 +1,106 @@
 from neo4j import GraphDatabase
-from django.conf import settings
 import os
 from loguru import logger
+from typing import Optional, ClassVar
 
 
 class Neo4jService:
-    def __init__(self):
-        if os.getenv("USE_LOCAL_NEO4J", "False") != "False":
-            # use local
-            URI = os.getenv("NEO4J_LOCAL_URI")
-            AUTH = (
-                os.getenv("NEO4J_LOCAL_USERNAME"),
-                os.getenv("NEO4J_LOCAL_PASSWORD"),
-            )
+    """
+    A singleton service class for Neo4j database operations.
+    Ensures only one connection is maintained throughout the application.
+    """
 
-            self._neo4j_driver = GraphDatabase.driver(
-                URI,
-                auth=AUTH,
-                # encrypted=True,
-                # trust=TRUST_SYSTEM_CA_SIGNED_CERTIFICATES,
-            )
+    _instance: ClassVar[Optional["Neo4jService"]] = None
+    _driver: ClassVar[Optional[GraphDatabase.driver]] = None
 
-            self._neo4j_driver.verify_connectivity()
-            logger.warning("Verified connectivity to local Neo4j")
-        else:
-            logger.warning("Starting to connect to cloud Neo4j")
-            URI = os.getenv("NEO4J_URI")
-            AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
-            logger.warning(f"NEO4J URI: {URI}")
-            self._neo4j_driver = GraphDatabase.driver(
-                URI,
-                auth=AUTH,
-                # encrypted=True,
-                # trust=TRUST_SYSTEM_CA_SIGNED_CERTIFICATES,
-            )
-            self._neo4j_driver.verify_connectivity()
-            logger.warning("Verified connectivity to cloud Neo4j")
+    def __new__(cls):
+        """Ensure singleton pattern is enforced at instantiation"""
+        if cls._instance is None:
+            cls._instance = super(Neo4jService, cls).__new__(cls)
+            cls._initialize_driver()
+        return cls._instance
 
-    def close(self):
-        self._neo4j_driver.close()
+    @classmethod
+    def _initialize_driver(cls) -> None:
+        """Initialize the Neo4j driver with appropriate configuration"""
+        if cls._driver is not None:
+            return
 
-    def run_query(self, query, params=None):
-        with self._neo4j_driver.session() as session:
-            if params is None:
-                result = session.run(query)
+        try:
+            if os.getenv("USE_LOCAL_NEO4J", "False") != "False":
+                cls._setup_local_connection()
             else:
-                result = session.run(query, params)
-            return [record.data() for record in result]
+                cls._setup_cloud_connection()
 
+            cls._driver.verify_connectivity()
+            logger.info(
+                f"Verified connectivity to {'local' if os.getenv('USE_LOCAL_NEO4J', 'False') != 'False' else 'cloud'} Neo4j"
+            )
 
-# Initialize the service instance
-neo4j_service = Neo4jService()
+        except Exception as e:
+            logger.error(f"Failed to initialize Neo4j connection: {str(e)}")
+            raise
+
+    @classmethod
+    def _setup_local_connection(cls) -> None:
+        """Set up connection to local Neo4j instance"""
+        uri = os.getenv("NEO4J_LOCAL_URI")
+        auth = (
+            os.getenv("NEO4J_LOCAL_USERNAME"),
+            os.getenv("NEO4J_LOCAL_PASSWORD"),
+        )
+
+        if not all([uri, auth[0], auth[1]]):
+            raise ValueError("Missing required local Neo4j environment variables")
+
+        cls._driver = GraphDatabase.driver(uri, auth=auth)
+
+    @classmethod
+    def _setup_cloud_connection(cls) -> None:
+        """Set up connection to cloud Neo4j instance"""
+        uri = os.getenv("NEO4J_URI")
+        auth = (
+            os.getenv("NEO4J_USERNAME"),
+            os.getenv("NEO4J_PASSWORD"),
+        )
+
+        if not all([uri, auth[0], auth[1]]):
+            raise ValueError("Missing required cloud Neo4j environment variables")
+
+        logger.debug(f"NEO4J URI: {uri}")
+        cls._driver = GraphDatabase.driver(uri, auth=auth)
+
+    @classmethod
+    def close(cls) -> None:
+        """Close the Neo4j driver connection"""
+        if cls._driver is not None:
+            cls._driver.close()
+            cls._driver = None
+            logger.info("Neo4j connection closed")
+
+    @classmethod
+    def run_query(cls, query: str, params: Optional[dict] = None) -> list:
+        """
+        Execute a Neo4j query and return the results
+
+        Args:
+            query (str): The Cypher query to execute
+            params (dict, optional): Query parameters
+
+        Returns:
+            list: List of query results
+        """
+        if cls._driver is None:
+            raise RuntimeError("Neo4j driver not initialized")
+
+        try:
+            with cls._driver.session() as session:
+                result = session.run(query, params or {})
+                return [record.data() for record in result]
+        except Exception as e:
+            logger.error(f"Query execution failed: {str(e)}")
+            raise
+
+    def __del__(self) -> None:
+        """Ensure driver is closed when the instance is destroyed"""
+        self.close()
