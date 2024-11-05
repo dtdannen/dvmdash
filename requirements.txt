@@ -10,7 +10,6 @@ Django==5.0.1
 django-bootstrap-static==4.2.1
 dnspython==2.4.2
 emoji==2.8.0
-eva-decord==0.6.1
 ffmpegio==0.8.5
 ffmpegio-core==0.8.5
 gunicorn==21.2.0
