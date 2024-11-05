@@ -15,10 +15,9 @@ from django.utils import timezone
 from nostr_sdk import Timestamp
 from datetime import datetime
 import json
-import monitor.helpers as helpers
 from bson import json_util
 from django.utils.safestring import mark_safe
-from .neo4j_service import neo4j_service
+from .neo4j_service import Neo4jService
 from general.dvm import EventKind
 import logging
 
@@ -737,7 +736,7 @@ def get_graph_data(request, request_event_id=""):
 
     try:
         start_time = time.time()
-        data = neo4j_service.run_query(query, params)
+        data = Neo4jService.run_query(query, params)
         end_time = time.time()
         logger.warning(f"Query execution time: {end_time - start_time} seconds")
         # logger.warning(f"data from neo4j is {data} ")
