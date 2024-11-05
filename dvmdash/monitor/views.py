@@ -24,14 +24,15 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+logging.info(f"Logging level is {logger.level}")
 
 if os.getenv("USE_MONGITA", "False") != "False":  # use a local mongo db, like sqlite
-    print("Using mongita")
+    logger.debug("Using mongita")
     from mongita import MongitaClientDisk
 
     mongo_client = MongitaClientDisk()
     db = mongo_client.dvmdash
-    print("Connected to local mongo db using MONGITA")
+    logger.debug("Connected to local mongo db using MONGITA")
 else:
     # connect to db
     mongo_client = MongoClient(os.getenv("MONGO_URI"))
@@ -39,18 +40,19 @@ else:
 
     try:
         result = db["prod_events"].count_documents({})
-        print(f"There are {result} documents in prod_events collection")
+        logger.debug(f"There are {result} documents in prod_events collection")
     except Exception as e:
-        print("Could not count documents in db")
+        logger.debug("Could not count documents in db")
         import traceback
 
         traceback.print_exc()
 
-    print("Connected to cloud mongo db")
+    logger.debug("Connected to cloud mongo db")
 
 
 def metrics(request):
     # get the latest stats doc from the stats collection
+    logger.info("Calling metrics view")
     most_recent_stats = db.global_stats.find_one(sort=[("timestamp", -1)])
 
     try:
@@ -98,7 +100,7 @@ def metrics(request):
 
 
 def dvm(request, pub_key=""):
-    print(f"Calling dvm with dvm_pub_key: {pub_key}")
+    logger.info(f"Calling DVM view with dvm_pub_key: {pub_key}")
     context = {}
 
     # Get the most recent global stats document
@@ -106,7 +108,7 @@ def dvm(request, pub_key=""):
         global_stats_doc = db.global_stats.find_one(sort=[("timestamp", DESCENDING)])
         if global_stats_doc:
             latest_timestamp = global_stats_doc["timestamp"]
-            logger.warning(
+            logger.debug(
                 f"Got a latest_timestamp from global_stats of {latest_timestamp}"
             )
         else:
@@ -137,14 +139,14 @@ def dvm(request, pub_key=""):
     context["dvm_stat_docs"] = dvm_docs
 
     if len(pub_key) > 0:
-        print(f"len of pub_key is: {len(pub_key)}")
+        logger.debug(f"len of pub_key is: {len(pub_key)}")
         dvm_events = list(
             db.prod_events.find({"pubkey": pub_key}).sort("created_at", -1).limit(100)
         )
 
         # compute the number of results
         memory_usage = sys.getsizeof(dvm_events)
-        print(f"Memory usage of dvm_events: {memory_usage}")
+        logger.debug(f"Memory usage of dvm_events: {memory_usage}")
 
         # Convert Unix timestamps to datetime objects
         for event in dvm_events:
@@ -174,14 +176,14 @@ def dvm(request, pub_key=""):
             if most_recent_stats:
                 context.update(most_recent_stats)
         except:
-            print(f"Could not find pub_key {pub_key} in recent dvm_stats")
+            logger.debug(f"Could not find pub_key {pub_key} in recent dvm_stats")
 
     template = loader.get_template("monitor/dvm.html")
     return HttpResponse(template.render(context, request))
 
 
 def kind(request, kind_num=""):
-    print(f"Calling kind with kind_num: {kind_num}")
+    logger.info(f"Calling kind view with kind_num: {kind_num}")
     context = {}
 
     # Get the most recent global stats document
@@ -189,7 +191,7 @@ def kind(request, kind_num=""):
         global_stats_doc = db.global_stats.find_one(sort=[("timestamp", DESCENDING)])
         if global_stats_doc:
             latest_timestamp = global_stats_doc["timestamp"]
-            logger.warning(
+            logger.debug(
                 f"Got a latest_timestamp from global_stats of {latest_timestamp}"
             )
         else:
@@ -251,7 +253,7 @@ def kind(request, kind_num=""):
 
                 context.update(most_recent_stats)
         except:
-            print(f"Could not find pub_key {kind_num} in recent dvm_stats")
+            logger.debug(f"Could not find pub_key {kind_num} in recent dvm_stats")
 
         context.update(most_recent_stats)
 
@@ -264,7 +266,7 @@ def kind(request, kind_num=""):
 
         # compute the number of results
         memory_usage = sys.getsizeof(recent_events)
-        print(f"Memory usage of dvm_events: {memory_usage}")
+        logger.debug(f"Memory usage of dvm_events: {memory_usage}")
 
         # Convert Unix timestamps to datetime objects
         for event in recent_events:
@@ -274,14 +276,14 @@ def kind(request, kind_num=""):
 
         context["recent_events"] = recent_events
 
-        print(f"recent_events has {len(recent_events)}")
+        logger.debug(f"recent_events has {len(recent_events)}")
 
     template = loader.get_template("monitor/kind.html")
     return HttpResponse(template.render(context, request))
 
 
 def see_event(request, event_id=""):
-    print(f"Calling see_event with event_id: {event_id}")
+    logger.info(f"Calling see_event view with event_id: {event_id}")
     context = {}
 
     if event_id == "":
@@ -334,10 +336,10 @@ def see_event(request, event_id=""):
             tag[1] = f'<a href="/npub/{tag[1]}/">{tag[1]}</a>'
         elif tag[0] == "request":
             request_data = tag[1]
-            print("Raw request data: ", request_data)
+            logger.debug("Raw request data: ", request_data)
             request_as_json = json.loads(request_data)
 
-            print(f"Request as json: {request_as_json}")
+            logger.debug(f"Request as json: {request_as_json}")
 
             if "kind" in request_as_json:
                 request_as_json[
@@ -399,7 +401,7 @@ def see_event(request, event_id=""):
 
 
 def see_npub(request, npub=""):
-    print(f"Calling see_npub with npub: {npub}")
+    logger.info(f"Calling see_npub view with npub: {npub}")
     context = {}
 
     if npub == "":
@@ -412,7 +414,7 @@ def see_npub(request, npub=""):
     # see if we can get a nip-89 profile for this npub
     nip89_profile = db.prod_events.find_one({"kind": 31990, "pubkey": npub})
     if nip89_profile:
-        print("About to redirect with pub_key: ", npub)
+        logger.debug("About to redirect with pub_key: ", npub)
         return redirect("dvm_with_pub_key", pub_key=npub)
 
     context["npub"] = npub
@@ -445,6 +447,7 @@ def see_npub(request, npub=""):
 
 
 def recent(request):
+    logger.info("Calling recent view")
     num_events_to_lookback = 2000
     num_events_to_show_per_kind = 3
     context = {}
@@ -462,7 +465,7 @@ def recent(request):
         .sort("created_at", -1)
     )
 
-    print(f"Found {len(recent_requests)} recent requests")
+    logger.debug(f"Found {len(recent_requests)} recent requests")
 
     # recent requests per kind
     recent_requests_per_kind = {}
@@ -488,18 +491,19 @@ def recent(request):
             recent_requests_per_kind[kind] = 1
             recent_request_events.append(request_event)
 
-    print(f"Found {len(recent_request_events)} recent requests (filtered)")
+    logger.debug(f"Found {len(recent_request_events)} recent requests (filtered)")
 
     # Convert the result to a list of dictionaries
     context["recent_dvm_events"] = recent_request_events
 
-    print(f"context['recent_dvm_events'][0] = {context['recent_dvm_events'][0]}")
+    logger.debug(f"context['recent_dvm_events'][0] = {context['recent_dvm_events'][0]}")
 
     template = loader.get_template("monitor/recent.html")
     return HttpResponse(template.render(context, request))
 
 
 def debug(request, event_id=""):
+    logger.info(f"Calling debug view with event_id: {event_id}")
     context = {}
     if event_id == "":
         num_events_to_lookback = 200
@@ -539,7 +543,7 @@ def debug(request, event_id=""):
     # get the event with this id
     event = None
     events = list(db.prod_events.find({"id": event_id}))
-    # print(f"events are {events}")
+    # logger.debug(f"events are {events}")
     if events:
         event = events[0]
 
@@ -555,7 +559,7 @@ def debug(request, event_id=""):
 
     if "kind" in event and event["kind"] not in list(range(5000, 6000)):
         # show a 404 page with a link back to the homepage and custom message
-        print(f"Event kind {event['kind']} is not supported for debugging")
+        logger.warning(f"Event kind {event['kind']} is not supported for debugging")
         template = loader.get_template("monitor/404.html")
         return HttpResponseNotFound(
             template.render(
@@ -573,6 +577,7 @@ def debug(request, event_id=""):
 
 
 def about(request):
+    logger.info("Calling about view")
     context = {}
     template = loader.get_template("monitor/about.html")
     return HttpResponse(template.render(context, request))
@@ -583,11 +588,13 @@ def custom_404(
     exception=None,
     message="Sorry, the page you are looking for does not exist.",
 ):
+    logger.warning("Returning 404 view")
     context = {"message": message}
     return render(request, "monitor/404.html", context, status=404)
 
 
 def custom_500(request):
+    logger.error(f"Returning 500 view with original request: {request}")
     return render(request, "monitor/500.html", status=500)
 
 
@@ -619,13 +626,13 @@ def _get_row_data_from_event_dict(event_dict):
         try:
             tags = ast.literal_eval(tags_str)
             for tag in tags:
-                # print(f"Looking at tag: {tag}")
+                # logger.debug(f"Looking at tag: {tag}")
                 if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "status":
                     event_dict["quick_details"] = "status: " + tag[-1]
                     already_processed_quick_details = True
                     break
         except (ValueError, SyntaxError) as e:
-            print(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
+            logger.debug(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
             # Skip processing tags for this record and continue with the next one
             pass
 
@@ -641,13 +648,13 @@ def _get_row_data_from_event_dict(event_dict):
         try:
             tags = ast.literal_eval(tags_str)
             for tag in tags:
-                # print(f"Looking at tag: {tag}")
+                # logger.debug(f"Looking at tag: {tag}")
                 if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "i":
                     event_dict["quick_details"] = tag[1]
                     already_processed_quick_details = True
                     break
         except (ValueError, SyntaxError) as e:
-            print(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
+            logger.debug(f"Error parsing tags for record {event_dict['id']}: {str(e)}")
             # Skip processing tags for this record and continue with the next one
             pass
 
@@ -662,7 +669,7 @@ def _get_row_data_from_event_dict(event_dict):
                     already_processed_quick_details = True
                     break
         except (ValueError, SyntaxError) as e:
-            print(f"Error parsing tags for record {event_dict['id']}")
+            logger.debug(f"Error parsing tags for record {event_dict['id']}")
             pass
 
     # for invoices, use a message with the amount and a clickable lighting invoice for quick details
@@ -704,7 +711,9 @@ def get_graph_data(request, request_event_id=""):
     """
     Note this is for the api endpoint /graph/ for neoviz.js, not to render a django template
     """
-    logger.warning(f"get_graph_data called with request_event_id: {request_event_id}")
+    logger.info(
+        f"Calling API function get_graph_data() with request_event_id: {request_event_id}"
+    )
     # Log connection details (be careful not to log sensitive information)
     # Log the type of AUTH, not its contents
 
@@ -728,9 +737,9 @@ def get_graph_data(request, request_event_id=""):
             }
           } AS relationData, req
     """
-    new_query = query.replace("$request_event_id", f"'{request_event_id}'")
-    logger.warning(f"Querying neo4j with query: {new_query}")
-    # logger.warning(f"Actual query sent to neo4j is still: {query}")
+    # Uncomment this to print a ready-to-use neo4j query (helpful for testing queries are working)
+    # new_query = query.replace("$request_event_id", f"'{request_event_id}'")
+    # logger.warning(f"Querying neo4j with query (copy this to run as a test in neo4j console): {new_query}")
 
     params = {"request_event_id": request_event_id}
 
@@ -738,7 +747,7 @@ def get_graph_data(request, request_event_id=""):
         start_time = time.time()
         data = Neo4jService.run_query(query, params)
         end_time = time.time()
-        logger.warning(f"Query execution time: {end_time - start_time} seconds")
+        logger.info(f"Query execution time: {end_time - start_time} seconds")
         # logger.warning(f"data from neo4j is {data} ")
     except Exception as e:
         logger.error(f"Error running Neo4j query: {str(e)}")
@@ -807,15 +816,16 @@ def get_graph_data(request, request_event_id=""):
         "node_relations": node_relations,
     }
 
-    logger.warning(
+    logger.debug(
         f"Processed {len(event_nodes)} event nodes and {len(node_relations)} relations"
     )
-    logger.warning(f"Response data size: {len(str(response_data))} bytes")
+    logger.debug(f"Response data size: {len(str(response_data))} bytes")
 
     return JsonResponse(response_data, safe=False)
 
 
 def playground(request):
+    logger.info("Calling playground view")
     context = {}
     template = loader.get_template("monitor/playground.html")
     return HttpResponse(template.render(context, request))
