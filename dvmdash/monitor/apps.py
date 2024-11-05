@@ -7,4 +7,4 @@ class MonitorConfig(AppConfig):
     name = "monitor"
 
     def ready(self):
-        Neo4jService()
+        Neo4jService()  # singleton service initialization
