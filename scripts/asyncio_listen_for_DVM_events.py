@@ -100,8 +100,34 @@ def setup_database():
 
         sync_db[collection_name].create_index([("pubkey", 1), ("created_at", 1)])
 
+        sync_db[collection_name].create_index([("kind", 1), ("pubkey", 1)])
+
         # Keep the existing text index on 'id'
         sync_db[collection_name].create_index([("id", "text")], unique=True)
+
+        # now disconnect because we don't need it anymore
+        sync_db.close()
+
+    collection_name_frontend = "prod_events_frontend"
+    if collection_name_frontend not in sync_db.list_collection_names():
+        sync_db.create_collection(
+            collection_name_frontend,
+        )
+
+        sync_db[collection_name_frontend].create_index([("kind", 1)])
+
+        sync_db[collection_name_frontend].create_index([("created_at", -1)])
+
+        sync_db[collection_name_frontend].create_index([("kind", 1), ("created_at", 1)])
+
+        sync_db[collection_name_frontend].create_index(
+            [("pubkey", 1), ("created_at", 1)]
+        )
+
+        sync_db[collection_name_frontend].create_index([("kind", 1), ("pubkey", 1)])
+
+        # Keep the existing text index on 'id'
+        sync_db[collection_name_frontend].create_index([("id", "text")], unique=True)
 
         # now disconnect because we don't need it anymore
         sync_db.close()
@@ -113,6 +139,8 @@ def setup_database():
     try:
         result = async_db["prod_events"].count_documents({})
         LOGGER.info(f"There are {result} documents in prod_events collection")
+        result2 = async_db["prod_events_frontend"].count_documents({})
+        LOGGER.info(f"There are {result2} documents in prod_events_frontend collection")
     except Exception as e:
         LOGGER.error("Could not count documents in async_db")
         import traceback
@@ -371,6 +399,12 @@ class NotificationHandler(HandleNotification):
         if len(events) > 0:
             try:
                 result = await ASYNC_MONGO_DB.prod_events.insert_many(
+                    events, ordered=False
+                )
+
+                # naive implementation currently
+                # todo - see if there's a way to use transactions to ensure they always stay in sync
+                result2 = await ASYNC_MONGO_DB.prod_events_frontend.insert_many(
                     events, ordered=False
                 )
                 # LOGGER.info(
