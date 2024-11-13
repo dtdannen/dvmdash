@@ -117,378 +117,382 @@
 <script>
 
 document.addEventListener("DOMContentLoaded", function() {
-    console.log("vis.js loaded:", typeof vis !== 'undefined');
 
-    const relativeUrl = `/api/graph/{{ event_id }}`;
-    const fullUrl = new URL(relativeUrl, window.location.origin).href;
-    console.log("Attempting to fetch from full URL:", fullUrl);
+    // First check if we have an event ID by looking for the network-container
+    const networkContainer = document.getElementById("network-container");
 
-    fetch(fullUrl)
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.text();  // Get the raw text instead of parsing JSON immediately
-    })
-    .then(text => {
-        console.log("Raw response:", text);  // Log the raw response
-        try {
-            return JSON.parse(text);  // Try to parse it as JSON
-        } catch (e) {
-            console.error("JSON parse error:", e);
-            console.log("First 100 characters of response:", text.slice(0, 100));
-            throw e;  // Re-throw the error to be caught by the catch block
-        }
-    })
-    .then(responseData => {
-        console.log("Parsed data:", responseData);
-        console.log("Received data:", responseData);
-        const data = responseData.node_relations;
-        const eventNodes = responseData.event_nodes;
+    if (networkContainer) {
 
-        const nodes = [];
-        const links = [];
+        console.log("vis.js loaded:", typeof vis !== 'undefined');
 
-        var root_request_node = null;
+        const relativeUrl = `/api/graph/{{ event_id }}`;
+        const fullUrl = new URL(relativeUrl, window.location.origin).href;
+        console.log("Attempting to fetch from full URL:", fullUrl);
 
-        if (data.length === 0) {
-            console.log("data.length === 0");
-            // Handle case with no relations
-            if (eventNodes.length > 0) {
-                console.log("eventNodes.length > 0");
-                const singleNode = eventNodes[0];
-                nodes.push({
-                    id: singleNode.id,
-                    pubkey: singleNode.pubkey || "Unknown", // fallback to id if pubkey is not available
-                    kind: singleNode.kind || 'Unknown',
-                    raw_created_at: singleNode.created_at || null,
-                    url: singleNode.url || '#',
-                    quick_details: singleNode.quick_details || 'No details available',
-                    node_type: singleNode.neo4j_node_type || 'Unknown',
-                    label: (singleNode.neo4j_node_type || 'Node') + getLastChars(singleNode.id),
-                    labels: [(singleNode.neo4j_node_type || 'Node') + getLastChars(singleNode.id)],
+        fetch(fullUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text();  // Get the raw text instead of parsing JSON immediately
+            })
+            .then(text => {
+                console.log("Raw response:", text);  // Log the raw response
+                try {
+                    return JSON.parse(text);  // Try to parse it as JSON
+                } catch (e) {
+                    console.error("JSON parse error:", e);
+                    console.log("First 100 characters of response:", text.slice(0, 100));
+                    throw e;  // Re-throw the error to be caught by the catch block
+                }
+            })
+            .then(responseData => {
+                console.log("Parsed data:", responseData);
+                console.log("Received data:", responseData);
+                const data = responseData.node_relations;
+                const eventNodes = responseData.event_nodes;
+
+                const nodes = [];
+                const links = [];
+
+                var root_request_node = null;
+
+                if (data.length === 0) {
+                    console.log("data.length === 0");
+                    // Handle case with no relations
+                    if (eventNodes.length > 0) {
+                        console.log("eventNodes.length > 0");
+                        const singleNode = eventNodes[0];
+                        nodes.push({
+                            id: singleNode.id,
+                            pubkey: singleNode.pubkey || "Unknown", // fallback to id if pubkey is not available
+                            kind: singleNode.kind || 'Unknown',
+                            raw_created_at: singleNode.created_at || null,
+                            url: singleNode.url || '#',
+                            quick_details: singleNode.quick_details || 'No details available',
+                            node_type: singleNode.neo4j_node_type || 'Unknown',
+                            label: (singleNode.neo4j_node_type || 'Node') + getLastChars(singleNode.id),
+                            labels: [(singleNode.neo4j_node_type || 'Node') + getLastChars(singleNode.id)],
+                        });
+                        console.log("nodes has " + nodes.length + " item(s)");
+                        console.log("First node:", nodes[0]);  // This will log the details of the node
+                    } else {
+                        console.log("eventNodes is empty");
+                    }
+                } else {
+                    data.forEach(item => {
+                        const n = item.source_node;
+                        const r = item.relation;
+                        const req = item.target_node;
+
+                        console.log('item.source_node is ', item.source_node)
+                        console.log('item.target_node is ', item.target_node)
+
+                        const sourceNode = {
+                            ...n,
+                            id: n.id || n.npub_hex,
+                            pubkey: n.npub_hex || n.pubkey,
+                            kind: n.kind,
+                            raw_created_at: n.created_at,
+                            url: n.url,
+                            quick_details: n.quick_details,
+                            node_type: n.neo4j_node_type,
+                            label: n.labels ? n.labels.join('\n') : 'Unknown',
+                        };
+                        const targetNode = {
+                            ...req,
+                            id: req.id || req.npub_hex,
+                            pubkey: req.npub_hex || req.pubkey,
+                            kind: req.kind,
+                            raw_created_at: req.created_at,
+                            url: req.url,
+                            quick_details: req.quick_details,
+                            node_type: req.neo4j_node_type,
+                            label: req.labels ? req.labels.join('\n') : 'Unknown',
+                        };
+                        console.log("source node label is ", sourceNode.label)
+                        console.log("target node label is ", targetNode.label)
+                        //console.log("Source Node: ", sourceNode);
+                        //console.log("Target Node: ", targetNode);
+                        console.log("Relation: ", r);
+                        const link = {source: sourceNode.id, target: targetNode.id, label: r};
+
+                        // If there is a source node that is from a User and it's pointing to an Event node with a kind between 5000-5999,
+                        // then we want to set that source node as the root_user_node
+                        if (root_request_node === null) {
+                            console.log("Source node: ", sourceNode.node_type, "Target node kind: ", targetNode.kind)
+                            if (sourceNode.node_type === "User" && targetNode.kind >= 5000 && targetNode.kind <= 5999) {
+                                root_request_node = targetNode;
+                                console.log("|||||Root User Node: ", root_request_node)
+                            }
+                        }
+
+                        if (!nodes.find(node => node.id === sourceNode.id)) {
+                            nodes.push(sourceNode);
+                        }
+                        if (!nodes.find(node => node.id === targetNode.id)) {
+                            nodes.push(targetNode);
+                        }
+                        // check if undefined
+                        if (sourceNode.id === undefined) {
+                            console.log('Source id is undefined, here is source object: ', sourceNode);
+                            return;
+                        }
+
+                        // see if there is a link with the same source and target and label
+                        if (links.find(l => l.source === sourceNode.id && l.target === targetNode.id && l.label === link.label)) {
+                            console.log('Link already exists with source id: ', sourceNode.id, ' and target id: ', targetNode.id);
+                        } else {
+                            console.log('Pushing link with source id: ', sourceNode.id, ' and target id: ', targetNode.id)
+                            links.push(link);
+                            console.log(`Link: ${sourceNode.kind || sourceNode.node_type} ---${link.label}---> ${targetNode.kind || targetNode.node_type}`);
+                        }
+                    });
+
+                    // log how many nodes and links there are
+                    console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
+                }
+
+                if (nodes.length > 0) {
+                    console.log("Calling createVisNetwork with nodes:", nodes);
+                    createVisNetwork(nodes, links);
+                } else {
+                    console.log("No nodes to display");
+                }
+
+                // Process the 'eventNodes' for the table
+                const tableNodes = Object.values(eventNodes);
+
+                // Sort tableNodes by created_at in ascending order
+                tableNodes.sort((a, b) => a.created_at - b.created_at);
+
+                const tableBody = document.querySelector("#dataTable tbody");
+
+                // Clear existing table rows
+                tableBody.innerHTML = '';
+
+                // Get the current origin
+                const currentOrigin = window.location.origin;
+
+                // Populate the table with data from 'tableNodes'
+                tableNodes.forEach(d => {
+                    if (d.quick_details && d.id) {
+                        const row = document.createElement('tr');
+                        const pubkeyUrl = (6000 <= d.kind && d.kind <= 7000) ?
+                            `${currentOrigin}/dvm/${d.pubkey}` :
+                            `${currentOrigin}/npub/${d.pubkey}`;
+
+
+                        const kindRowVal = !d.kind ? `<td></td>` : (5000 <= d.kind && d.kind <= 6999) ? `<td><a href="${currentOrigin}/kind/${d.kind}">${d.kind}</a></td>` : `<td>${d.kind}</td>`;
+
+                        row.innerHTML = `
+                        <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
+                        ${kindRowVal}
+                        <td>${d.quick_details}</td>
+                        <td><a href="${currentOrigin}/event/${d.id}" target="_blank">View</a></td>
+                        <td>${d.created_at ? formatTimestamp(d.created_at) : ''}</td>
+                    `;
+                        tableBody.appendChild(row);
+                    }
                 });
-                console.log("nodes has " + nodes.length + " item(s)");
-                console.log("First node:", nodes[0]);  // This will log the details of the node
-            } else {
-                console.log("eventNodes is empty");
-            }
-        } else {
-            data.forEach(item => {
-                const n = item.source_node;
-                const r = item.relation;
-                const req = item.target_node;
 
-                console.log('item.source_node is ', item.source_node)
-                console.log('item.target_node is ', item.target_node)
 
-                const sourceNode = {
-                    ...n,
-                    id: n.id || n.npub_hex,
-                    pubkey: n.npub_hex || n.pubkey,
-                    kind: n.kind,
-                    raw_created_at: n.created_at,
-                    url: n.url,
-                    quick_details: n.quick_details,
-                    node_type: n.neo4j_node_type,
-                    label: n.labels ? n.labels.join('\n') : 'Unknown',
-                };
-                const targetNode = {
-                    ...req,
-                    id: req.id || req.npub_hex,
-                    pubkey: req.npub_hex || req.pubkey,
-                    kind: req.kind,
-                    raw_created_at: req.created_at,
-                    url: req.url,
-                    quick_details: req.quick_details,
-                    node_type: req.neo4j_node_type,
-                    label:  req.labels ? req.labels.join('\n') : 'Unknown',
-                };
-                console.log("source node label is ", sourceNode.label)
-                console.log("target node label is ", targetNode.label)
-                //console.log("Source Node: ", sourceNode);
-                //console.log("Target Node: ", targetNode);
-                console.log("Relation: ", r);
-                const link = {source: sourceNode.id, target: targetNode.id, label: r};
+                function getLastChars(str) {
+                    if (str) {
+                        const lastChars = str.slice(-6);
+                        return `...${lastChars}`;
+                    }
+                    return "";
+                }
 
-                // If there is a source node that is from a User and it's pointing to an Event node with a kind between 5000-5999,
-                // then we want to set that source node as the root_user_node
-                if (root_request_node === null) {
-                    console.log("Source node: ", sourceNode.node_type, "Target node kind: ", targetNode.kind)
-                    if (sourceNode.node_type === "User" && targetNode.kind >= 5000 && targetNode.kind <= 5999) {
-                        root_request_node = targetNode;
-                        console.log("|||||Root User Node: ", root_request_node)
+                function formatTimestamp(timestamp) {
+                    const date = new Date(timestamp * 1000);
+
+                    const months = [
+                        'January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'
+                    ];
+
+                    const month = months[date.getMonth()];
+                    const day = date.getDate();
+                    const year = date.getFullYear();
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+                    let daySuffix;
+                    if (day >= 11 && day <= 13) {
+                        daySuffix = 'th';
+                    } else {
+                        switch (day % 10) {
+                            case 1:
+                                daySuffix = 'st';
+                                break;
+                            case 2:
+                                daySuffix = 'nd';
+                                break;
+                            case 3:
+                                daySuffix = 'rd';
+                                break;
+                            default:
+                                daySuffix = 'th';
+                        }
+                    }
+
+                    return `${month} ${day}${daySuffix}, ${year} at ${hours}:${minutes}:${seconds}`;
+                }
+
+                function getNodeColor(node) {
+                    if (node.kind >= 5000 && node.kind <= 5999) {
+                        return "green";
+                    } else if (node.kind === 7000) {
+                        return "#4C3BCF";
+                    } else if (node.kind >= 6000 && node.kind <= 6999) {
+                        return "darkgreen";
+                    } else if (!node.kind && node.node_type === "User") {
+                        return "#4F1787";
+                    } else if (!node.kind && node.node_type === "DVM") {
+                        return "#A0153E";
+                    } else if (node.labels.includes("Invoice")) {
+                        return "#F97300"
+                    } else {
+                        return "red";
                     }
                 }
 
-                if (!nodes.find(node => node.id === sourceNode.id)) {
-                    nodes.push(sourceNode);
+                function getLinkColor(link) {
+                    if (link.label === "MADE_EVENT" && link.target.kind >= 5000 && link.target.kind <= 5999) {
+                        return "green";  // because this is from a user
+                    } else if (link.label === "RESULT_FOR") {
+                        return "orange";
+                    } else if (link.label === "MADE_EVENT") {
+                        return "black";
+                    } else if (link.label === "INVOICE_FROM") {
+                        return "yellow"
+                    } else {
+                        return "black";
+                    }
                 }
-                if (!nodes.find(node => node.id === targetNode.id)) {
-                    nodes.push(targetNode);
+
+
+                function createVisNetwork(nodes, links) {
+                    console.log("Creating network with nodes:", nodes);
+                    console.log("Creating network with links:", links);
+
+                    const visNodes = nodes.map(node => {
+                        console.log("Processing node:", node);
+
+                        // This is where we do the final processing before nodes are visualized
+                        if (node.labels && node.labels.includes('Invoice') && node.amount) {
+                            node.label = `${node.label}\n${node.amount / 1000} sats`;
+                            node.url = null;
+                        } else if (node.labels && node.labels.includes('DVM') && node.id) {
+                            node.url = `/dvm/${node.id}`;
+                        } else if (node.labels && node.labels.includes('User') && node.npub_hex) {
+                            node.url = `/npub/${node.npub_hex}`;
+                        } else if (node.labels && node.labels.includes('Event') && node.id) {
+                            node.url = `/event/${node.id}`;
+                        }
+
+                        return {
+                            id: node.id,
+                            label: `${node.label}`,
+                            color: getNodeColor(node),
+                            url: node.url || null,
+                        };
+                    });
+
+                    console.log("Processed visNodes:", visNodes);
+
+                    const visLinks = links.map(link => {
+                        console.log("Processing link:", link);
+                        return {
+                            from: link.source,
+                            to: link.target,
+                            label: link.label,
+                            color: getLinkColor(link),
+                            length: 300,
+                        };
+                    });
+
+                    console.log("Processed visLinks:", visLinks);
+
+                    const container = document.getElementById("network-container");
+                    console.log("Network container:", container);
+
+                    const data = {
+                        nodes: visNodes,
+                        edges: visLinks,
+                    };
+
+
+                    const options = {
+                        nodes: {
+                            shape: "box",
+                            font: {
+                                size: 14,
+                                color: "#ffffff",
+                            },
+                            margin: 10,
+                        },
+                        edges: {
+                            arrows: "to",
+                            font: {
+                                size: 12,
+                                align: "middle",
+                            },
+                        },
+                    };
+
+                    // If there's only one node, adjust the options
+                    if (nodes.length === 1) {
+                        options.layout = {
+                            randomSeed: 1
+                        };
+                        options.physics = {
+                            enabled: false
+                        };
+                    } else {
+                        options.layout = {
+                            hierarchical: {
+                                direction: "RL",
+                                sortMethod: "directed",
+                                nodeSpacing: 50,
+                                treeSpacing: 50,
+                                levelSeparation: 400,
+                                blockShifting: true,
+                                edgeMinimization: true,
+                            },
+                        };
+                        options.physics = {
+                            hierarchicalRepulsion: {
+                                nodeDistance: 100,
+                            },
+                        };
+                    }
+
+                    console.log("Creating network with data:", data);
+                    console.log("Creating network with options:", options);
+
+                    const network = new vis.Network(container, data, options);
+                    console.log("Network created:", network);
+
+                    network.on("doubleClick", function (event) {
+                        if (event.nodes.length > 0) {
+                            const nodeId = event.nodes[0];
+                            const node = nodes.find(n => n.id === nodeId);
+                            if (node && node.url) {
+                                window.open(node.url, '_blank');
+                            }
+                        }
+                    });
                 }
-                // check if undefined
-                if (sourceNode.id === undefined) {
-                    console.log('Source id is undefined, here is source object: ', sourceNode);
-                    return;
-                }
-
-                // see if there is a link with the same source and target and label
-                if (links.find(l => l.source === sourceNode.id && l.target === targetNode.id && l.label === link.label)) {
-                    console.log('Link already exists with source id: ', sourceNode.id, ' and target id: ', targetNode.id);
-                } else {
-                    console.log('Pushing link with source id: ', sourceNode.id, ' and target id: ', targetNode.id)
-                    links.push(link);
-                    console.log(`Link: ${sourceNode.kind || sourceNode.node_type} ---${link.label}---> ${targetNode.kind || targetNode.node_type}`);
-                }
-            });
-
-            // log how many nodes and links there are
-            console.log(`Nodes: ${nodes.length}, Links: ${links.length}`);
-        }
-
-        if (nodes.length > 0) {
-            console.log("Calling createVisNetwork with nodes:", nodes);
-            createVisNetwork(nodes, links);
-        } else {
-            console.log("No nodes to display");
-        }
-
-        // Process the 'eventNodes' for the table
-      const tableNodes = Object.values(eventNodes);
-
-      // Sort tableNodes by created_at in ascending order
-      tableNodes.sort((a, b) => a.created_at - b.created_at);
-
-      const tableBody = document.querySelector("#dataTable tbody");
-
-        // Clear existing table rows
-        tableBody.innerHTML = '';
-
-        // Get the current origin
-        const currentOrigin = window.location.origin;
-
-        // Populate the table with data from 'tableNodes'
-        tableNodes.forEach(d => {
-            if (d.quick_details && d.id) {
-                const row = document.createElement('tr');
-                const pubkeyUrl = (6000 <= d.kind && d.kind <= 7000) ?
-                    `${currentOrigin}/dvm/${d.pubkey}` :
-                    `${currentOrigin}/npub/${d.pubkey}`;
-
-
-                const kindRowVal = !d.kind ? `<td></td>` : (5000 <= d.kind && d.kind <= 6999) ? `<td><a href="${currentOrigin}/kind/${d.kind}">${d.kind}</a></td>` : `<td>${d.kind}</td>`;
-
-                row.innerHTML = `
-                    <td>${d.pubkey ? `<a href="${pubkeyUrl}">...${d.pubkey.slice(-6)}</a>` : 'N/A'}</td>
-                    ${kindRowVal}
-                    <td>${d.quick_details}</td>
-                    <td><a href="${currentOrigin}/event/${d.id}" target="_blank">View</a></td>
-                    <td>${d.created_at ? formatTimestamp(d.created_at) : ''}</td>
-                `;
-                tableBody.appendChild(row);
-            }
+            }).catch(error => {
+            console.error('Fetch error:', error);
         });
-
-
-
-        function getLastChars(str) {
-            if (str) {
-                const lastChars = str.slice(-6);
-                return `...${lastChars}`;
-            }
-            return "";
-        }
-
-        function formatTimestamp(timestamp) {
-            const date = new Date(timestamp * 1000);
-
-            const months = [
-                'January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'
-            ];
-
-            const month = months[date.getMonth()];
-            const day = date.getDate();
-            const year = date.getFullYear();
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const seconds = String(date.getSeconds()).padStart(2, '0');
-
-            let daySuffix;
-            if (day >= 11 && day <= 13) {
-                daySuffix = 'th';
-            } else {
-                switch (day % 10) {
-                    case 1:
-                        daySuffix = 'st';
-                        break;
-                    case 2:
-                        daySuffix = 'nd';
-                        break;
-                    case 3:
-                        daySuffix = 'rd';
-                        break;
-                    default:
-                        daySuffix = 'th';
-                }
-            }
-
-            return `${month} ${day}${daySuffix}, ${year} at ${hours}:${minutes}:${seconds}`;
-        }
-
-        function getNodeColor(node) {
-            if (node.kind >= 5000 && node.kind <= 5999) {
-                return "green";
-            } else if (node.kind === 7000) {
-                return "#4C3BCF";
-            } else if (node.kind >= 6000 && node.kind <= 6999) {
-                return "darkgreen";
-            } else if (!node.kind && node.node_type === "User") {
-                return "#4F1787";
-            } else if (!node.kind && node.node_type === "DVM") {
-                return "#A0153E";
-            } else if (node.labels.includes("Invoice")) {
-                return "#F97300"
-            }else {
-                return "red";
-            }
-        }
-
-        function getLinkColor(link) {
-            if (link.label === "MADE_EVENT" && link.target.kind >= 5000 && link.target.kind <= 5999) {
-                return "green";  // because this is from a user
-            } else if (link.label === "RESULT_FOR") {
-                return "orange";
-            } else if (link.label === "MADE_EVENT") {
-                return "black";
-            } else if (link.label === "INVOICE_FROM") {
-                return "yellow"
-            } else {
-                return "black";
-            }
-        }
-
-
-
-        function createVisNetwork(nodes, links) {
-            console.log("Creating network with nodes:", nodes);
-            console.log("Creating network with links:", links);
-
-            const visNodes = nodes.map(node => {
-                console.log("Processing node:", node);
-
-                // This is where we do the final processing before nodes are visualized
-                if (node.labels && node.labels.includes('Invoice') && node.amount){
-                    node.label = `${node.label}\n${node.amount / 1000} sats`;
-                    node.url = null;
-                }
-                else if (node.labels && node.labels.includes('DVM') && node.id) {
-                    node.url = `/dvm/${node.id}`;
-                }
-                else if (node.labels && node.labels.includes('User') && node.npub_hex) {
-                    node.url = `/npub/${node.npub_hex}`;
-                } else if (node.labels && node.labels.includes('Event') && node.id) {
-                    node.url = `/event/${node.id}`;
-                }
-
-                return {
-                    id: node.id,
-                    label: `${node.label}`,
-                    color: getNodeColor(node),
-                    url: node.url || null,
-                };
-            });
-
-            console.log("Processed visNodes:", visNodes);
-
-            const visLinks = links.map(link => {
-                console.log("Processing link:", link);
-                return {
-                    from: link.source,
-                    to: link.target,
-                    label: link.label,
-                    color: getLinkColor(link),
-                    length: 300,
-                };
-            });
-
-            console.log("Processed visLinks:", visLinks);
-
-            const container = document.getElementById("network-container");
-            console.log("Network container:", container);
-
-            const data = {
-                nodes: visNodes,
-                edges: visLinks,
-            };
-
-
-             const options = {
-                nodes: {
-                    shape: "box",
-                    font: {
-                        size: 14,
-                        color: "#ffffff",
-                    },
-                    margin: 10,
-                },
-                edges: {
-                    arrows: "to",
-                    font: {
-                        size: 12,
-                        align: "middle",
-                    },
-                },
-            };
-
-            // If there's only one node, adjust the options
-            if (nodes.length === 1) {
-                options.layout = {
-                    randomSeed: 1
-                };
-                options.physics = {
-                    enabled: false
-                };
-            } else {
-                options.layout = {
-                    hierarchical: {
-                        direction: "RL",
-                        sortMethod: "directed",
-                        nodeSpacing: 50,
-                        treeSpacing: 50,
-                        levelSeparation: 400,
-                        blockShifting: true,
-                        edgeMinimization: true,
-                    },
-                };
-                options.physics = {
-                    hierarchicalRepulsion: {
-                        nodeDistance: 100,
-                    },
-                };
-            }
-
-            console.log("Creating network with data:", data);
-            console.log("Creating network with options:", options);
-
-            const network = new vis.Network(container, data, options);
-            console.log("Network created:", network);
-
-          network.on("doubleClick", function (event) {
-            if (event.nodes.length > 0) {
-              const nodeId = event.nodes[0];
-              const node = nodes.find(n => n.id === nodeId);
-              if (node && node.url) {
-                window.open(node.url, '_blank');
-              }
-            }
-          });
-        }
-    }).catch(error => {
-        console.error('Fetch error:', error);
-    });
+    }
 });
+
 
 
 

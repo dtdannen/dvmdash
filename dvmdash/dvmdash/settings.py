@@ -22,7 +22,7 @@ try:
     import dotenv
 
     env_path = Path(".env")
-    print(f"loading environment from {env_path.resolve()}")
+    # print(f"loading environment from {env_path.resolve()}")
     dotenv.load_dotenv(env_path, verbose=True, override=True)
 except Exception as e:
     pass  # this means env variables are set on the server
@@ -40,7 +40,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", get_random_secret_key())
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
-print("DEBUG: ", DEBUG)
+# print("DEBUG: ", DEBUG)
 
 NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
