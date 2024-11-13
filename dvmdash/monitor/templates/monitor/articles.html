@@ -1,0 +1,143 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Articles</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include any additional CSS -->
+    <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="flex h-screen" x-data="{ isSidebarOpen: true }">
+        <!-- Sidebar -->
+        <div
+            :class="isSidebarOpen ? 'w-80' : 'w-16'"
+            class="bg-white border-r transition-all duration-300 flex flex-col">
+
+            <!-- Sidebar Header -->
+            <div class="p-4 border-b flex justify-between items-center">
+                <template x-if="isSidebarOpen">
+                    <div class="flex items-center gap-2">
+                        <svg class="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 4v12l-4-2-4 2V4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <h2 class="font-semibold">Articles</h2>
+                    </div>
+                </template>
+                <button
+                    @click="isSidebarOpen = !isSidebarOpen"
+                    class="p-1 hover:bg-gray-100 rounded-full">
+                    <template x-if="isSidebarOpen">
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </template>
+                    <template x-if="!isSidebarOpen">
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </template>
+                </button>
+            </div>
+
+            <!-- Search Bar -->
+            <template x-if="isSidebarOpen">
+                <div class="p-4 border-b">
+                    <div class="relative">
+                        <svg class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                            type="text"
+                            placeholder="Search articles..."
+                            class="w-full pl-9 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </template>
+
+            <!-- Article List -->
+            <div class="flex-1 overflow-y-auto">
+                <template x-if="isSidebarOpen">
+                    <div class="divide-y">
+                        {% for article in articles %}
+                        <div class="p-4 hover:bg-gray-50 cursor-pointer">
+                            <div class="flex items-start gap-3">
+                                <div class="flex-1">
+                                    <h3 class="font-medium text-sm mb-1">{{ article.title }}</h3>
+                                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                                        <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                        </svg>
+                                        <span>{{ article.category }}</span>
+                                        <span>•</span>
+                                        <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>{{ article.last_updated|date:"M d, Y" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </template>
+                <template x-if="!isSidebarOpen">
+                    <div class="py-4">
+                        {% for article in articles %}
+                        <div class="mx-auto w-8 h-8 mb-2 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 cursor-pointer">
+                            <svg class="h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-y-auto">
+            <div class="container mx-auto px-6 py-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {% for article in articles %}
+                    <div class="bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow">
+                        <div class="p-6">
+                            <h2 class="text-lg font-semibold mb-2">{{ article.title }}</h2>
+                            <p class="text-gray-600 mb-4">{{ article.description }}</p>
+                            <div class="flex flex-wrap gap-2 mb-4">
+                                {% for tag in article.tags %}
+                                <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+                                    {{ tag.name }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            <div class="flex justify-between items-center text-sm text-gray-600">
+                                <div class="flex items-center gap-2">
+                                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    {{ article.read_time }}
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                    </svg>
+                                    {{ article.comments.count }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alpine.js for interactivity -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</body>
+</html>

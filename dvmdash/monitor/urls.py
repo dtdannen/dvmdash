@@ -27,6 +27,7 @@ urlpatterns = [
         api.get_payment_request_total,
         name="get_payment_request_total",
     ),
+    path("learn/", views.learn, name="learn"),
 ]
 
 handler404 = "monitor.views.custom_404"

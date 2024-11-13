@@ -829,3 +829,61 @@ def playground(request):
     context = {}
     template = loader.get_template("monitor/playground.html")
     return HttpResponse(template.render(context, request))
+
+
+def learn(request):
+    logger.info("Calling learn view")
+    context = {}
+
+    dummy_articles = [
+        {
+            "title": "Article 1",
+            "description": "This is article 1",
+            "category": "DVMs",
+            "last_updated": datetime(2024, 3, 15, 14, 30, 0),
+            "tags": [{"name": "tag1"}, {"name": "tag2"}],
+            "read_time": "5 min",
+            "comments": {
+                "count": 10,
+                "latest": {
+                    "author": "John Doe",
+                    "comment": "This is a great article!",
+                },
+            },
+        },
+        {
+            "title": "Article 2",
+            "description": "This is article 1",
+            "category": "DVMs",
+            "last_updated": datetime(2024, 3, 15, 14, 30, 0),
+            "tags": [{"name": "tag1"}, {"name": "tag2"}],
+            "read_time": "5 min",
+            "comments": {
+                "count": 10,
+                "latest": {
+                    "author": "John Doe",
+                    "comment": "This is a great article!",
+                },
+            },
+        },
+        {
+            "title": "Article 3",
+            "description": "This is article 1",
+            "category": "DVMs",
+            "last_updated": datetime(2024, 3, 15, 14, 30, 0),
+            "tags": [{"name": "tag1"}, {"name": "tag2"}],
+            "read_time": "5 min",
+            "comments": {
+                "count": 10,
+                "latest": {
+                    "author": "John Doe",
+                    "comment": "This is a great article!",
+                },
+            },
+        },
+    ]
+
+    context["articles"] = dummy_articles
+
+    template = loader.get_template("monitor/articles.html")
+    return HttpResponse(template.render(context, request))
