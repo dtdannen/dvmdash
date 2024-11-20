@@ -76,12 +76,6 @@ def setup_database():
     # sync_mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
     # sync_db = sync_mongo_client["dvmdash"]
 
-    # connect to old db
-    old_async_mongo_client = motor.motor_asyncio.AsyncIOMotorClient(
-        os.getenv("OLD_MONGO_URI")
-    )
-    old_async_db = old_async_mongo_client["dvmdash"]
-
     sync_db_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
     sync_db = sync_db_client["dvmdash"]
 
@@ -149,13 +143,12 @@ def setup_database():
         neo4j_driver.verify_connectivity()
         LOGGER.info("Verified connectivity to cloud Neo4j")
 
-    return None, async_db, old_async_db, neo4j_driver
+    return None, async_db, neo4j_driver
 
 
 (
     SYNC_MONGO_DB,
     ASYNC_MONGO_DB,
-    OLD_ASYNC_MONGO_DB,
     NEO4J_DRIVER,
 ) = setup_database()
 NEO4J_BOOKMARK_MANAGER = AsyncGraphDatabase.bookmark_manager()
