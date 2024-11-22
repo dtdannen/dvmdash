@@ -19,19 +19,41 @@ app.conf.update(
     # Worker settings
     worker_prefetch_multiplier=1,
     worker_concurrency=2,
+    # Connection settings
+    broker_connection_retry_on_startup=True,  # Added to address deprecation warning
+    # Task routing
+    task_default_queue="dvmdash",  # Added to use a specific queue
+    task_routes={"celery_worker.src.tasks.*": {"queue": "dvmdash"}},
 )
 
 
-@app.task(bind=True, max_retries=3)
+@app.task(
+    bind=True,
+    max_retries=3,
+    autoretry_for=(Exception,),  # Auto-retry for all exceptions
+    retry_backoff=True,  # Exponential backoff
+    retry_backoff_max=600,  # Max delay between retries (10 minutes)
+    acks_late=True,  # Task acknowledged after completion
+)
 def process_nostr_event(self, event_data):
     """
     Process a Nostr event from the queue
+
+    Args:
+        event_data (dict): The Nostr event data to process
+
+    Returns:
+        dict: The processed event data
+
+    Raises:
+        Exception: If processing fails
     """
     try:
         # Process the event
         # Add any validation, transformation, or processing logic here
-        # This should be pure data processing without database access
         return event_data
 
     except Exception as exc:
-        self.retry(exc=exc, countdown=60)  # Retry in 60 seconds
+        # Log the error before retrying
+        self.logger.error(f"Error processing event: {exc}")
+        raise exc  # This will trigger the autoretry

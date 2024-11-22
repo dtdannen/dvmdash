@@ -58,11 +58,30 @@ services:
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./backend:/app/backend
+      - celery_logs:/app/logs
     depends_on:
       redis:
         condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: [ "CMD-SHELL", "celery -A celery_worker.src.tasks inspect ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mongodb_data:
   postgres_data:
   redis_data:
+  celery_logs:
