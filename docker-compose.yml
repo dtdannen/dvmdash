@@ -1,0 +1,42 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpass
+      MONGO_INITDB_DATABASE: dvmdash
+    command: ["mongod", "--auth", "--bind_ip_all"]
+    healthcheck:
+      test: mongosh --eval "db.adminCommand('ping')" mongodb://admin:adminpass@localhost:27017/admin
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./infrastructure/mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
+      - mongodb_data:/data/db
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: dvmdash
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U devuser -d dvmdash" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  mongodb_data:
+  postgres_data:

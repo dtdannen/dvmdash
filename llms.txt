@@ -61,27 +61,137 @@ F. Postgres table of rollups
 
 File structure for the project:
 
-dvm-metrics/
+dvmdash/
+├── README.md
 ├── docker-compose.yml
-├── event_collector/
+├── infrastructure/
+│   ├── etcd/
+│   │   ├── Dockerfile
+│   │   └── config/
+│   │       ├── dev.yaml      # Local development config
+│   │       └── prod.yaml     # Production config with DO hostnames
+│   ├── mongodb/
+│   │   ├── init.js
+│   │   └── config/
+│   │       ├── dev.conf
+│   │       └── prod.conf
+│   └── postgres/
+│       ├── init.sql
+│       └── config/
+│           ├── dev.conf
+│           └── prod.conf
+├── backend/
+│   ├── event_collector/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   └── src/
+│   │       ├── main.py
+│   │       └── config.py
+│   ├── batch_processor/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   └── src/
+│   │       ├── main.py
+│   │       └── config.py
+│   ├── celery_worker/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   └── src/
+│   │       ├── tasks.py
+│   │       └── config.py
+│   ├── graph_processor/          # Future Neo4j processing component
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   └── src/
+│   │       ├── main.py
+│   │       └── config.py
+│   ├── shared/
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   ├── dvm_event.py
+│   │   │   └── graph_models.py
+│   │   └── utils/
+│   │       ├── __init__.py
+│   │       ├── db.py
+│   │       └── nostr.py
+│   └── tests/
+│       ├── unit/
+│       └── integration/
+├── frontend/
+│   ├── next.config.js
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── public/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   ├── metrics/        # Metrics dashboard pages
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── [...slug]/
+│   │   │   └── debug/         # Debug tool pages
+│   │   │       ├── page.tsx
+│   │   │       └── graph/
+│   │   ├── components/
+│   │   │   ├── metrics/
+│   │   │   │   ├── StatCard.tsx
+│   │   │   │   └── TimeSeriesChart.tsx
+│   │   │   └── debug/
+│   │   │       ├── GraphViewer.tsx
+│   │   │       └── EventInspector.tsx
+│   │   ├── lib/
+│   │   │   ├── api.ts
+│   │   │   └── types.ts
+│   │   └── styles/
+│   └── tests/
+│       ├── unit/
+│       └── e2e/
+├── api/                        # API service layer
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── src/
 │       ├── main.py
-│       └── config.py
-├── batch_processor/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── src/
-│       ├── main.py
-│       └── config.py
-├── celery_worker/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── src/
-│       ├── tasks.py
-│       └── config.py
-└── shared/
-    └── models/
-        ├── __init__.py
-        └── dvm_event.py
+│       ├── routes/
+│       │   ├── metrics.py
+│       │   └── graph.py
+│       └── services/
+│           ├── metrics.py
+│           └── graph.py
+├── docs/
+│   ├── architecture.md
+│   ├── metrics-pipeline.md
+│   └── api-spec.md
+└── scripts/
+    ├── setup-dev.sh
+    └── deploy.sh
+
+
+Deployment Plan:
+
+Droplet 1 (Web/API):
+- Frontend
+- API Service
+- Nginx
+
+Droplet 2 (Queue/Lock):
+- ETCD (for locks)
+- Redis (for Celery)
+- Celery Worker
+
+Droplet 3+ (Event Collectors):
+- Event Collector 1
+- Event Collector 2
+- Event Collector N
+(each collecting from different relay sets, putting events into queue)
+
+Droplet 4+ (Batch):
+- Batch Processor 1
+- Batch Processor 2
+- Batch Processor N
+(each grabbing events from queue, using ETCD for locking, writing to DBs)
+
+Droplet 5 (Data):
+- MongoDB (stores all raw events)
+
+Droplet 6 (Data):
+- PostgreSQL (stores rollups/stats)
