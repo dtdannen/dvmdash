@@ -195,3 +195,5 @@ Droplet 5 (Data):
 
 Droplet 6 (Data):
 - PostgreSQL (stores rollups/stats)
+
+The plan will be for each droplet to have it's own docker-compose.yml file (or dockerfile if there's only one)
