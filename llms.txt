@@ -1,0 +1,87 @@
+DVMDash aims to be a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
+
+A kind is a numeric id that represents a type of job. This is a loose categorization that is not strictly enforced, but
+emergent. Anyone runs a DVM can choose which Kind(s) they support, and users can submit jobs on any Kind.
+
+There are three primary use cases for DVMDash.
+
+Use Case #1: Global Network Metrics, Stats, and Plots
+
+This part of the system listens for Nostr DVM json events from relays and funnels them through a near real-time
+data pipeline to compute metrics and stats about the whole network, as well as specific DVMs and Kinds. It contains the
+following components:
+
+A. Asyncio Python Program to grab events from relays and put into a queue
+B. Celery Queue storing json events
+C. ETCD as a lock for batch processing (D)
+D. Python batch processing to compute latest metrics by:
+	- grab a batch of events from the queue
+	- grab the latest stats from Postgres rollups
+	- compute new total metrics by iterating over all events in batch
+	- write batch of events to mongo event collection (E)
+	- write new rollup to mongo rollup collection (F)
+E. Mongo collection of all events ever received
+	- For posterity and to recompute metrics in case of failure, and to allow looking up of individual events later
+	- writes:
+		- batch writes of new events. if not new, then ignored
+	- reads:
+		- lookup of single documents by event id
+		- lookup N most recent documents, filtered by different fields (i.e. find the 10 most recent kind 5300 events)
+F. Postgres table of rollups
+	- to make it easy to quickly get the most recent metrics for all events
+	- tables:
+		1. unique users id list
+		2. unique dvm ids list (with column for current profile, and when profile was last updated)
+		3. DVM stats table that contains columns for
+			1. dvm id
+			2. dvm name
+			3. number of job requests
+			4. average response time
+			5. total sats earned
+			6. dvm profile description (nip-89 announcements)
+		4. Kind stats table that contains columns for:
+			1. kind number
+			2. total jobs requested
+			3. total jobs responded
+			4. total sats paid
+			5. number of dvms that support this job
+		5. KIND+DVM Table - used to track how many DVMs support a kind, and how many (and which) kinds a certain DVM supports
+			1. each row has two foreign keys, and a value here means that a specific DVM supports a specific kind
+		6. global stats table which has columns for:
+			1. number of dvm job requests
+			2. number of dvm job results
+			3. number of unique dvm users (this is the count of table 1 above)
+			4. number of unique dvms (count from table 2 above)
+			5. current most popular dvm
+			6. current most paid dvm
+			7. current most popular kind
+			8. current most paid kind
+			9. total sats earned across the whole dvm ecosystem
+
+
+File structure for the project:
+
+dvm-metrics/
+├── docker-compose.yml
+├── event_collector/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── src/
+│       ├── main.py
+│       └── config.py
+├── batch_processor/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── src/
+│       ├── main.py
+│       └── config.py
+├── celery_worker/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── src/
+│       ├── tasks.py
+│       └── config.py
+└── shared/
+    └── models/
+        ├── __init__.py
+        └── dvm_event.py
