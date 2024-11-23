@@ -24,6 +24,6 @@ ranges:
 excluded_kinds:
   - kind: 5969
     description: "6969 is used for polls"
-  - kind: 
-    description: "Used for community categorization"
+  - kind: 5666
+    description: "Unknown, but does it not appear to be a DVM event"
   # Add more excluded kinds as they are discovered
