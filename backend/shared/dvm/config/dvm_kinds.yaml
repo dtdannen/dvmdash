@@ -1,0 +1,29 @@
+# Configuration file for DVM event kinds
+# Last updated: 2024-11-22
+
+# Known DVM-specific event kinds
+known_kinds:
+  - kind: 31990  # DVM_NIP89_ANNOUNCEMENT
+    description: "DVM announcements and profiles"
+  - kind: 7000   # DVM_FEEDBACK
+    description: "DVM job feedback events"
+
+# Range definitions for DVM events
+ranges:
+  request:
+    start: 5000
+    end: 6000
+    description: "Range for DVM job requests"
+  result:
+    start: 6000
+    end: 6999
+    description: "Range for DVM job results"
+
+# List of kinds within the DVM ranges that are known to be used for other purposes
+# and should be excluded from DVM processing
+excluded_kinds:
+  - kind: 5969
+    description: "6969 is used for polls"
+  - kind: 
+    description: "Used for community categorization"
+  # Add more excluded kinds as they are discovered
