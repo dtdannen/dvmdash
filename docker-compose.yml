@@ -80,8 +80,38 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  event_collector:
+    build:
+      context: .
+      dockerfile: ./backend/event_collector/Dockerfile
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
+      - RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
+    volumes:
+      - ./backend:/app/backend
+      - event_collector_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
+
 volumes:
   mongodb_data:
   postgres_data:
   redis_data:
   celery_logs:
+  event_collector_logs:
