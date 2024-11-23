@@ -91,6 +91,7 @@ services:
       - RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
     volumes:
       - ./backend:/app/backend
+      - ./config:/app/config
       - event_collector_logs:/app/logs
     depends_on:
       redis:

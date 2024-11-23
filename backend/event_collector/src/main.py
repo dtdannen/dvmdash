@@ -5,7 +5,6 @@ import json
 import os
 from pathlib import Path
 import loguru
-import dotenv
 from nostr_sdk import (
     Keys,
     Client,
@@ -21,6 +20,8 @@ from celery import Celery
 import traceback
 import argparse
 import datetime
+import yaml
+
 
 # Get log level from environment variable, default to INFO
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -41,29 +42,39 @@ celery_app = Celery(
 RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
 
 
-def get_relevant_kinds():
-    known_kinds = [
-        EventKind.DVM_NIP89_ANNOUNCEMENT.value,
-        EventKind.DVM_FEEDBACK.value,
-    ]
+def load_dvm_config():
+    config_path = Path(__file__).parent.parent / "config" / "dvm_kinds.yaml"
+    try:
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    except FileNotFoundError:
+        logger.warning(f"DVM kinds config not found at {config_path}, using defaults")
 
-    all_kinds = set(
-        known_kinds
-        + list(
-            range(
-                EventKind.DVM_REQUEST_RANGE_START.value,
-                EventKind.DVM_REQUEST_RANGE_END.value,
-            )
-        )
-        + list(
-            range(
-                EventKind.DVM_RESULT_RANGE_START.value,
-                EventKind.DVM_RESULT_RANGE_END.value,
-            )
-        )
+
+def get_relevant_kinds():
+    config = load_dvm_config()
+
+    # Get explicitly known kinds
+    known_kinds = [k["kind"] for k in config["known_kinds"]]
+
+    # Generate ranges
+    request_range = range(
+        config["ranges"]["request"]["start"], config["ranges"]["request"]["end"]
+    )
+    result_range = range(
+        config["ranges"]["result"]["start"], config["ranges"]["result"]["end"]
     )
 
-    return [Kind(k) for k in list(all_kinds - set(EventKind.get_bad_dvm_kinds()))]
+    # Get excluded kinds
+    excluded_kinds = {k["kind"] for k in config["excluded_kinds"]}
+
+    # Combine all kinds
+    all_kinds = set(known_kinds + list(request_range) + list(result_range))
+
+    # Remove excluded kinds
+    valid_kinds = all_kinds - excluded_kinds
+
+    return [Kind(k) for k in valid_kinds]
 
 
 RELEVANT_KINDS = get_relevant_kinds()
