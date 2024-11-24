@@ -165,7 +165,11 @@ class NotificationHandler(HandleNotification):
         if event.kind() in RELEVANT_KINDS:
             try:
                 event_json = json.loads(event.as_json())
-                celery_app.send_task("process_nostr_event", args=[event_json])
+                celery_app.send_task(
+                    "celery_worker.src.tasks.process_nostr_event",  # Full task path
+                    args=[event_json],
+                    queue="dvmdash",  # Explicitly specify queue
+                )
                 self.events_processed += 1
                 await self.print_stats()
             except Exception as e:

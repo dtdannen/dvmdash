@@ -20,10 +20,15 @@ app.conf.update(
     worker_prefetch_multiplier=1,
     worker_concurrency=2,
     # Connection settings
-    broker_connection_retry_on_startup=True,  # Added to address deprecation warning
+    broker_connection_retry_on_startup=True,
     # Task routing
-    task_default_queue="dvmdash",  # Added to use a specific queue
-    task_routes={"celery_worker.src.tasks.*": {"queue": "dvmdash"}},
+    task_default_queue="dvmdash",
+    task_routes={
+        "process_nostr_event": {"queue": "dvmdash"},  # Explicitly route this task
+        "celery_worker.src.tasks.process_nostr_event": {
+            "queue": "dvmdash"
+        },  # Full path version
+    },
 )
 
 
@@ -34,6 +39,7 @@ app.conf.update(
     retry_backoff=True,  # Exponential backoff
     retry_backoff_max=600,  # Max delay between retries (10 minutes)
     acks_late=True,  # Task acknowledged after completion
+    queue="dvmdash",  # Also specify the queue here
 )
 def process_nostr_event(self, event_data):
     """
