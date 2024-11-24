@@ -20,8 +20,8 @@ from celery import Celery
 import traceback
 import argparse
 import datetime
+import time
 import yaml
-
 
 # Get log level from environment variable, default to INFO
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -30,7 +30,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logger = loguru.logger
 logger.remove()  # Remove default handler
 logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
-nostr_sdk.init_logger(LogLevel.DEBUG)  # You might want to make this configurable too
+nostr_sdk.init_logger(LogLevel.DEBUG)
 
 # Initialize Celery
 celery_app = Celery(
@@ -43,121 +43,148 @@ RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
 
 
 def load_dvm_config():
-    config_path = Path(__file__).parent.parent / "config" / "dvm_kinds.yaml"
-    try:
-        with open(config_path, "r") as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        logger.warning(f"DVM kinds config not found at {config_path}, using defaults")
+    """Load DVM configuration from YAML file. Raises exceptions if file is not found or invalid."""
+
+    # Log the current working directory
+    logger.info(f"Current working directory: {os.getcwd()}")
+
+    # List contents of relevant directories
+    logger.info("Contents of /app:")
+    for item in os.listdir("/app"):
+        logger.info(f"  - {item}")
+
+    logger.info("Contents of /app/backend:")
+    for item in os.listdir("/app/backend"):
+        logger.info(f"  - {item}")
+
+    logger.info("Contents of /app/backend/shared:")
+    for item in os.listdir("/app/backend/shared"):
+        logger.info(f"  - {item}")
+
+    logger.info("Contents of /app/backend/shared/dvm:")
+    for item in os.listdir("/app/backend/shared/dvm"):
+        logger.info(f"  - {item}")
+
+    logger.info("Contents of /app/backend/shared/dvm/config:")
+    for item in os.listdir("/app/backend/shared/dvm/config"):
+        logger.info(f"  - {item}")
+
+    config_path = Path("/app/backend/shared/dvm/config/dvm_kinds.yaml")
+
+    if not config_path.exists():
+        raise FileNotFoundError(f"Required config file not found at: {config_path}")
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    if not config:
+        raise ValueError(f"Config file is empty: {config_path}")
+
+    # Validate required fields
+    required_fields = ["known_kinds", "ranges"]
+    missing_fields = [field for field in required_fields if field not in config]
+    if missing_fields:
+        raise ValueError(
+            f"Missing required fields in config: {', '.join(missing_fields)}"
+        )
+
+    # Validate ranges structure
+    required_range_fields = ["request", "result"]
+    for range_field in required_range_fields:
+        if range_field not in config["ranges"]:
+            raise ValueError(f"Missing required range field: {range_field}")
+        if (
+            "start" not in config["ranges"][range_field]
+            or "end" not in config["ranges"][range_field]
+        ):
+            raise ValueError(f"Range {range_field} missing start or end value")
+
+    return config
 
 
 def get_relevant_kinds():
-    config = load_dvm_config()
+    """Get relevant kinds from config file. Will raise exceptions if config is invalid."""
+    try:
+        config = load_dvm_config()
 
-    # Get explicitly known kinds
-    known_kinds = [k["kind"] for k in config["known_kinds"]]
+        # Get explicitly known kinds
+        known_kinds = [k["kind"] for k in config["known_kinds"]]
 
-    # Generate ranges
-    request_range = range(
-        config["ranges"]["request"]["start"], config["ranges"]["request"]["end"]
-    )
-    result_range = range(
-        config["ranges"]["result"]["start"], config["ranges"]["result"]["end"]
-    )
+        # Generate ranges
+        request_range = range(
+            config["ranges"]["request"]["start"], config["ranges"]["request"]["end"]
+        )
+        result_range = range(
+            config["ranges"]["result"]["start"], config["ranges"]["result"]["end"]
+        )
 
-    # Get excluded kinds
-    excluded_kinds = {k["kind"] for k in config["excluded_kinds"]}
+        # Get excluded kinds
+        excluded_kinds = {k["kind"] for k in config.get("excluded_kinds", [])}
 
-    # Combine all kinds
-    all_kinds = set(known_kinds + list(request_range) + list(result_range))
+        # Combine all kinds
+        all_kinds = set(known_kinds + list(request_range) + list(result_range))
 
-    # Remove excluded kinds
-    valid_kinds = all_kinds - excluded_kinds
+        # Remove excluded kinds
+        valid_kinds = all_kinds - excluded_kinds
 
-    return [Kind(k) for k in valid_kinds]
+        logger.info(f"Loaded {len(valid_kinds)} valid kinds")
+
+        return [Kind(k) for k in valid_kinds]
+    except Exception as e:
+        logger.error(f"Failed to get relevant kinds: {str(e)}")
+        raise
 
 
+# This will now raise an error if the config file can't be found or is invalid
 RELEVANT_KINDS = get_relevant_kinds()
 
 
 class NotificationHandler(HandleNotification):
-    def __init__(self, max_batch_size=100, max_wait_time=3):
-        self.event_queue = asyncio.Queue()
-        self.max_batch_size = max_batch_size
-        self.max_wait_time = max_wait_time
-        self.row_count = 0
+    def __init__(self):
+        self.events_processed = 0
         self.last_header_time = 0
         self.header_interval = 20
 
-    async def print_queue_sizes(self):
+    async def print_stats(self):
         current_time = time.time()
-        event_queue_size = self.event_queue.qsize()
 
         if (
-            self.row_count % self.header_interval == 0
+            self.events_processed % self.header_interval == 0
             or current_time - self.last_header_time > 60
         ):
-            header = f"{'Time':^12}|{'Event Queue':^15}"
-            LOGGER.info(header)
-            LOGGER.info("=" * len(header))
+            header = f"{'Time':^12}|{'Events Processed':^20}"
+            logger.info(header)
+            logger.info("=" * len(header))
             self.last_header_time = current_time
-            self.row_count = 0
+            self.events_processed = 0
 
         current_time_str = time.strftime("%H:%M:%S")
-        LOGGER.info(f"{current_time_str:^12}|{event_queue_size:^15d}")
-        self.row_count += 1
+        logger.info(f"{current_time_str:^12}|{self.events_processed:^20d}")
 
     async def handle(self, relay_url, subscription_id, event: Event):
         if event.kind() in RELEVANT_KINDS:
-            event_json = json.loads(event.as_json())
-            await self.event_queue.put(event_json)
-        await self.print_queue_sizes()
-
-    async def process_events(self):
-        while True:
             try:
-                batch = []
-                try:
-                    # Wait for the first event or until max_wait_time
-                    event = await asyncio.wait_for(
-                        self.event_queue.get(), timeout=self.max_wait_time
-                    )
-                    batch.append(event)
-
-                    # Collect more events if available, up to max_batch_size
-                    while (
-                        len(batch) < self.max_batch_size
-                        and not self.event_queue.empty()
-                    ):
-                        batch.append(self.event_queue.get_nowait())
-
-                except asyncio.TimeoutError:
-                    continue
-
-                if batch:
-                    # Send batch to Celery for processing
-                    celery_app.send_task("tasks.process_event_batch", args=[batch])
-                    LOGGER.info(f"Sent batch of {len(batch)} events to Celery")
-
-                # Mark tasks as done
-                for _ in range(len(batch)):
-                    self.event_queue.task_done()
-
+                event_json = json.loads(event.as_json())
+                celery_app.send_task("process_nostr_event", args=[event_json])
+                self.events_processed += 1
+                await self.print_stats()
             except Exception as e:
-                LOGGER.error(f"Unhandled exception in process_events: {e}")
-                LOGGER.error(traceback.format_exc())
-                await asyncio.sleep(5)
+                logger.error(f"Error processing event: {e}")
+                logger.error(traceback.format_exc())
+
+    async def handle_msg(self, relay_url: str, message: str):
+        logger.debug(f"Received message from {relay_url}: {message}")
 
 
 async def nostr_client(days_lookback=0):
-    keys = Keys.generate()
-    pk = keys.public_key()
-    LOGGER.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()}")
+    signer = Keys.generate()
+    pk = signer.public_key()
+    logger.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()}")
 
-    signer = NostrSigner.keys(keys)
     client = Client(signer)
 
     for relay in RELAYS:
+        logger.info(f"Adding relay: {relay}")
         await client.add_relay(relay)
     await client.connect()
 
@@ -169,9 +196,6 @@ async def nostr_client(days_lookback=0):
     await client.subscribe([dvm_filter])
 
     notification_handler = NotificationHandler()
-
-    # Create tasks
-    process_events_task = asyncio.create_task(notification_handler.process_events())
     handle_notifications_task = asyncio.create_task(
         client.handle_notifications(notification_handler)
     )
@@ -189,25 +213,26 @@ async def main(days_lookback=0):
             await asyncio.sleep(1)
 
     except KeyboardInterrupt:
-        LOGGER.info("Received keyboard interrupt, shutting down...")
+        logger.info("Received keyboard interrupt, shutting down...")
     except Exception as e:
-        LOGGER.error(f"Unhandled exception in main: {e}")
+        logger.error(f"Unhandled exception in main: {e}")
         traceback.print_exc()
     finally:
         try:
             await client.disconnect()
         except Exception as e:
-            LOGGER.error(f"Error disconnecting client: {e}")
+            logger.error(f"Error disconnecting client: {e}")
 
         for task in asyncio.all_tasks():
             if task is not asyncio.current_task():
                 task.cancel()
 
         await asyncio.gather(*asyncio.all_tasks(), return_exceptions=True)
-        LOGGER.info("All tasks have been cancelled, exiting...")
+        logger.info("All tasks have been cancelled, exiting...")
 
 
 if __name__ == "__main__":
+    logger.info("Starting event collector...")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--runtime",
@@ -219,13 +244,12 @@ if __name__ == "__main__":
         "--days_lookback",
         type=int,
         help="Number of days in the past to ask relays for events, default is 0",
-        default=0,
+        default=int(os.getenv("DAYS_LOOKBACK", "1")),
     )
     args = parser.parse_args()
 
-    loop = asyncio.get_event_loop()
-
     try:
+        loop = asyncio.get_event_loop()
         if args.runtime:
             end_time = datetime.datetime.now() + datetime.timedelta(
                 minutes=args.runtime
@@ -235,11 +259,18 @@ if __name__ == "__main__":
             )
         else:
             loop.run_until_complete(main())
+    except FileNotFoundError as e:
+        logger.error(f"Configuration error: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        logger.error(f"Invalid configuration: {e}")
+        sys.exit(1)
     except asyncio.TimeoutError:
-        LOGGER.info(f"Program ran for {args.runtime} minutes and is now exiting.")
+        logger.info(f"Program ran for {args.runtime} minutes and is now exiting.")
     except Exception as e:
-        LOGGER.error(f"Fatal error in main loop: {e}")
+        logger.error(f"Fatal error in main loop: {e}")
         traceback.print_exc()
+        sys.exit(1)
     finally:
         loop.close()
-        LOGGER.info("Event loop closed, exiting...")
+        logger.info("Event loop closed, exiting...")
