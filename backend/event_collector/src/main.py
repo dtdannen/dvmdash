@@ -164,12 +164,16 @@ class NotificationHandler(HandleNotification):
     async def handle(self, relay_url, subscription_id, event: Event):
         if event.kind() in RELEVANT_KINDS:
             try:
+                # Convert the event to a simple dict without any extra wrapping
                 event_json = json.loads(event.as_json())
+
+                # Send just the event data directly to Celery
                 celery_app.send_task(
-                    "celery_worker.src.tasks.process_nostr_event",  # Full task path
-                    args=[event_json],
-                    queue="dvmdash",  # Explicitly specify queue
+                    "celery_worker.src.tasks.process_nostr_event",
+                    args=(event_json,),  # Note: single-item tuple needs trailing comma
+                    queue="dvmdash",
                 )
+
                 self.events_processed += 1
                 await self.print_stats()
             except Exception as e:

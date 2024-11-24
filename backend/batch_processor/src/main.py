@@ -4,6 +4,8 @@ import time
 import loguru
 import redis
 import json
+import base64
+import traceback
 
 # Get log level from environment variable, default to INFO
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -12,6 +14,50 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logger = loguru.logger
 logger.remove()  # Remove default handler
 logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
+
+
+def extract_nostr_event(message):
+    """
+    Extract the Nostr event from a Celery task message in Redis.
+
+    Args:
+        message: Raw message from Redis queue
+
+    Returns:
+        dict: The Nostr event data
+    """
+    try:
+        # Parse the outer message
+        message_data = json.loads(message)
+
+        # Get the base64 encoded body
+        if isinstance(message_data, str):
+            message_data = json.loads(message_data)
+
+        body = message_data.get("body")
+        if not body:
+            raise ValueError("No body found in message")
+
+        # Decode the base64 body
+        decoded_body = base64.b64decode(body).decode("utf-8")
+
+        # The body contains a list with the task args and kwargs
+        body_data = json.loads(decoded_body)
+
+        # The event data should be the first argument
+        if not isinstance(body_data, list) or len(body_data) < 1:
+            raise ValueError("Invalid message structure")
+
+        event_data = body_data[0][0]  # First item of first argument array
+        if not isinstance(event_data, dict):
+            raise ValueError("Event data is not a dictionary")
+
+        return event_data
+
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Failed to parse message: {str(e)}")
+        logger.debug(f"Raw message: {message[:200]}...")  # First 200 chars
+        raise
 
 
 def process_events():
@@ -40,7 +86,9 @@ def process_events():
             if result:
                 _, message = result
                 try:
-                    event_data = json.loads(message)
+                    logger.debug(f"raw event is: {message}")
+                    # Extract the Nostr event from the Celery message
+                    event_data = extract_nostr_event(message)
                     event_count += 1
 
                     # Extract key fields, using get() for safety
@@ -50,25 +98,29 @@ def process_events():
                     created_at = event_data.get("created_at")
                     tags = event_data.get("tags", [])
 
-                    # Log basic event info at INFO level
-                    logger.info(
-                        f"Event {event_count} | "
-                        f"Kind: {kind} | "
-                        f"ID: {event_id[:8]}... | "  # Just show first 8 chars
-                        f"Time: {created_at}"
-                    )
+                    if event_id:  # Only log if we have a valid event ID
+                        # Log basic event info at INFO level
+                        logger.info(
+                            f"Event {event_count} | "
+                            f"Kind: {kind} | "
+                            f"ID: {event_id[:8]}... | "  # Just show first 8 chars
+                            f"Time: {created_at}"
+                        )
 
-                    # Log detailed event data at DEBUG level
-                    logger.debug("Event details:")
-                    logger.debug(f"Full ID: {event_id}")
-                    logger.debug(f"Pubkey: {pubkey}")
-                    logger.debug(f"Tags: {tags}")
-                    logger.debug(
-                        f"Content length: {len(event_data.get('content', ''))}"
-                    )
+                        # Log detailed event data at DEBUG level
+                        logger.debug("Event details:")
+                        logger.debug(f"Full ID: {event_id}")
+                        logger.debug(f"Pubkey: {pubkey}")
+                        logger.debug(f"Tags: {tags}")
+                        logger.debug(
+                            f"Content length: {len(event_data.get('content', ''))}"
+                        )
+                    else:
+                        logger.warning("Received event with no ID")
+                        logger.debug(f"Invalid event data: {event_data}")
 
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse JSON from message: {e}")
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.error(f"Failed to parse message: {str(e)}")
                     logger.debug(f"Raw message: {message[:200]}...")  # First 200 chars
 
             else:
@@ -76,7 +128,8 @@ def process_events():
 
         except Exception as e:
             error_count += 1
-            logger.exception(f"Error processing message (Error count: {error_count})")
+            logger.error(f"Error processing message (Error count: {error_count})")
+            logger.error(traceback.format_exc())
 
             if error_count >= 10:
                 logger.critical("Too many consecutive errors, shutting down...")
