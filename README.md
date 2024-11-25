@@ -1,11 +1,38 @@
 # dvmdash
 
-DVMDash aims to be a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
+DVMDash is a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
 
 
 A version of the website is running here:
 
 https://dvmdash.live/
+
+## Run locally
+
+Install docker compose on your system.
+
+```commandline
+docker compose up -d
+```
+
+Navigate to `localhost:3000`
+
+## Run tests
+
+First, check that the all the services are running:
+
+```commandline
+docker compose ps
+```
+
+After the containers are up and running, run:
+
+```commandline
+docker compose --profile test up tests
+```
+
+
+
 
 ## Run Locally
 
