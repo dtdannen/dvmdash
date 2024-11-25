@@ -12,16 +12,19 @@ from nostr_sdk import (
     HandleNotification,
     Timestamp,
     LogLevel,
-    NostrSigner,
     Kind,
     Event,
 )
-from celery import Celery
 import traceback
 import argparse
 import datetime
 import time
 import yaml
+import redis
+from redis import Redis
+from typing import Optional
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 # Get log level from environment variable, default to INFO
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -32,12 +35,6 @@ logger.remove()  # Remove default handler
 logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
 nostr_sdk.init_logger(LogLevel.DEBUG)
 
-# Initialize Celery
-celery_app = Celery(
-    "event_tasks",
-    broker=os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0"),
-    backend=os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0"),
-)
 
 RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
 
@@ -46,28 +43,7 @@ def load_dvm_config():
     """Load DVM configuration from YAML file. Raises exceptions if file is not found or invalid."""
 
     # Log the current working directory
-    logger.info(f"Current working directory: {os.getcwd()}")
-
-    # List contents of relevant directories
-    logger.info("Contents of /app:")
-    for item in os.listdir("/app"):
-        logger.info(f"  - {item}")
-
-    logger.info("Contents of /app/backend:")
-    for item in os.listdir("/app/backend"):
-        logger.info(f"  - {item}")
-
-    logger.info("Contents of /app/backend/shared:")
-    for item in os.listdir("/app/backend/shared"):
-        logger.info(f"  - {item}")
-
-    logger.info("Contents of /app/backend/shared/dvm:")
-    for item in os.listdir("/app/backend/shared/dvm"):
-        logger.info(f"  - {item}")
-
-    logger.info("Contents of /app/backend/shared/dvm/config:")
-    for item in os.listdir("/app/backend/shared/dvm/config"):
-        logger.info(f"  - {item}")
+    logger.debug(f"Current working directory: {os.getcwd()}")
 
     config_path = Path("/app/backend/shared/dvm/config/dvm_kinds.yaml")
 
@@ -127,7 +103,9 @@ def get_relevant_kinds():
         # Remove excluded kinds
         valid_kinds = all_kinds - excluded_kinds
 
-        logger.info(f"Loaded {len(valid_kinds)} valid kinds")
+        logger.info(
+            f"Loaded {len(valid_kinds)} valid kinds, and excluding kinds: {excluded_kinds}"
+        )
 
         return [Kind(k) for k in valid_kinds]
     except Exception as e:
@@ -144,6 +122,23 @@ class NotificationHandler(HandleNotification):
         self.events_processed = 0
         self.last_header_time = 0
         self.header_interval = 20
+        self.redis = redis.from_url(REDIS_URL)  # Just create it directly
+
+    async def handle(self, relay_url, subscription_id, event: Event):
+        if event.kind() in RELEVANT_KINDS:
+            try:
+                # Convert the event to a dict
+                event_json = json.loads(event.as_json())
+
+                # Push directly to Redis list
+                self.redis.rpush("dvmdash_events", json.dumps(event_json))
+
+                self.events_processed += 1
+                await self.print_stats()
+
+            except Exception as e:
+                logger.error(f"Error processing event: {e}")
+                logger.error(traceback.format_exc())
 
     async def print_stats(self):
         current_time = time.time()
@@ -160,25 +155,6 @@ class NotificationHandler(HandleNotification):
 
         current_time_str = time.strftime("%H:%M:%S")
         logger.info(f"{current_time_str:^12}|{self.events_processed:^20d}")
-
-    async def handle(self, relay_url, subscription_id, event: Event):
-        if event.kind() in RELEVANT_KINDS:
-            try:
-                # Convert the event to a simple dict without any extra wrapping
-                event_json = json.loads(event.as_json())
-
-                # Send just the event data directly to Celery
-                celery_app.send_task(
-                    "celery_worker.src.tasks.process_nostr_event",
-                    args=(event_json,),  # Note: single-item tuple needs trailing comma
-                    queue="dvmdash",
-                )
-
-                self.events_processed += 1
-                await self.print_stats()
-            except Exception as e:
-                logger.error(f"Error processing event: {e}")
-                logger.error(traceback.format_exc())
 
     async def handle_msg(self, relay_url: str, message: str):
         logger.debug(f"Received message from {relay_url}: {message}")
@@ -266,7 +242,9 @@ if __name__ == "__main__":
     try:
         loop = asyncio.get_event_loop()
         if not args.start_listening:
-            logger.info("Not listening to relays. Set START_LISTENING=true to begin.")
+            logger.info(
+                "Not listening to relays. Set START_LISTENING=true to begin or run `START_LISTENING=true docker compose restart event_collector` after all containers are up."
+            )
             # Just keep the program running without listening
             loop.run_forever()
         elif args.runtime:

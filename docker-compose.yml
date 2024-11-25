@@ -1,41 +1,39 @@
-# docker-compose.yml
 version: '3.8'
 
 services:
-  mongodb:
-    image: mongo:7.0
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: adminpass
-      MONGO_INITDB_DATABASE: dvmdash
-    command: ["mongod", "--auth", "--bind_ip_all"]
-    healthcheck:
-      test: mongosh --eval "db.adminCommand('ping')" mongodb://admin:adminpass@localhost:27017/admin
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - ./infrastructure/mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
-      - mongodb_data:/data/db
-
-  postgres:
+  postgres_pipeline:
     image: postgres:16
     ports:
       - "5432:5432"
     environment:
       POSTGRES_USER: devuser
       POSTGRES_PASSWORD: devpass
-      POSTGRES_DB: dvmdash
+      POSTGRES_DB: dvmdash_pipeline
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U devuser -d dvmdash" ]
+      test: [ "CMD-SHELL", "pg_isready -U devuser -d dvmdash_pipeline" ]
       interval: 10s
       timeout: 5s
       retries: 5
     volumes:
-      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/pipeline_init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_pipeline_data:/var/lib/postgresql/data
+
+  postgres_events:
+    image: postgres:16
+    ports:
+      - "5433:5432"  # Note: Different host port to avoid conflicts
+    environment:
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: dvmdash_events
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U devuser -d dvmdash_events" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./infrastructure/postgres/events_init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_events_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
@@ -50,49 +48,19 @@ services:
       timeout: 5s
       retries: 5
 
-  celery_worker:
-    build:
-      context: .
-      dockerfile: ./backend/celery_worker/Dockerfile
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    volumes:
-      - ./backend:/app/backend
-      - celery_logs:/app/logs
-    depends_on:
-      redis:
-        condition: service_healthy
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-    healthcheck:
-      test: [ "CMD-SHELL", "celery -A celery_worker.src.tasks inspect ping" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   event_collector:
     build:
       context: .
       dockerfile: ./backend/event_collector/Dockerfile
     environment:
-      - START_LISTENING=false  # default to not listening, use 'START_LISTENING=false docker compose restart event_collector` to turn on
+      - START_LISTENING=true
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - LOG_LEVEL=DEBUG  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
+      - LOG_LEVEL=DEBUG
       - RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
       - DAYS_LOOKBACK=7
     healthcheck:
-      test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')).ping()" ]
+      test: [ "CMD", "python", "-c", "import os, redis; r=redis.from_url('redis://redis:6379/0'); r.ping() if os.getenv('START_LISTENING')=='true' else exit(0)" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -122,6 +90,16 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG
+      # Pipeline DB connection
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=dvmdash_pipeline
+      - POSTGRES_HOST=postgres_pipeline
+      # Events DB connection
+      - EVENTS_POSTGRES_USER=devuser
+      - EVENTS_POSTGRES_PASSWORD=devpass
+      - EVENTS_POSTGRES_DB=dvmdash_events
+      - EVENTS_POSTGRES_HOST=postgres_events
     volumes:
       - ./backend:/app/backend
       - batch_processor_logs:/app/logs
@@ -131,6 +109,13 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
+    depends_on:
+      postgres_pipeline:
+        condition: service_healthy
+      postgres_events:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
       interval: 30s
@@ -143,11 +128,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
-
 volumes:
-  mongodb_data:
-  postgres_data:
+  postgres_pipeline_data:
+  postgres_events_data:
   redis_data:
-  celery_logs:
   event_collector_logs:
   batch_processor_logs:

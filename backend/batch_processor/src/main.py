@@ -7,12 +7,15 @@ from typing import List, Dict, Set, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 import asyncpg
-import motor.motor_asyncio
 import redis
 import json
 import base64
 import traceback
 from loguru import logger
+import redis
+from redis import Redis
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 # Get log level from environment variable, default to INFO
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -26,19 +29,17 @@ logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
 class MetricsDiff:
     """Represents the changes to be applied to global metrics"""
 
+    # [Previous MetricsDiff implementation remains the same]
     job_requests: int = 0
     job_results: int = 0
-    new_user_ids: Set[str] = None  # These are sets of new IDs to add
-    new_dvm_ids: Set[str] = None  # We'll union these with existing sets
+    new_user_ids: Set[str] = None
+    new_dvm_ids: Set[str] = None
     new_kind_ids: Set[int] = None
     sats_earned: int = 0
-
-    # Track for popularity metrics
-    kind_request_counts: Dict[int, int] = None  # {kind_id: count}
-    dvm_earnings: Dict[str, int] = None  # {dvm_id: sats}
+    kind_request_counts: Dict[int, int] = None
+    dvm_earnings: Dict[str, int] = None
 
     def __post_init__(self):
-        # Initialize sets and dicts if None
         if self.new_user_ids is None:
             self.new_user_ids = set()
         if self.new_dvm_ids is None:
@@ -55,15 +56,15 @@ class BatchProcessor:
     def __init__(
         self,
         redis_url: str,
-        pg_pool: asyncpg.Pool,
-        mongo_client: motor.motor_asyncio.AsyncIOMotorClient,
+        metrics_pool: asyncpg.Pool,  # Pool for metrics database
+        events_pool: asyncpg.Pool,  # Pool for events database
         queue_name: str = "dvmdash",
         batch_size: int = 100,
         max_wait_seconds: int = 5,
     ):
         self.redis = redis.from_url(redis_url)
-        self.pg_pool = pg_pool
-        self.mongo = mongo_client
+        self.metrics_pool = metrics_pool
+        self.events_pool = events_pool
         self.queue_name = queue_name
         self.batch_size = batch_size
         self.max_wait_seconds = max_wait_seconds
@@ -71,30 +72,14 @@ class BatchProcessor:
         self.error_count = 0
 
     def extract_nostr_event(self, message: bytes) -> Dict:
-        """Extract the Nostr event from a Celery task message in Redis."""
+        """Extract the Nostr event from Redis message."""
         try:
-            # Parse the outer message
-            message_data = json.loads(message)
+            # Now message is just the JSON string directly
+            if isinstance(message, bytes):
+                message = message.decode("utf-8")
 
-            # Get the base64 encoded body
-            if isinstance(message_data, str):
-                message_data = json.loads(message_data)
+            event_data = json.loads(message)
 
-            body = message_data.get("body")
-            if not body:
-                raise ValueError("No body found in message")
-
-            # Decode the base64 body
-            decoded_body = base64.b64decode(body).decode("utf-8")
-
-            # The body contains a list with the task args and kwargs
-            body_data = json.loads(decoded_body)
-
-            # The event data should be the first argument
-            if not isinstance(body_data, list) or len(body_data) < 1:
-                raise ValueError("Invalid message structure")
-
-            event_data = body_data[0][0]  # First item of first argument array
             if not isinstance(event_data, dict):
                 raise ValueError("Event data is not a dictionary")
 
@@ -344,28 +329,179 @@ class BatchProcessor:
 
                 await asyncio.sleep(1)
 
+    async def save_events_to_postgres(self, events: List[Dict]) -> bool:
+        """Save raw events to the events PostgreSQL database."""
+        try:
+            if not events:
+                return True
+
+            async with self.events_pool.acquire() as conn:
+                # Prepare values for bulk insert
+                values = []
+                for event in events:
+                    values.append(
+                        (
+                            event.get("id"),
+                            event.get("pubkey"),
+                            datetime.fromtimestamp(event.get("created_at", 0)),
+                            event.get("kind"),
+                            event.get("content"),
+                            event.get("sig"),
+                            json.dumps(event.get("tags", [])),  # Store tags as JSONB
+                            json.dumps(event),  # Store complete event as JSONB
+                        )
+                    )
+
+                # Use execute_many for efficient bulk insert
+                await conn.executemany(
+                    """
+                    INSERT INTO raw_events (
+                        id, pubkey, created_at, kind, content, sig, tags, raw_data
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ON CONFLICT (id) DO NOTHING
+                """,
+                    values,
+                )
+
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to save events to postgres: {e}")
+            logger.error(traceback.format_exc())
+            return False
+
+    @staticmethod
+    def format_metrics_row(timestamp, diff_metrics, total_metrics, queue_length):
+        """Format metrics as a table row."""
+        return (
+            f"{timestamp} | "
+            f"Queue: {queue_length:>5} | "  # Added queue length
+            f"Δjobs: {diff_metrics['job_requests']:>4}/{diff_metrics['job_results']:<4} | "
+            f"Δsats: {diff_metrics['sats_earned']:>8,} | "
+            f"Δusers: {diff_metrics['new_users']:>4} | "
+            f"ΔDVMs: {diff_metrics['new_dvms']:>3} | "
+            f"Tot jobs: {total_metrics['job_requests']:>6,}/{total_metrics['job_results']:<6,} | "
+            f"Tot sats: {total_metrics['total_sats_earned']:>10,} | "
+            f"Tot users: {total_metrics['unique_users']:>5,} | "
+            f"Tot DVMs: {total_metrics['unique_dvms']:>4,}"
+        )
+
+    async def process_forever(self):
+        header = "Timestamp            | Queue  | Δjobs req/res | Δsats      | Δusers | ΔDVMs | Tot jobs req/res   | Tot sats      | Tot users | DVMs"
+        logger.info("\n" + "=" * len(header))
+        logger.info(header)
+        logger.info("=" * len(header))
+
+        while True:
+            try:
+                # Get queue length before processing batch
+                queue_length = self.redis.llen(self.queue_name)
+
+                events = await self.get_batch_of_events()
+
+                if events:
+                    # 1. Compute diffs
+                    diff = self.compute_batch_diff(events)
+
+                    # 2. Save events to events database
+                    events_task = asyncio.create_task(
+                        self.save_events_to_postgres(events)
+                    )
+
+                    # 3. Apply diffs to metrics database
+                    metrics_success = await self.apply_diff_to_postgres(diff)
+
+                    # Get new totals and log the row
+                    if metrics_success:
+                        async with self.metrics_pool.acquire() as conn:
+                            global_stats = await conn.fetchrow(
+                                """
+                                SELECT 
+                                    job_requests,
+                                    job_results,
+                                    unique_users,
+                                    unique_dvms,
+                                    total_sats_earned,
+                                    most_popular_dvm,
+                                    most_paid_dvm,
+                                    most_popular_kind,
+                                    most_paid_kind
+                                FROM global_stats 
+                                ORDER BY timestamp DESC 
+                                LIMIT 1
+                            """
+                            )
+
+                            if global_stats:
+                                diff_metrics = {
+                                    "job_requests": diff.job_requests,
+                                    "job_results": diff.job_results,
+                                    "sats_earned": diff.sats_earned,
+                                    "new_users": len(diff.new_user_ids),
+                                    "new_dvms": len(diff.new_dvm_ids),
+                                }
+
+                                timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                                logger.info(
+                                    BatchProcessor.format_metrics_row(
+                                        timestamp,
+                                        diff_metrics,
+                                        global_stats,
+                                        queue_length,
+                                    )
+                                )
+
+                    # 4. Wait for events save to complete
+                    events_success = await events_task
+
+                    if metrics_success and events_success:
+                        self.event_count += len(events)
+                        self.error_count = 0  # Reset error count on success
+                    else:
+                        self.error_count += 1
+
+                # Check error threshold
+                if self.error_count >= 10:
+                    logger.error("Too many consecutive errors, shutting down...")
+                    break
+
+            except Exception as e:
+                logger.error(f"Error in processing loop: {e}")
+                logger.error(traceback.format_exc())
+                self.error_count += 1
+
+                if self.error_count >= 10:
+                    logger.error("Too many consecutive errors, shutting down...")
+                    break
+
+                await asyncio.sleep(1)
+
 
 async def main():
     """Initialize and run the batch processor."""
     try:
-        # Initialize your connections
-        pg_pool = await asyncpg.create_pool(
+        # Initialize metrics database connection pool
+        metrics_pool = await asyncpg.create_pool(
             user=os.getenv("POSTGRES_USER", "postgres"),
             password=os.getenv("POSTGRES_PASSWORD", "postgres"),
             database=os.getenv("POSTGRES_DB", "dvmdash"),
             host=os.getenv("POSTGRES_HOST", "localhost"),
         )
 
-        mongo_client = motor.motor_asyncio.AsyncIOMotorClient(
-            os.getenv("MONGO_URL", "mongodb://localhost:27017")
+        # Initialize events database connection pool
+        events_pool = await asyncpg.create_pool(
+            user=os.getenv("EVENTS_POSTGRES_USER", "postgres"),
+            password=os.getenv("EVENTS_POSTGRES_PASSWORD", "postgres"),
+            database=os.getenv("EVENTS_POSTGRES_DB", "dvmdash_events"),
+            host=os.getenv("EVENTS_POSTGRES_HOST", "localhost"),
         )
 
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
         processor = BatchProcessor(
             redis_url=redis_url,
-            pg_pool=pg_pool,
-            mongo_client=mongo_client,
+            metrics_pool=metrics_pool,
+            events_pool=events_pool,
             batch_size=int(os.getenv("BATCH_SIZE", "100")),
             max_wait_seconds=int(os.getenv("MAX_WAIT_SECONDS", "5")),
         )
@@ -377,6 +513,12 @@ async def main():
     except Exception as e:
         logger.exception("Fatal error in batch processor")
         sys.exit(1)
+    finally:
+        # Clean up connection pools
+        if "metrics_pool" in locals():
+            await metrics_pool.close()
+        if "events_pool" in locals():
+            await events_pool.close()
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements file
 COPY ./backend/celery_worker/requirements.txt .
+COPY ./backend/shared ./shared
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt

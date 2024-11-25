@@ -9,13 +9,32 @@ logger = logging.getLogger(__name__)
 
 
 class BoundedEventDeduplicator:
-    def __init__(self, redis_url: str, max_events: int = 1_000_000):
+    def __init__(
+        self,
+        redis_url: str,
+        sentinel_kwargs: Optional[dict] = None,
+        max_events: int = 1_000_000,
+    ):
         self.redis = redis.from_url(redis_url)
         self.set_key = "dvmdash_processed_events"
         self.zset_key = "dvmdash_event_timestamps"
         self.max_events = max_events
         self.cleanup_threshold = 0.98
         self.cleanup_batch = 10_000
+
+        if sentinel_kwargs:
+            from redis.sentinel import Sentinel
+
+            sentinel = Sentinel(
+                sentinel_kwargs["sentinel_hosts"],
+                socket_timeout=sentinel_kwargs.get("socket_timeout", 0.1),
+            )
+            self.redis = sentinel.master_for(
+                sentinel_kwargs["service_name"],
+                socket_timeout=sentinel_kwargs.get("socket_timeout", 0.1),
+            )
+        else:
+            self.redis = redis.from_url(redis_url)
 
     def _get_current_size(self) -> int:
         """Get current number of events in the set."""
@@ -72,24 +91,18 @@ class BoundedEventDeduplicator:
             return 0, self._get_current_size()
 
     def check_duplicate(self, event_id: str, timestamp: Optional[float] = None) -> bool:
-        """
-        Check if event is duplicate and if not, add it to the set.
-        Returns True if duplicate, False if new event.
-        """
         try:
-            # Use current timestamp if none provided
             if timestamp is None:
                 timestamp = time.time()
 
-            # Try to add to the set
-            is_new = self.redis.sadd(self.set_key, event_id)
+            with self.redis.pipeline() as pipe:
+                # Execute both operations atomically
+                pipe.sadd(self.set_key, event_id)
+                pipe.zadd(self.zset_key, {event_id: timestamp})
+                results = pipe.execute()
 
-            if is_new:
-                # If it's a new event, add to timestamp sorted set
-                self.redis.zadd(self.zset_key, {event_id: timestamp})
-
-                # Check if we need cleanup
-                if self._needs_cleanup():
+                is_new = results[0]  # Result of sadd
+                if is_new and self._needs_cleanup():
                     removed, new_size = self._cleanup_oldest_events()
                     if removed > 0:
                         logger.info(
@@ -97,9 +110,7 @@ class BoundedEventDeduplicator:
                             f"New size: {new_size:,}"
                         )
 
-                return False  # Not a duplicate
-
-            return True  # Is a duplicate
+                return not is_new  # Return True if duplicate
 
         except Exception as e:
             logger.error(f"Error checking duplicate: {e}")
@@ -144,3 +155,47 @@ class BoundedEventDeduplicator:
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
             return {}
+
+    def health_check(self) -> Tuple[bool, str]:
+        """
+        Check if the deduplication system is healthy.
+        Returns (is_healthy, message)
+        """
+        try:
+            # Test basic Redis operations
+            self.redis.ping()
+
+            # Check if we're approaching capacity
+            stats = self.get_stats()
+            capacity_used = stats.get("capacity_used_percent", 0)
+
+            if capacity_used >= 95:
+                return False, f"System at {capacity_used}% capacity"
+
+            # Check if cleanup is working
+            if capacity_used >= self.cleanup_threshold * 100:
+                removed, _ = self._cleanup_oldest_events()
+                if removed == 0:
+                    return False, "Cleanup failed to remove events"
+
+            return True, "Deduplication system healthy"
+
+        except redis.RedisError as e:
+            return False, f"Redis connection error: {str(e)}"
+        except Exception as e:
+            return False, f"Unexpected error: {str(e)}"
+
+    def increment_metrics(self, event_id: str, is_duplicate: bool) -> None:
+        """Track metrics about deduplication"""
+        timestamp = int(time.time())
+        hour_key = f"dvmdash_dedup_metrics:{timestamp - (timestamp % 3600)}"
+
+        with self.redis.pipeline() as pipe:
+            # Increment total events and duplicates
+            pipe.hincrby(hour_key, "total_events", 1)
+            if is_duplicate:
+                pipe.hincrby(hour_key, "duplicate_events", 1)
+
+            # Set expiry for metrics (keep for 24 hours)
+            pipe.expire(hour_key, 86400)
+            pipe.execute()

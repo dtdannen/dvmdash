@@ -35,7 +35,13 @@ START_LISTENING=false docker compose restart event_collector
 
 And once it's all running, navigate to `localhost:3000`
 
-## Run tests
+## Local Development
+
+After you make changes, and want to run the docker, make sure to rebuild the containers like:
+
+```commandline
+docker compose up --build -d
+```
 
 First, check that the all the services are running:
 

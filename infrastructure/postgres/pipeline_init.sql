@@ -1,4 +1,4 @@
--- infrastructure/postgres/init.sql
+-- infrastructure/postgres/pipeline_init.sql
 
 -- Users table (unchanged)
 CREATE TABLE users (

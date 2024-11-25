@@ -76,7 +76,7 @@ dvmdash/
 │   │       ├── dev.conf
 │   │       └── prod.conf
 │   └── postgres/
-│       ├── init.sql
+│       ├── pipeline_init.sql
 │       └── config/
 │           ├── dev.conf
 │           └── prod.conf
