@@ -1,8 +1,24 @@
 # backend/celery_worker/src/tasks.py
 from celery import Celery
+from celery.signals import before_task_publish
 import os
+from deduplicator import BoundedEventDeduplicator
+import sys
+from loguru import logger
 
-# Initialize Celery app
+# Get log level from environment variable, default to INFO
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+# Simple logging setup that works well with Docker
+logger.remove()  # Remove default handler
+logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
+
+
+# Initialize deduplicator
+deduplicator = BoundedEventDeduplicator(
+    redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0")
+)
+
 app = Celery("dvmdash")
 
 # Configure Celery
@@ -30,6 +46,24 @@ app.conf.update(
         },  # Full path version
     },
 )
+
+
+@before_task_publish.connect
+def check_duplicate(sender=None, headers=None, body=None, **kwargs):
+    """Prevent duplicate events from entering queue"""
+    try:
+        event_data = body[0][0]
+        event_id = event_data.get("id")
+        timestamp = event_data.get("created_at")
+
+        if not event_id:
+            return True
+
+        return not deduplicator.check_duplicate(event_id, timestamp)
+
+    except Exception as e:
+        logger.error(f"Error in deduplication: {e}")
+        return True
 
 
 @app.task(

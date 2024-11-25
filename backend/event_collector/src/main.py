@@ -254,11 +254,22 @@ if __name__ == "__main__":
         help="Number of days in the past to ask relays for events, default is 0",
         default=int(os.getenv("DAYS_LOOKBACK", "1")),
     )
+    # Add this new argument
+    parser.add_argument(
+        "--start-listening",
+        action="store_true",
+        help="Start listening to relays immediately",
+        default=(os.getenv("START_LISTENING", "false").lower() == "true"),
+    )
     args = parser.parse_args()
 
     try:
         loop = asyncio.get_event_loop()
-        if args.runtime:
+        if not args.start_listening:
+            logger.info("Not listening to relays. Set START_LISTENING=true to begin.")
+            # Just keep the program running without listening
+            loop.run_forever()
+        elif args.runtime:
             end_time = datetime.datetime.now() + datetime.timedelta(
                 minutes=args.runtime
             )

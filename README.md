@@ -15,7 +15,25 @@ Install docker compose on your system.
 docker compose up -d
 ```
 
-Navigate to `localhost:3000`
+Now check everything looks good, should all be healthy:
+
+```commandline
+docker compose ps
+```
+
+Then to start listening to relays, run:
+
+```commandline
+START_LISTENING=true docker compose restart event_collector
+```
+
+and then if for any reason you want to stop listening to relays, run:
+
+```commandline
+START_LISTENING=false docker compose restart event_collector
+```
+
+And once it's all running, navigate to `localhost:3000`
 
 ## Run tests
 
