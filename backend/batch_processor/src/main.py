@@ -29,7 +29,6 @@ logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
 class MetricsDiff:
     """Represents the changes to be applied to global metrics"""
 
-    # [Previous MetricsDiff implementation remains the same]
     job_requests: int = 0
     job_results: int = 0
     new_user_ids: Set[str] = None
@@ -134,10 +133,13 @@ class BatchProcessor:
         for event in events:
             kind = event.get("kind")
             pubkey = event.get("pubkey")
-            event_id = event.get("id", "NO_ID")
+            event_id = event.get("id")
 
-            if not kind or not pubkey:
-                logger.warning(f"Event missing kind or pubkey: {event_id}")
+            if not kind or not pubkey or not event_id:
+                if event_id:
+                    logger.warning(f"Event missing kind or pubkey: {event_id}")
+                else:
+                    logger.warning(f"Event missing event id")
                 continue
 
             if 5000 <= kind < 6000:  # Job requests
@@ -150,25 +152,31 @@ class BatchProcessor:
                 diff.job_results += 1
                 diff.new_dvm_ids.add(pubkey)
 
-                # Extract sats from tags if present
-                for tag in event.get("tags", []):
-                    if len(tag) >= 2 and tag[0] == "amount":
-                        try:
-                            sats = int(tag[1])
-                            diff.sats_earned += sats
-                            diff.dvm_earnings[pubkey] += sats
-                        except (IndexError, ValueError):
-                            logger.warning(f"Invalid amount tag in event {event_id}")
-                            continue
+                # TODO see about calculating sats earned
+                #  might need a clever solution
 
         return diff
 
     async def apply_diff_to_postgres(self, diff: MetricsDiff) -> bool:
-        """Apply the computed differences to PostgreSQL."""
         async with self.pg_pool.acquire() as conn:
             try:
                 async with conn.transaction():
-                    # First update the global stats
+                    # First get the current stats
+                    current_stats = await conn.fetchrow(
+                        """
+                        SELECT 
+                            job_requests, 
+                            job_results,
+                            total_sats_earned,
+                            most_popular_kind,
+                            most_paid_dvm
+                        FROM global_stats 
+                        ORDER BY timestamp DESC 
+                        LIMIT 1
+                    """
+                    )
+
+                    # Then insert new row with updated totals
                     await conn.execute(
                         """
                         INSERT INTO global_stats (
@@ -180,35 +188,22 @@ class BatchProcessor:
                             most_popular_kind,
                             most_paid_dvm,
                             total_sats_earned
-                        )
-                        SELECT 
-                            $1 as timestamp,
-                            COALESCE(MAX(job_requests), 0) + $2 as job_requests,
-                            COALESCE(MAX(job_results), 0) + $3 as job_results,
+                        ) VALUES ($1, $2, $3, 
                             (SELECT COUNT(DISTINCT id) FROM (
                                 SELECT id FROM users 
                                 UNION 
                                 SELECT unnest($4::text[]) as id
-                            ) all_users) as unique_users,
+                            ) all_users),
                             (SELECT COUNT(DISTINCT id) FROM (
                                 SELECT id FROM dvms 
                                 UNION 
                                 SELECT unnest($5::text[]) as id
-                            ) all_dvms) as unique_dvms,
-                            CASE 
-                                WHEN $6 IS NOT NULL THEN $6 
-                                ELSE most_popular_kind 
-                            END as most_popular_kind,
-                            CASE 
-                                WHEN $7 IS NOT NULL THEN $7 
-                                ELSE most_paid_dvm 
-                            END as most_paid_dvm,
-                            COALESCE(MAX(total_sats_earned), 0) + $8 as total_sats_earned
-                        FROM global_stats
+                            ) all_dvms),
+                            $6, $7, $8)
                     """,
                         datetime.utcnow(),
-                        diff.job_requests,
-                        diff.job_results,
+                        (current_stats["job_requests"] or 0) + diff.job_requests,
+                        (current_stats["job_results"] or 0) + diff.job_results,
                         list(diff.new_user_ids),
                         list(diff.new_dvm_ids),
                         max(diff.kind_request_counts.items(), key=lambda x: x[1])[0]
@@ -340,22 +335,21 @@ class BatchProcessor:
             try:
                 # Get queue length before processing batch
                 queue_length = self.redis.llen(self.queue_name)
-                logger.info(f"Queue length is: {queue_length}")
 
-                # events = await self.get_batch_of_events()
-                #
-                # if events:
-                #     # 1. Compute diffs
-                #     diff = self.compute_batch_diff(events)
-                #
-                #     # 2. Save events to events database
-                #     events_task = asyncio.create_task(
-                #         self.save_events_to_postgres(events)
-                #     )
-                #
-                #     # 3. Apply diffs to metrics database
-                #     metrics_success = await self.apply_diff_to_postgres(diff)
-                #
+                events = await self.get_batch_of_events()
+
+                if events:
+                    # 1. Compute diffs
+                    diff = self.compute_batch_diff(events)
+
+                    # 2. Save events to events database
+                    events_task = asyncio.create_task(
+                        self.save_events_to_postgres(events)
+                    )
+
+                    # 3. Apply diffs to metrics database
+                    metrics_success = await self.apply_diff_to_postgres(diff)
+
                 #     # Get new totals and log the row
                 #     if metrics_success:
                 #         async with self.metrics_pool.acquire() as conn:

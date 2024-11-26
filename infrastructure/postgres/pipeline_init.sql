@@ -7,13 +7,15 @@ CREATE TABLE users (
     last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- DVMs table (unchanged)
+-- DVMs table
 CREATE TABLE dvms (
     id TEXT PRIMARY KEY,
     name TEXT,
     profile TEXT,
     last_profile_update TIMESTAMP WITH TIME ZONE,
-    first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    count_jobs_gave_feedback ...,  -- this is the number of feedback events given total (may be more than 1 per job)
+    count_jobs_responded ....,  -- this is the number of 6000-6999 responses given
 );
 
 -- DVM stats table (unchanged)
