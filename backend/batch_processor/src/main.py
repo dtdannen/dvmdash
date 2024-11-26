@@ -58,7 +58,7 @@ class BatchProcessor:
         redis_url: str,
         metrics_pool: asyncpg.Pool,  # Pool for metrics database
         events_pool: asyncpg.Pool,  # Pool for events database
-        queue_name: str = "dvmdash",
+        queue_name: str = "dvmdash_events",
         batch_size: int = 100,
         max_wait_seconds: int = 5,
     ):
@@ -273,62 +273,6 @@ class BatchProcessor:
         except Exception as e:
             logger.error(f"Error getting queue stats: {e}")
 
-    async def process_forever(self):
-        """Main processing loop."""
-        logger.info(
-            f"Starting batch processor:\n"
-            f"  Queue: {self.queue_name}\n"
-            f"  Batch size: {self.batch_size}\n"
-            f"  Max wait: {self.max_wait_seconds}s"
-        )
-
-        while True:
-            try:
-                # Get batch of events
-                events = await self.get_batch_of_events()
-
-                if events:
-                    # Log batch info
-                    logger.info(f"Processing batch of {len(events)} events")
-
-                    # 1. Compute diffs (pure computation, no DB access)
-                    diff = self.compute_batch_diff(events)
-
-                    # 2. Save events to MongoDB (can be done in parallel with postgres)
-                    mongo_task = asyncio.create_task(self.save_events_to_mongo(events))
-
-                    # 3. Apply diffs to PostgreSQL
-                    postgres_success = await self.apply_diff_to_postgres(diff)
-
-                    # 4. Wait for MongoDB save to complete
-                    mongo_success = await mongo_task
-
-                    if postgres_success and mongo_success:
-                        self.event_count += len(events)
-                        self.error_count = 0  # Reset error count on success
-                    else:
-                        self.error_count += 1
-
-                # Log stats periodically
-                if self.event_count % 100 == 0:
-                    await self.log_queue_stats()
-
-                # Check error threshold
-                if self.error_count >= 10:
-                    logger.critical("Too many consecutive errors, shutting down...")
-                    break
-
-            except Exception as e:
-                logger.error(f"Error in processing loop: {e}")
-                logger.error(traceback.format_exc())
-                self.error_count += 1
-
-                if self.error_count >= 10:
-                    logger.critical("Too many consecutive errors, shutting down...")
-                    break
-
-                await asyncio.sleep(1)
-
     async def save_events_to_postgres(self, events: List[Dict]) -> bool:
         """Save raw events to the events PostgreSQL database."""
         try:
@@ -396,74 +340,75 @@ class BatchProcessor:
             try:
                 # Get queue length before processing batch
                 queue_length = self.redis.llen(self.queue_name)
+                logger.info(f"Queue length is: {queue_length}")
 
-                events = await self.get_batch_of_events()
-
-                if events:
-                    # 1. Compute diffs
-                    diff = self.compute_batch_diff(events)
-
-                    # 2. Save events to events database
-                    events_task = asyncio.create_task(
-                        self.save_events_to_postgres(events)
-                    )
-
-                    # 3. Apply diffs to metrics database
-                    metrics_success = await self.apply_diff_to_postgres(diff)
-
-                    # Get new totals and log the row
-                    if metrics_success:
-                        async with self.metrics_pool.acquire() as conn:
-                            global_stats = await conn.fetchrow(
-                                """
-                                SELECT 
-                                    job_requests,
-                                    job_results,
-                                    unique_users,
-                                    unique_dvms,
-                                    total_sats_earned,
-                                    most_popular_dvm,
-                                    most_paid_dvm,
-                                    most_popular_kind,
-                                    most_paid_kind
-                                FROM global_stats 
-                                ORDER BY timestamp DESC 
-                                LIMIT 1
-                            """
-                            )
-
-                            if global_stats:
-                                diff_metrics = {
-                                    "job_requests": diff.job_requests,
-                                    "job_results": diff.job_results,
-                                    "sats_earned": diff.sats_earned,
-                                    "new_users": len(diff.new_user_ids),
-                                    "new_dvms": len(diff.new_dvm_ids),
-                                }
-
-                                timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                                logger.info(
-                                    BatchProcessor.format_metrics_row(
-                                        timestamp,
-                                        diff_metrics,
-                                        global_stats,
-                                        queue_length,
-                                    )
-                                )
-
-                    # 4. Wait for events save to complete
-                    events_success = await events_task
-
-                    if metrics_success and events_success:
-                        self.event_count += len(events)
-                        self.error_count = 0  # Reset error count on success
-                    else:
-                        self.error_count += 1
-
-                # Check error threshold
-                if self.error_count >= 10:
-                    logger.error("Too many consecutive errors, shutting down...")
-                    break
+                # events = await self.get_batch_of_events()
+                #
+                # if events:
+                #     # 1. Compute diffs
+                #     diff = self.compute_batch_diff(events)
+                #
+                #     # 2. Save events to events database
+                #     events_task = asyncio.create_task(
+                #         self.save_events_to_postgres(events)
+                #     )
+                #
+                #     # 3. Apply diffs to metrics database
+                #     metrics_success = await self.apply_diff_to_postgres(diff)
+                #
+                #     # Get new totals and log the row
+                #     if metrics_success:
+                #         async with self.metrics_pool.acquire() as conn:
+                #             global_stats = await conn.fetchrow(
+                #                 """
+                #                 SELECT
+                #                     job_requests,
+                #                     job_results,
+                #                     unique_users,
+                #                     unique_dvms,
+                #                     total_sats_earned,
+                #                     most_popular_dvm,
+                #                     most_paid_dvm,
+                #                     most_popular_kind,
+                #                     most_paid_kind
+                #                 FROM global_stats
+                #                 ORDER BY timestamp DESC
+                #                 LIMIT 1
+                #             """
+                #             )
+                #
+                #             if global_stats:
+                #                 diff_metrics = {
+                #                     "job_requests": diff.job_requests,
+                #                     "job_results": diff.job_results,
+                #                     "sats_earned": diff.sats_earned,
+                #                     "new_users": len(diff.new_user_ids),
+                #                     "new_dvms": len(diff.new_dvm_ids),
+                #                 }
+                #
+                #                 timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                #                 logger.info(
+                #                     BatchProcessor.format_metrics_row(
+                #                         timestamp,
+                #                         diff_metrics,
+                #                         global_stats,
+                #                         queue_length,
+                #                     )
+                #                 )
+                #
+                #     # 4. Wait for events save to complete
+                #     events_success = await events_task
+                #
+                #     if metrics_success and events_success:
+                #         self.event_count += len(events)
+                #         self.error_count = 0  # Reset error count on success
+                #     else:
+                #         self.error_count += 1
+                #
+                # # Check error threshold
+                # if self.error_count >= 10:
+                #     logger.error("Too many consecutive errors, shutting down...")
+                #     break
 
             except Exception as e:
                 logger.error(f"Error in processing loop: {e}")

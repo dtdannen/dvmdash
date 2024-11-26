@@ -22,7 +22,7 @@ import time
 import yaml
 import redis
 from redis import Redis
-from typing import Optional
+from typing import Optional, Tuple
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
@@ -37,6 +37,91 @@ nostr_sdk.init_logger(LogLevel.DEBUG)
 
 
 RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
+
+
+class EventDeduplicator:
+    def __init__(
+        self,
+        redis_client: redis.Redis,
+        max_events: int = 1_000_000,
+        cleanup_threshold: float = 0.98,
+    ):
+        self.redis = redis_client
+        self.set_key = "dvmdash_processed_events"
+        self.zset_key = "dvmdash_event_timestamps"
+        self.max_events = max_events
+        self.cleanup_threshold = cleanup_threshold
+
+    def _get_current_size(self) -> int:
+        return self.redis.scard(self.set_key)
+
+    def _needs_cleanup(self) -> bool:
+        current_size = self._get_current_size()
+        return current_size >= (self.max_events * self.cleanup_threshold)
+
+    def _cleanup_oldest_events(self) -> Tuple[int, int]:
+        try:
+            current_size = self._get_current_size()
+            if current_size <= self.max_events:
+                return 0, current_size
+
+            target_size = int(self.max_events * 0.95)
+            to_remove = current_size - target_size
+
+            oldest_events = self.redis.zrange(
+                self.zset_key,
+                0,
+                to_remove - 1,
+                withscores=True,
+            )
+
+            if not oldest_events:
+                return 0, current_size
+
+            with self.redis.pipeline() as pipe:
+                pipe.srem(self.set_key, *[event[0] for event in oldest_events])
+                pipe.zremrangebyrank(self.zset_key, 0, to_remove - 1)
+                pipe.execute()
+
+            new_size = self._get_current_size()
+            logger.info(
+                f"Cleaned up {len(oldest_events)} events. New size: {new_size:,}"
+            )
+            return len(oldest_events), new_size
+
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+            return 0, self._get_current_size()
+
+    def check_duplicate(self, event_id: str) -> bool:
+        """
+        Check if event is duplicate and add to tracking if not.
+        Returns True if duplicate, False if new.
+        """
+        try:
+            timestamp = time.time()
+
+            with self.redis.pipeline() as pipe:
+                # Try to add to set and sorted set
+                pipe.sadd(self.set_key, event_id)
+                pipe.zadd(self.zset_key, {event_id: timestamp})
+                results = pipe.execute()
+
+                is_new = results[0]
+
+                # Cleanup if needed
+                if is_new and self._needs_cleanup():
+                    removed, new_size = self._cleanup_oldest_events()
+                    if removed > 0:
+                        logger.info(
+                            f"Cleanup triggered. Removed {removed:,} events. New size: {new_size:,}"
+                        )
+
+                return not is_new
+
+        except Exception as e:
+            logger.error(f"Error checking duplicate: {e}")
+            return False
 
 
 def load_dvm_config():
@@ -120,20 +205,30 @@ RELEVANT_KINDS = get_relevant_kinds()
 class NotificationHandler(HandleNotification):
     def __init__(self):
         self.events_processed = 0
+        self.events_duplicate = 0
         self.last_header_time = 0
         self.header_interval = 20
-        self.redis = redis.from_url(REDIS_URL)  # Just create it directly
+
+        # Initialize Redis connection and deduplicator
+        self.redis = redis.from_url(REDIS_URL)
+        self.deduplicator = EventDeduplicator(self.redis)
 
     async def handle(self, relay_url, subscription_id, event: Event):
         if event.kind() in RELEVANT_KINDS:
             try:
-                # Convert the event to a dict
                 event_json = json.loads(event.as_json())
+                event_id = event_json["id"]
 
-                # Push directly to Redis list
-                self.redis.rpush("dvmdash_events", json.dumps(event_json))
+                # Check for duplicate before processing
+                is_duplicate = self.deduplicator.check_duplicate(event_id)
 
-                self.events_processed += 1
+                if not is_duplicate:
+                    # Only add to processing queue if not duplicate
+                    self.redis.rpush("dvmdash_events", json.dumps(event_json))
+                    self.events_processed += 1
+                else:
+                    self.events_duplicate += 1
+
                 await self.print_stats()
 
             except Exception as e:
@@ -147,14 +242,15 @@ class NotificationHandler(HandleNotification):
             self.events_processed % self.header_interval == 0
             or current_time - self.last_header_time > 60
         ):
-            header = f"{'Time':^12}|{'Events Processed':^20}"
+            header = f"{'Time':^12}|{'Processed':^15}|{'Duplicates':^15}"
             logger.info(header)
             logger.info("=" * len(header))
             self.last_header_time = current_time
-            self.events_processed = 0
 
         current_time_str = time.strftime("%H:%M:%S")
-        logger.info(f"{current_time_str:^12}|{self.events_processed:^20d}")
+        logger.info(
+            f"{current_time_str:^12}|{self.events_processed:^15d}|{self.events_duplicate:^15d}"
+        )
 
     async def handle_msg(self, relay_url: str, message: str):
         logger.debug(f"Received message from {relay_url}: {message}")

@@ -54,8 +54,7 @@ services:
       dockerfile: ./backend/event_collector/Dockerfile
     environment:
       - START_LISTENING=true
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG
       - RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
       - DAYS_LOOKBACK=7
