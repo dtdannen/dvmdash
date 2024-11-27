@@ -18,7 +18,7 @@ CREATE TABLE dvms (
     count_jobs_responded ....,  -- this is the number of 6000-6999 responses given
 );
 
--- DVM stats table (unchanged)
+-- DVM stats table
 CREATE TABLE dvm_stats (
     dvm_id TEXT REFERENCES dvms(id),
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

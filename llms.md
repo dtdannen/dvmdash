@@ -14,7 +14,7 @@ data pipeline to compute metrics and stats about the whole network, as well as s
 following components:
 
 A. Asyncio Python Program to grab events from relays and put into a queue
-B. Celery Queue storing json events
+B. Redis Queue storing json events
 C. ETCD as a lock for batch processing (D)
 D. Python batch processing to compute latest metrics by:
 	- grab a batch of events from the queue
@@ -164,8 +164,7 @@ Droplet 1 (Web/API):
 
 Droplet 2 (Queue/Lock):
 - ETCD (for locks)
-- Redis (for Celery)
-- Celery Worker
+- Redis
 
 Droplet 3+ (Event Collectors):
 - Event Collector 1
@@ -196,20 +195,28 @@ Note: This schema could be way more complicated. It's intentionally mostly about
 about DVMs, Kinds, and the entire ecosystem, to enable fast tracking and general high level stats.
 
 Questions:
-1. How many DVM job requests have been submitted? (Postgres, global stats table)
-2. How many DVM job results have been returned? (Postgres, global stats table)
-3. How many unique users are there? (Postgres, users table)
+1. How many DVM job requests have been submitted? (Postgres)
+	- answered by global stats table
+2. How many DVM job results have been returned? (Postgres)
+	- answered by global stats table
+3. How many unique users are there? (Postgres)
+	- answered by users table
 4. What's the most popular DVM? (Postgres, dvm stats table)
-5. How much money is each DVM earning? (Postgres, dvm stats table)
+	- answered by looking up the last rollup for the mentioned DVM
+5. How much money is each DVM earning? (NEO4J)
 6. Does a DVM appear to be down? 
+   - answered by tracking how many job requests this DVM has ignored
 7. When was the last time a DVM completed a task?
 8. Have any DVMs failed to deliver after accepting payment? 
    - Did they refund that payment?
-9. How long, on average, does it take this DVM to respond?
+9. How long, on average, does it take this DVM to respond? (NEO4J)
+	- 
 10. For Task X, what's the average amount of time it takes for a DVM to complete a task?
-13. Which DVMs are competing with my DVM? 
-11. What was the root cause of my DVM to fail? (NEO4J) 
-12. Which DVM in a DVM chain failed? (NEO4J)
+11. Which DVMs are competing with my DVM?
+
+
+12. What was the root cause of my DVM to fail? (NEO4J) 
+13. Which DVM in a DVM chain failed? (NEO4J)
 14. Can I easily string the output of DVM A into my new DVM B to create a chain? (Documentation)
 15. What are the design patterns of creating multi-DVM workflows? (Documentation)
 16. How can I create a loop of DVMs? (Documentation)
@@ -223,6 +230,161 @@ Questions for later:
 21. Which relays are used for DVM events? (Separate tool that is yet to be developed)
 
 
+### Easy, Medium, and Hard metrics
+
+Trivial metrics are simple counts that can be easily computed each rollup. These include:
+- total job requests ✅ 
+- total job responses ✅ 
+
+Easy metrics require simple queries over data:
+- total job requests per Kind ✅ 	
+- total job results per Kind ✅ 
+- total job results per DVM ✅ 
+- most popular DVM ✅ 
+- most popular Kind ✅ 
+
+Medium metrics are those that require tracking sets of unique ids. They require counting items in a table where the items are restricted to being unique in their ID fields:
+- number of unique users ✅ 
+- number of unique DVMs ✅ 
+- number of unique Kinds ✅ 
+- number of unique DVMs per Kind ✅ 
+- number of Kinds a DVM supports ✅
+- most competitive Kind ✅
+
+Hard metrics are those that require computing stats between multiple events:
+- how many sats a DVM earned (requires tracking if a job was finished)
+- how many sats were earned globally
+- how many sats were earned per Kind
+- average response time of a DVM
+- average response time of a Kind
+- fastest DVM per Kind
+- top earning DVM per Kind
+
+## Postgres pipeline schema
+
+### Database Tables
+
+Global stats table that will show all the front page metrics:
+
+```sql
+CREATE TABLE global_stats_rollups (
+    timestamp TIMESTAMP WITH TIME ZONE,
+	period_start TIMESTAMP WITH TIME ZONE,
+    period_requests INTEGER,
+	period_responses INTEGER,
+	running_total_requests BIGINT,
+    running_total_responses BIGINT,
+	running_total_unique_dvms BIGINT,
+	running_total_unique_kinds BIGINT,
+	running_total_unique_users BIGINT,
+	most_popular_dvm TEXT REFERENCES dvms(id),
+	most_popular_kind INTEGER REFERENCES kinds(id),
+    PRIMARY KEY (timestamp)
+);
+```
+
+Table tracking DVMs:
+
+```sql
+CREATE TABLE dvms (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    first_seen TIMESTAMP WITH TIME ZONE,
+	last_seen TIMESTAMP WITH TIME ZONE,
+	last_profile_event_id TEXT DEFAULT NULL,
+	last_profile_event_updated_at TIMESTAMP WITH TIME ZONE
+);
+```
+
+Table tracking Kinds:
+
+```sql
+CREATE TABLE kinds (
+    id INTEGER PRIMARY KEY,
+    first_seen TIMESTAMP WITH TIME ZONE,
+	last_seen TIMESTAMP WITH TIME ZONE,
+);
+```
+
+Table tracking DVM Rollups:
+
+```sql
+CREATE TABLE dvm_stats_rollups (
+    dvm_id TEXT REFERENCES dvms(id),
+    timestamp TIMESTAMP WITH TIME ZONE,
+    period_feedback BIGINT,
+	period_responses BIGINT,
+    running_total_feedback BIGINT,
+    running_total_responses BIGINT,
+    PRIMARY KEY (dvm_id, timestamp)
+);
+```
+
+Table tracking Kind Rollups:
+
+```sql
+CREATE TABLE kind_stats_rollups (
+    kind INTEGER REFERENCES kinds(id),
+    timestamp TIMESTAMP WITH TIME ZONE,
+    period_requests BIGINT,
+    period_responses BIGINT,
+    running_total_requests BIGINT,
+    running_total_responses BIGINT,
+    PRIMARY KEY (kind, timestamp)
+);
+```
+
+Table tracking Users:
+
+```sql
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Description of how we will generate each metric
+
+1. **period job requests**
+   - the batch processor will count the number of kind 5000-5999 events in the batch
+2. **running total requests**
+  - the batch processor will add the period_requests to the most recent global rollup
+3. **period job results**
+   - the batch processor will count the number of kind 6000-6999 events in the batch
+4. **running total results**
+	- the batch processor will add the period_results to the most recent global rollup
+5. **running_total_unique_dvms**
+	- the batch processor will query the dvms table for the COUNT(*)
+6. **running_total_unique_kinds**
+	- the batch processor will query the kinds table for the COUNT(*)
+7. **running_total_unique_users**
+	- the batch processor will query the users table for the COUNT(*)
+8. **most_popular_dvm**
+	- the batch processor will query the dvm_stats_rollups table for the dvm with the most period_results
+9. **most_popular_kind**
+	- the batch processor will query the kind_stats_rollups table for the kind with the most period_requests
+   
+
+
+- total job responses ✅ 
+
+Easy metrics require simple queries over data:
+- total job requests per Kind ✅ 	
+- total job results per Kind ✅ 
+- total job results per DVM ✅ 
+- most popular DVM ✅ 
+- most popular Kind ✅ 
+
+Medium metrics are those that require tracking sets of unique ids. They require counting items in a table where the items are restricted to being unique in their ID fields:
+- number of unique users ✅ 
+- number of unique DVMs ✅ 
+- number of unique Kinds ✅ 
+- number of unique DVMs per Kind ✅ 
+- number of Kinds a DVM supports ✅ 
+
+
+
+Kind specific tables
 
 ## Metric computation and rationale
 
@@ -247,3 +409,8 @@ Questions for later:
    Storage: users table maintains the source of truth
    Query: SELECT COUNT(*) FROM users
    Rationale: Denormalized count would likely become incorrect over time
+
+
+## Problems to be solved later
+
+1. Old, duplicate events being submitted. Someone could fudge the numbers of a DVM by submitted old events. The events would have to be older than the redis cache. By default, I think I'm just going to make it so the database queries fail if this happens, and when we get these failures, we can build a process that filters out the bad events and puts the new ones back on the stack. So worst case, if someone tries this, it will just cause errors, rather than bad data and bad stats.
