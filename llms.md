@@ -339,7 +339,10 @@ Table tracking Users:
 ```sql
 CREATE TABLE users (
     id TEXT PRIMARY KEY,
-    first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+	last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+	is_dvm BOOLEAN DEFAULT FALSE,
+	discovered_as_dvm_at TIMESTAMP WITH TIME ZONE,
 );
 ```
 
@@ -363,52 +366,243 @@ CREATE TABLE users (
 	- the batch processor will query the dvm_stats_rollups table for the dvm with the most period_results
 9. **most_popular_kind**
 	- the batch processor will query the kind_stats_rollups table for the kind with the most period_requests
-   
+10. **number_of_unique_dvms_per_kind**:
+	- batch processor will query the kind_dvm table, grouping by Kind
+11. **number_of_kinds_a_dvm_supports**:
+	- batch processor will query the kind_dvm table, grouping by DVM
 
 
-- total job responses ✅ 
+### Description of how we will generate plots:
 
-Easy metrics require simple queries over data:
-- total job requests per Kind ✅ 	
-- total job results per Kind ✅ 
-- total job results per DVM ✅ 
-- most popular DVM ✅ 
-- most popular Kind ✅ 
+1. Any plot over running totals from global stats rollup table, which gives us::
+   - requests over time
+   - responses over time
+   - unique users over time
+   - unique dvms over time
+   - unique kinds over time
 
-Medium metrics are those that require tracking sets of unique ids. They require counting items in a table where the items are restricted to being unique in their ID fields:
-- number of unique users ✅ 
-- number of unique DVMs ✅ 
-- number of unique Kinds ✅ 
-- number of unique DVMs per Kind ✅ 
-- number of Kinds a DVM supports ✅ 
+```sql
+WITH params AS (
+  SELECT 
+    CASE 
+      WHEN :time_range = '24h' THEN '15 minutes'
+      WHEN :time_range = '7d' THEN '1 hour'
+      WHEN :time_range = '30d' THEN '4 hours'
+      WHEN :time_range = '90d' THEN '1 day'
+      ELSE '1 hour'
+    END AS bucket_size
+),
+time_buckets AS ( 
+  SELECT 
+    date_trunc('hour', timestamp) AS bucket_time,
+    -- Take the last value in each bucket for running totals
+    LAST_VALUE(running_total_requests) OVER (
+      PARTITION BY date_trunc('hour', timestamp)
+      ORDER BY timestamp
+      RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ) as running_total_requests,
+    LAST_VALUE(running_total_responses) OVER (
+      PARTITION BY date_trunc('hour', timestamp)
+      ORDER BY timestamp
+      RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ) as running_total_responses,
+    LAST_VALUE(running_total_unique_users) OVER (
+      PARTITION BY date_trunc('hour', timestamp)
+      ORDER BY timestamp
+      RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ) as running_total_unique_users
+  FROM global_stats_rollups
+  WHERE timestamp >= NOW() - INTERVAL '7 days'
+)
+SELECT DISTINCT
+  bucket_time as timestamp,
+  running_total_requests,
+  running_total_responses,
+  running_total_unique_users
+FROM time_buckets
+ORDER BY bucket_time ASC;
+```
 
+2. Plot showing number of DVMs per Kind over time
 
+	This query shows the number of active DVMs within the time window.
 
-Kind specific tables
+```sql
+WITH params AS (
+  SELECT 
+    CASE 
+      WHEN :time_range = '24h' THEN '15 minutes'
+      WHEN :time_range = '7d' THEN '1 hour'
+      WHEN :time_range = '30d' THEN '4 hours'
+      WHEN :time_range = '90d' THEN '1 day'
+      ELSE '1 hour'
+    END AS bucket_size
+),
+active_dvms AS (
+  -- First get all DVMs that have been active within our time window
+  SELECT d.id, d.last_seen
+  FROM dvms d
+  WHERE d.last_seen >= NOW() - 
+    CASE :time_range
+      WHEN '24h' THEN INTERVAL '24 hours'
+      WHEN '7d' THEN INTERVAL '7 days'
+      WHEN '30d' THEN INTERVAL '30 days'
+      WHEN '90d' THEN INTERVAL '90 days'
+      ELSE INTERVAL '7 days'
+    END
+),
+kind_activity AS (
+  -- Look at kind_stats_rollups to see which DVMs were processing this kind
+  SELECT DISTINCT
+    date_trunc((SELECT bucket_size FROM params), k.timestamp) AS bucket_time,
+    COUNT(DISTINCT d.id) as dvm_count
+  FROM kind_stats_rollups k
+  JOIN active_dvms d ON k.period_responses > 0  -- Only count DVMs that actually processed requests
+  WHERE 
+    k.kind = :specific_kind_id
+    AND k.timestamp >= NOW() - 
+      CASE :time_range
+        WHEN '24h' THEN INTERVAL '24 hours'
+        WHEN '7d' THEN INTERVAL '7 days'
+        WHEN '30d' THEN INTERVAL '30 days'
+        WHEN '90d' THEN INTERVAL '90 days'
+        ELSE INTERVAL '7 days'
+      END
+    AND k.timestamp <= d.last_seen  -- Only count DVMs up until their last seen time
+  GROUP BY 
+    date_trunc((SELECT bucket_size FROM params), k.timestamp)
+)
+SELECT 
+  bucket_time as timestamp,
+  COALESCE(dvm_count, 0) as dvm_count
+FROM kind_activity
+ORDER BY bucket_time ASC;
+```
 
-## Metric computation and rationale
+while this query shows the total number of dvms to ever have supported this kind:
 
--- Global stats fields and their computation policies:
+```sql
+WITH params AS (
+  SELECT 
+    CASE 
+      WHEN :time_range = '24h' THEN '15 minutes'
+      WHEN :time_range = '7d' THEN '1 hour'
+      WHEN :time_range = '30d' THEN '4 hours'
+      WHEN :time_range = '90d' THEN '1 day'
+      ELSE '1 hour'
+    END AS bucket_size
+),
+historical_dvms AS (
+  -- Count all unique DVMs that have ever processed this kind up to each timestamp
+  SELECT 
+    date_trunc((SELECT bucket_size FROM params), k.timestamp) AS bucket_time,
+    COUNT(DISTINCT dvm_id) as total_historical_dvms
+  FROM (
+    -- For each timestamp, we want to consider all DVMs that processed this kind at any point up to that time
+    SELECT DISTINCT k2.timestamp, k1.dvm_id
+    FROM kind_stats_rollups k1
+    CROSS JOIN (
+      SELECT DISTINCT timestamp 
+      FROM kind_stats_rollups 
+      WHERE kind = :specific_kind_id
+      AND timestamp >= NOW() - 
+        CASE :time_range
+          WHEN '24h' THEN INTERVAL '24 hours'
+          WHEN '7d' THEN INTERVAL '7 days'
+          WHEN '30d' THEN INTERVAL '30 days'
+          WHEN '90d' THEN INTERVAL '90 days'
+          ELSE INTERVAL '7 days'
+        END
+    ) k2
+    WHERE k1.kind = :specific_kind_id
+    AND k1.period_responses > 0
+    AND k1.timestamp <= k2.timestamp
+  ) k
+  GROUP BY date_trunc((SELECT bucket_size FROM params), k.timestamp)
+)
+SELECT 
+  bucket_time as timestamp,
+  total_historical_dvms
+FROM historical_dvms
+ORDER BY bucket_time ASC;
+```
 
-1. timestamp: TIMESTAMP WITH TIME ZONE
-   Policy: Simply current timestamp when creating new rollup
-   Storage: Direct field in global_stats
+and then to combine both of them (which we will probably do in practice)
 
-2. job_requests: INTEGER
-   Policy: Add new request count to previous total
-   Storage: Running total in global_stats
-   Example: current_total + diff.job_requests
+```sql
+WITH params AS (
+  -- ... same params CTE as before ...
+),
+active_dvms AS (
+  -- ... same active_dvms query from previous example ...
+),
+historical_dvms AS (
+  -- ... historical_dvms query from above ...
+)
+SELECT 
+  COALESCE(a.bucket_time, h.bucket_time) as timestamp,
+  COALESCE(a.dvm_count, 0) as dvm_count,
+  COALESCE(h.total_historical_dvms, 0) as total_historical_dvms
+FROM active_dvms a
+FULL OUTER JOIN historical_dvms h ON a.bucket_time = h.bucket_time
+ORDER BY timestamp ASC;
+```
 
-3. job_results: INTEGER
-   Policy: Add new result count to previous total
-   Storage: Running total in global_stats
-   Example: current_total + diff.job_results
+3. Plot showing number of feedback and responses per DVM over time
 
-4. unique_users: INTEGER
-   Policy: Compute at time of rollup from users table. Will store as a snapshot value from this moment in time.
-   Storage: users table maintains the source of truth
-   Query: SELECT COUNT(*) FROM users
-   Rationale: Denormalized count would likely become incorrect over time
+```sql
+WITH params AS (
+  SELECT 
+    CASE 
+      WHEN :time_range = '24h' THEN '15 minutes'
+      WHEN :time_range = '7d' THEN '1 hour'
+      WHEN :time_range = '30d' THEN '4 hours'
+      WHEN :time_range = '90d' THEN '1 day'
+      ELSE '1 hour'
+    END AS bucket_size
+),
+time_buckets AS (
+  SELECT 
+    date_trunc((SELECT bucket_size FROM params), timestamp) AS bucket_time,
+    -- Take the last value in each bucket for running totals
+    LAST_VALUE(running_total_feedback) OVER (
+      PARTITION BY date_trunc((SELECT bucket_size FROM params), timestamp)
+      ORDER BY timestamp
+      RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ) as running_total_feedback,
+    LAST_VALUE(running_total_responses) OVER (
+      PARTITION BY date_trunc((SELECT bucket_size FROM params), timestamp)
+      ORDER BY timestamp
+      RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ) as running_total_responses,
+    -- Also get the period values for rate of change
+    SUM(period_feedback) OVER (
+      PARTITION BY date_trunc((SELECT bucket_size FROM params), timestamp)
+    ) as period_feedback,
+    SUM(period_responses) OVER (
+      PARTITION BY date_trunc((SELECT bucket_size FROM params), timestamp)
+    ) as period_responses
+  FROM dvm_stats_rollups
+  WHERE 
+    dvm_id = :specific_dvm_id
+    AND timestamp >= NOW() - 
+      CASE :time_range
+        WHEN '24h' THEN INTERVAL '24 hours'
+        WHEN '7d' THEN INTERVAL '7 days'
+        WHEN '30d' THEN INTERVAL '30 days'
+        WHEN '90d' THEN INTERVAL '90 days'
+        ELSE INTERVAL '7 days'
+      END
+)
+SELECT DISTINCT
+  bucket_time as timestamp,
+  running_total_feedback,
+  running_total_responses,
+  period_feedback,
+  period_responses
+FROM time_buckets
+ORDER BY bucket_time ASC;
+```
 
 
 ## Problems to be solved later

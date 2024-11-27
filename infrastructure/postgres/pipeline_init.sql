@@ -1,80 +1,111 @@
 -- infrastructure/postgres/pipeline_init.sql
 
--- Users table (unchanged)
-CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE global_stats_rollups (
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL CHECK (timestamp <= CURRENT_TIMESTAMP),
+	period_start TIMESTAMP WITH TIME ZONE NOT NULL CHECK (period_start <= CURRENT_TIMESTAMP),
+    period_requests INTEGER NOT NULL CHECK (period_requests >= 0),
+	period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
+	running_total_requests BIGINT NOT NULL,
+    running_total_responses BIGINT NOT NULL,
+	running_total_unique_dvms BIGINT NOT NULL,
+	running_total_unique_kinds BIGINT NOT NULL,
+	running_total_unique_users BIGINT NOT NULL,
+	most_popular_dvm TEXT REFERENCES dvms(id),
+	most_popular_kind INTEGER REFERENCES kinds(id),
+    PRIMARY KEY (timestamp),
+
+    CHECK (period_start <= timestamp),
+    CHECK (running_total_requests >= period_requests),
+    CHECK (running_total_responses >= period_responses)
 );
 
--- DVMs table
 CREATE TABLE dvms (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    profile TEXT,
-    last_profile_update TIMESTAMP WITH TIME ZONE,
-    first_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    count_jobs_gave_feedback ...,  -- this is the number of feedback events given total (may be more than 1 per job)
-    count_jobs_responded ....,  -- this is the number of 6000-6999 responses given
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    first_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (first_seen <= CURRENT_TIMESTAMP),
+	last_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (last_seen <= CURRENT_TIMESTAMP),
+	last_profile_event_id TEXT DEFAULT NULL,
+    last_profile_event_raw_json JSONB DEFAULT NULL,
+	last_profile_event_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+
+    CHECK (first_seen <= last_seen)
 );
 
--- DVM stats table
-CREATE TABLE dvm_stats (
+CREATE TABLE kinds (
+    id INTEGER PRIMARY KEY,
+    first_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (first_seen <= CURRENT_TIMESTAMP),
+	last_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (last_seen <= CURRENT_TIMESTAMP),
+
+    CHECK (first_seen <= last_seen)
+);
+
+CREATE TABLE dvm_stats_rollups (
     dvm_id TEXT REFERENCES dvms(id),
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    total_job_requests INTEGER DEFAULT 0,
-    avg_response_time INTERVAL,
-    total_sats_earned BIGINT DEFAULT 0,
-    CONSTRAINT positive_sats CHECK (total_sats_earned >= 0),
-    PRIMARY KEY (dvm_id, timestamp)
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_feedback BIGINT NOT NULL CHECK (period_feedback >= 0),
+	period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
+    running_total_feedback BIGINT NOT NULL,
+    running_total_responses BIGINT NOT NULL,
+    PRIMARY KEY (dvm_id, timestamp),
+
+    CHECK (period_start <= timestamp),
+    CHECK (running_total_feedback >= period_feedback),
+    CHECK (running_total_responses >= period_responses)
 );
 
--- Kind stats table (added UNIQUE constraint on kind)
-CREATE TABLE kind_stats (
-    kind INTEGER,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    total_jobs_requested INTEGER DEFAULT 0,
-    total_jobs_responded INTEGER DEFAULT 0,
-    total_sats_paid BIGINT DEFAULT 0,
-    supporting_dvms INTEGER DEFAULT 0,
-    CONSTRAINT positive_jobs CHECK (total_jobs_requested >= 0),
-    CONSTRAINT positive_responses CHECK (total_jobs_responded >= 0),
-    CONSTRAINT positive_paid CHECK (total_sats_paid >= 0),
+CREATE TABLE kind_stats_rollups (
+    kind INTEGER REFERENCES kinds(id),
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_requests BIGINT NOT NULL CHECK (period_requests >= 0),
+    period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
+    running_total_requests BIGINT NOT NULL,
+    running_total_responses BIGINT NOT NULL,
     PRIMARY KEY (kind, timestamp),
-    UNIQUE (kind)  -- Added this line to allow referencing just the 'kind' column
+
+    CHECK (period_start <= timestamp),
+    CHECK (running_total_requests >= period_requests),
+    CHECK (running_total_responses >= period_responses)
 );
 
--- Rest of the file remains the same
-CREATE TABLE kind_dvm_support (
-    kind INTEGER REFERENCES kind_stats(kind),
-    dvm_id TEXT REFERENCES dvms(id),
-    PRIMARY KEY (kind, dvm_id)
+CREATE TABLE users (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    first_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	is_dvm BOOLEAN NOT NULL DEFAULT FALSE,
+	discovered_as_dvm_at TIMESTAMP WITH TIME ZONE,
+
+    CHECK (first_seen <= last_seen),
+    CHECK (discovered_as_dvm_at >= first_seen)
 );
 
--- Global stats table (unchanged)
-CREATE TABLE global_stats (
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    job_requests INTEGER DEFAULT 0,
-    job_results INTEGER DEFAULT 0,
-    unique_users INTEGER DEFAULT 0,
-    unique_dvms INTEGER DEFAULT 0,
-    most_popular_dvm TEXT REFERENCES dvms(id),
-    most_paid_dvm TEXT REFERENCES dvms(id),
-    most_popular_kind INTEGER,
-    most_paid_kind INTEGER,
-    total_sats_earned BIGINT DEFAULT 0,
-    CONSTRAINT positive_global_sats CHECK (total_sats_earned >= 0),
-    PRIMARY KEY (timestamp)
-);
+-- Global Stats Rollups Indices
+CREATE INDEX idx_global_stats_timestamp ON global_stats_rollups (timestamp DESC);
+CREATE INDEX idx_global_stats_period ON global_stats_rollups (period_start DESC);
 
--- Indexes remain unchanged
-CREATE INDEX idx_dvm_stats_sats ON dvm_stats(total_sats_earned DESC);
-CREATE INDEX idx_kind_stats_jobs ON kind_stats(total_jobs_requested DESC);
-CREATE INDEX idx_kind_stats_sats ON kind_stats(total_sats_paid DESC);
+-- DVMs Table Indices
+CREATE INDEX idx_dvms_last_seen ON dvms (last_seen DESC);
+CREATE INDEX idx_dvms_first_seen ON dvms (first_seen);
 
-CREATE INDEX idx_dvm_stats_time ON dvm_stats(timestamp DESC);
-CREATE INDEX idx_kind_stats_time ON kind_stats(timestamp DESC);
-CREATE INDEX idx_global_stats_time ON global_stats(timestamp DESC);
+-- Kinds Table Indices
+CREATE INDEX idx_kinds_last_seen ON kinds (last_seen DESC);
+CREATE INDEX idx_kinds_first_seen ON kinds (first_seen);
 
-CREATE INDEX idx_dvm_stats_dvm_time ON dvm_stats(dvm_id, timestamp DESC);
-CREATE INDEX idx_kind_stats_kind_time ON kind_stats(kind, timestamp DESC);
+-- DVM Stats Rollups Indices
+CREATE INDEX idx_dvm_stats_dvm_timestamp ON dvm_stats_rollups (dvm_id, timestamp DESC);
+CREATE INDEX idx_dvm_stats_timestamp ON dvm_stats_rollups (timestamp DESC);
+CREATE INDEX idx_dvm_stats_period_responses ON dvm_stats_rollups (period_responses DESC);
+-- Index for finding most popular DVM
+CREATE INDEX idx_dvm_stats_responses_dvm ON dvm_stats_rollups (running_total_responses DESC, dvm_id);
+
+-- Kind Stats Rollups Indices
+CREATE INDEX idx_kind_stats_kind_timestamp ON kind_stats_rollups (kind, timestamp DESC);
+CREATE INDEX idx_kind_stats_timestamp ON kind_stats_rollups (timestamp DESC);
+CREATE INDEX idx_kind_stats_period_requests ON kind_stats_rollups (period_requests DESC);
+-- Index for finding most popular kind
+CREATE INDEX idx_kind_stats_requests_kind ON kind_stats_rollups (running_total_requests DESC, kind);
+
+-- Users Table Indices
+CREATE INDEX idx_users_last_seen ON users (last_seen DESC);
+CREATE INDEX idx_users_first_seen ON users (first_seen);
+CREATE INDEX idx_users_is_dvm ON users (is_dvm) WHERE is_dvm = TRUE;
