@@ -443,6 +443,10 @@ class BatchProcessor:
         """
         )
 
+        # Explicitly cast the values to integers where needed
+        period_requests = int(stats.period_requests)  # Force to integer
+        period_responses = int(stats.period_responses)  # Force to integer
+
         # Insert new global stats rollup
         await conn.execute(
             """
@@ -462,8 +466,8 @@ class BatchProcessor:
         """,
             stats.period_end,
             stats.period_start,
-            stats.period_requests,
-            stats.period_responses,
+            period_requests,
+            period_responses,
             metrics["total_dvms"],
             metrics["total_kinds"],
             metrics["total_users"],
