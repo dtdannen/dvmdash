@@ -79,6 +79,16 @@ CREATE TABLE users (
     CHECK (discovered_as_dvm_at >= first_seen)
 );
 
+CREATE TABLE kind_dvm_support (
+    kind_id INTEGER REFERENCES kinds(id),
+    dvm_id TEXT REFERENCES dvms(id),
+    first_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    interaction_type TEXT NOT NULL CHECK (interaction_type IN ('both', 'request_only', 'response_only')),
+    PRIMARY KEY (kind_id, dvm_id),
+    CHECK (first_seen <= last_seen)
+);
+
 -- Global Stats Rollups Indices
 CREATE INDEX idx_global_stats_timestamp ON global_stats_rollups (timestamp DESC);
 CREATE INDEX idx_global_stats_period ON global_stats_rollups (period_start DESC);
@@ -109,3 +119,9 @@ CREATE INDEX idx_kind_stats_requests_kind ON kind_stats_rollups (running_total_r
 CREATE INDEX idx_users_last_seen ON users (last_seen DESC);
 CREATE INDEX idx_users_first_seen ON users (first_seen);
 CREATE INDEX idx_users_is_dvm ON users (is_dvm) WHERE is_dvm = TRUE;
+
+-- For finding all DVMs that support a specific kind
+CREATE INDEX idx_kind_dvm_support_kind ON kind_dvm_support (kind_id, last_seen DESC);
+
+-- For finding all kinds that a specific DVM supports
+CREATE INDEX idx_kind_dvm_support_dvm ON kind_dvm_support (dvm_id, last_seen DESC);
