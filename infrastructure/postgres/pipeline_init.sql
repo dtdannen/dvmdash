@@ -1,24 +1,5 @@
 -- infrastructure/postgres/pipeline_init.sql
 
-CREATE TABLE global_stats_rollups (
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL CHECK (timestamp <= CURRENT_TIMESTAMP),
-	period_start TIMESTAMP WITH TIME ZONE NOT NULL CHECK (period_start <= CURRENT_TIMESTAMP),
-    period_requests INTEGER NOT NULL CHECK (period_requests >= 0),
-	period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
-	running_total_requests BIGINT NOT NULL,
-    running_total_responses BIGINT NOT NULL,
-	running_total_unique_dvms BIGINT NOT NULL,
-	running_total_unique_kinds BIGINT NOT NULL,
-	running_total_unique_users BIGINT NOT NULL,
-	most_popular_dvm TEXT REFERENCES dvms(id),
-	most_popular_kind INTEGER REFERENCES kinds(id),
-    PRIMARY KEY (timestamp),
-
-    CHECK (period_start <= timestamp),
-    CHECK (running_total_requests >= period_requests),
-    CHECK (running_total_responses >= period_responses)
-);
-
 CREATE TABLE dvms (
     id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
     first_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (first_seen <= CURRENT_TIMESTAMP),
@@ -87,6 +68,25 @@ CREATE TABLE kind_dvm_support (
     interaction_type TEXT NOT NULL CHECK (interaction_type IN ('both', 'request_only', 'response_only')),
     PRIMARY KEY (kind_id, dvm_id),
     CHECK (first_seen <= last_seen)
+);
+
+CREATE TABLE global_stats_rollups (
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL CHECK (timestamp <= CURRENT_TIMESTAMP),
+	period_start TIMESTAMP WITH TIME ZONE NOT NULL CHECK (period_start <= CURRENT_TIMESTAMP),
+    period_requests INTEGER NOT NULL CHECK (period_requests >= 0),
+	period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
+	running_total_requests BIGINT NOT NULL,
+    running_total_responses BIGINT NOT NULL,
+	running_total_unique_dvms BIGINT NOT NULL,
+	running_total_unique_kinds BIGINT NOT NULL,
+	running_total_unique_users BIGINT NOT NULL,
+	most_popular_dvm TEXT REFERENCES dvms(id),
+	most_popular_kind INTEGER REFERENCES kinds(id),
+    PRIMARY KEY (timestamp),
+
+    CHECK (period_start <= timestamp),
+    CHECK (running_total_requests >= period_requests),
+    CHECK (running_total_responses >= period_responses)
 );
 
 -- Global Stats Rollups Indices
