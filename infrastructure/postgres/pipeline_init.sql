@@ -7,14 +7,7 @@ CREATE TABLE dvms (
 	last_profile_event_id TEXT DEFAULT NULL,
     last_profile_event_raw_json JSONB DEFAULT NULL,
 	last_profile_event_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-
-    CHECK (first_seen <= last_seen)
-);
-
-CREATE TABLE kinds (
-    id INTEGER PRIMARY KEY,
-    first_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (first_seen <= CURRENT_TIMESTAMP),
-	last_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (last_seen <= CURRENT_TIMESTAMP),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CHECK (first_seen <= last_seen)
 );
@@ -27,6 +20,7 @@ CREATE TABLE dvm_stats_rollups (
 	period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
     running_total_feedback BIGINT NOT NULL,
     running_total_responses BIGINT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (dvm_id, timestamp),
 
     CHECK (period_start <= timestamp),
@@ -35,13 +29,14 @@ CREATE TABLE dvm_stats_rollups (
 );
 
 CREATE TABLE kind_stats_rollups (
-    kind INTEGER REFERENCES kinds(id),
+    kind INTEGER CHECK (kind_id BETWEEN 5000 AND 5999),
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     period_start TIMESTAMP WITH TIME ZONE NOT NULL,
     period_requests BIGINT NOT NULL CHECK (period_requests >= 0),
     period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
     running_total_requests BIGINT NOT NULL,
     running_total_responses BIGINT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (kind, timestamp),
 
     CHECK (period_start <= timestamp),
@@ -55,17 +50,19 @@ CREATE TABLE users (
 	last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	is_dvm BOOLEAN NOT NULL DEFAULT FALSE,
 	discovered_as_dvm_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CHECK (first_seen <= last_seen),
     CHECK (discovered_as_dvm_at >= first_seen)
 );
 
 CREATE TABLE kind_dvm_support (
-    kind_id INTEGER REFERENCES kinds(id),
+    kind_id INTEGER CHECK (kind_id BETWEEN 5000 AND 5999),
     dvm_id TEXT REFERENCES dvms(id),
     first_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     interaction_type TEXT NOT NULL CHECK (interaction_type IN ('both', 'request_only', 'response_only')),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (kind_id, dvm_id),
     CHECK (first_seen <= last_seen)
 );
@@ -82,6 +79,7 @@ CREATE TABLE global_stats_rollups (
 	running_total_unique_users BIGINT NOT NULL,
 	most_popular_dvm TEXT REFERENCES dvms(id),
 	most_popular_kind INTEGER REFERENCES kinds(id),
+	most_competitive_kind INTEGER REFERENCES kinds(id),
     PRIMARY KEY (timestamp),
 
     CHECK (period_start <= timestamp),

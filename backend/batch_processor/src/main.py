@@ -34,9 +34,7 @@ class MetricsDiff:
     new_user_ids: Set[str] = None
     new_dvm_ids: Set[str] = None
     new_kind_ids: Set[int] = None
-    sats_earned: int = 0
     kind_request_counts: Dict[int, int] = None
-    dvm_earnings: Dict[str, int] = None
 
     def __post_init__(self):
         if self.new_user_ids is None:
