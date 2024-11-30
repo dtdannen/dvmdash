@@ -114,39 +114,62 @@ class BatchProcessor:
         )
 
         for event in events:
-            timestamp = datetime.fromtimestamp(event["created_at"], tz=timezone.utc)
-            stats.period_start = min(stats.period_start, timestamp)
-            stats.period_end = max(stats.period_end, timestamp)
+            try:
+                # Ensure we always have a timezone-aware datetime
+                created_at = event["created_at"]
+                if isinstance(created_at, str):
+                    # If it's a string, parse it
+                    timestamp = datetime.fromisoformat(created_at).replace(
+                        tzinfo=timezone.utc
+                    )
+                elif isinstance(created_at, (int, float)):
+                    # If it's a unix timestamp
+                    timestamp = datetime.fromtimestamp(created_at, tz=timezone.utc)
+                else:
+                    # If it's already a datetime, ensure it has timezone
+                    timestamp = (
+                        created_at.replace(tzinfo=timezone.utc)
+                        if created_at.tzinfo is None
+                        else created_at
+                    )
 
-            kind = event["kind"]
-            pubkey = event["pubkey"]
+                stats.period_start = min(stats.period_start, timestamp)
+                stats.period_end = max(stats.period_end, timestamp)
 
-            if 5000 <= kind <= 5999:  # Request event
-                stats.period_requests += 1
-                stats.kind_requests[kind] += 1
-                stats.user_timestamps[pubkey] = max(
-                    stats.user_timestamps[pubkey], timestamp
-                )
+                kind = event["kind"]
+                pubkey = event["pubkey"]
 
-            elif 6000 <= kind <= 6999:  # Response event
-                stats.period_responses += 1
-                request_kind = self._get_request_kind_from_response(event)
-                if request_kind and 5000 <= request_kind <= 5999:
-                    stats.kind_responses[request_kind] += 1
-                    stats.dvm_responses[pubkey] += 1
+                if 5000 <= kind <= 5999:  # Request event
+                    stats.period_requests += 1
+                    stats.kind_requests[kind] += 1
+                    stats.user_timestamps[pubkey] = max(
+                        stats.user_timestamps[pubkey], timestamp
+                    )
+
+                elif 6000 <= kind <= 6999:  # Response event
+                    stats.period_responses += 1
+                    request_kind = self._get_request_kind_from_response(event)
+                    if request_kind and 5000 <= request_kind <= 5999:
+                        stats.kind_responses[request_kind] += 1
+                        stats.dvm_responses[pubkey] += 1
+                        stats.dvm_timestamps[pubkey] = max(
+                            stats.dvm_timestamps[pubkey], timestamp
+                        )
+                        stats.dvm_kinds[pubkey].add(request_kind)
+                        stats.user_is_dvm[pubkey] = True
+
+                elif kind == 7000:  # Feedback event
+                    stats.period_feedback += 1
+                    stats.dvm_feedback[pubkey] += 1
                     stats.dvm_timestamps[pubkey] = max(
                         stats.dvm_timestamps[pubkey], timestamp
                     )
-                    stats.dvm_kinds[pubkey].add(request_kind)
                     stats.user_is_dvm[pubkey] = True
 
-            elif kind == 7000:  # Feedback event
-                stats.period_feedback += 1
-                stats.dvm_feedback[pubkey] += 1
-                stats.dvm_timestamps[pubkey] = max(
-                    stats.dvm_timestamps[pubkey], timestamp
-                )
-                stats.user_is_dvm[pubkey] = True
+            except Exception as e:
+                logger.error(f"Error processing event: {event}")
+                logger.error(f"Error details: {str(e)}")
+                continue
 
         return stats
 
@@ -612,36 +635,45 @@ class BatchProcessor:
             return
 
         try:
-            # Prepare values for bulk insert, handling potential missing fields
-            values = [
-                (
-                    event.get("id"),
-                    event.get("pubkey"),
-                    datetime.fromtimestamp(event["created_at"], tz=timezone.utc),
-                    event.get("kind"),
-                    event.get("content", ""),
-                    event.get("sig", ""),
-                    json.dumps(event.get("tags", [])),  # Convert tags to JSON string
-                    json.dumps(event),  # Store complete raw event
-                )
-                for event in events
-            ]
+            values = []
+            for event in events:
+                try:
+                    # Just pass through the timestamp directly
+                    created_at = int(event["created_at"])
 
-            # Bulk insert events
-            await conn.executemany(
-                """
-                INSERT INTO raw_events 
-                    (id, pubkey, created_at, kind, content, sig, tags, raw_data)
-                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
-                ON CONFLICT (id) DO NOTHING
-            """,
-                values,
-            )
+                    values.append(
+                        (
+                            event.get("id"),
+                            event.get("pubkey"),
+                            created_at,  # Store as timestamp integer
+                            event.get("kind"),
+                            event.get("content", ""),
+                            event.get("sig", ""),
+                            json.dumps(event.get("tags", [])),
+                            json.dumps(event),
+                        )
+                    )
+                except Exception as e:
+                    logger.error(f"Error processing event: {event.get('id', 'no-id')}")
+                    logger.error(f"Created_at value: {event.get('created_at')}")
+                    logger.error(f"Error details: {str(e)}")
+                    continue
+
+            if values:
+                # Bulk insert events
+                await conn.executemany(
+                    """
+                    INSERT INTO raw_events 
+                        (id, pubkey, created_at, kind, content, sig, tags, raw_data)
+                    VALUES ($1, $2, to_timestamp($3), $4, $5, $6, $7::jsonb, $8::jsonb)
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    values,
+                )
 
         except Exception as e:
             logger.error(f"Error saving events to backup database: {e}")
             logger.error(traceback.format_exc())
-            # Don't re-raise - we want to continue processing even if backup fails
 
     @staticmethod
     def format_metrics_row(timestamp, stats: BatchStats, queue_length: int) -> str:

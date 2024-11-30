@@ -3,6 +3,7 @@ version: '3.8'
 services:
   postgres_pipeline:
     image: postgres:16
+    profiles: ["core", "all"]
     ports:
       - "5432:5432"
     environment:
@@ -20,6 +21,7 @@ services:
 
   postgres_events:
     image: postgres:16
+    profiles: ["core", "all"]
     ports:
       - "5433:5432"  # Note: Different host port to avoid conflicts
     environment:
@@ -37,6 +39,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    profiles: ["core", "all"]
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -52,8 +55,9 @@ services:
     build:
       context: .
       dockerfile: ./backend/event_collector/Dockerfile
+    profiles: ["collector", "all"]
     environment:
-      - USE_TEST_DATA=true  # if true, reads test data from a file instead of listening to relays
+      - USE_TEST_DATA=true
       - START_LISTENING=true
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG
@@ -88,15 +92,14 @@ services:
     build:
       context: .
       dockerfile: ./backend/batch_processor/Dockerfile
+    profiles: ["processor", "all"]
     environment:
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG
-      # Pipeline DB connection
       - POSTGRES_USER=devuser
       - POSTGRES_PASSWORD=devpass
       - POSTGRES_DB=dvmdash_pipeline
       - POSTGRES_HOST=postgres_pipeline
-      # Events DB connection
       - EVENTS_POSTGRES_USER=devuser
       - EVENTS_POSTGRES_PASSWORD=devpass
       - EVENTS_POSTGRES_DB=dvmdash_events
