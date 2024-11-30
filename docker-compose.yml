@@ -53,6 +53,7 @@ services:
       context: .
       dockerfile: ./backend/event_collector/Dockerfile
     environment:
+      - USE_TEST_DATA=true  # if true, reads test data from a file instead of listening to relays
       - START_LISTENING=true
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG
@@ -67,6 +68,7 @@ services:
     volumes:
       - ./backend:/app/backend
       - event_collector_logs:/app/logs
+      - ./backend/event_collector/test_data:/test_data
     depends_on:
       redis:
         condition: service_healthy

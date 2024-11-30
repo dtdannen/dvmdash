@@ -337,15 +337,31 @@ class BatchProcessor:
             for dvm_id in dvm_ids
         ]
 
-        await conn.executemany(
-            """
-            INSERT INTO dvm_stats_rollups 
-                (dvm_id, timestamp, period_start, period_feedback, period_responses,
-                 running_total_feedback, running_total_responses)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-        """,
-            values,
-        )
+        try:
+            result = await conn.executemany(
+                """
+                INSERT INTO dvm_stats_rollups 
+                    (dvm_id, timestamp, period_start, period_feedback, period_responses,
+                     running_total_feedback, running_total_responses)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (dvm_id, timestamp) DO NOTHING
+                RETURNING dvm_id, timestamp
+            """,
+                values,
+            )
+
+            # If number of inserted rows is less than values provided, some were skipped
+            if len(result) < len(values):
+                skipped = len(values) - len(result)
+                logger.warning(
+                    f"Skipped {skipped} duplicate DVM stats rollup records, this is due to seeing the same"
+                    f" event twice and getting a collision on the timestamp"
+                )
+
+        except Exception as e:
+            logger.error(f"Error updating DVM stats rollups: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
     async def _update_kind_stats_rollup(
         self, conn: asyncpg.Connection, stats: BatchStats
@@ -388,15 +404,31 @@ class BatchProcessor:
             for kind in kinds
         ]
 
-        await conn.executemany(
-            """
-            INSERT INTO kind_stats_rollups 
-                (kind, timestamp, period_start, period_requests, period_responses,
-                 running_total_requests, running_total_responses)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-        """,
-            values,
-        )
+        try:
+            result = await conn.executemany(
+                """
+                INSERT INTO kind_stats_rollups 
+                    (kind, timestamp, period_start, period_requests, period_responses,
+                     running_total_requests, running_total_responses)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (kind, timestamp) DO NOTHING
+                RETURNING kind, timestamp
+                """,
+                values,
+            )
+
+            # Log if any duplicates were skipped
+            if len(result) < len(values):
+                skipped = len(values) - len(result)
+                logger.warning(
+                    f"Skipped {skipped} duplicate kind stats rollup records, this is due to seeing the same"
+                    f" event twice and getting a collision on the timestamp"
+                )
+
+        except Exception as e:
+            logger.error(f"Error updating kind stats rollups: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
     async def _update_global_stats_rollup(
         self, conn: asyncpg.Connection, stats: BatchStats
@@ -404,10 +436,11 @@ class BatchProcessor:
         """Update global_stats_rollups table with new stats."""
 
         # Get most popular DVM, most popular kind, and most competitive kind in a single query
-        metrics = await conn.fetchrow(
-            """
+        metrics = (
+            await conn.fetchrow(
+                """
             WITH PopularDVM AS (
-                SELECT dvm_id, SUM(period_responses) as total_responses
+                SELECT dvm_id, SUM(period_responses)::integer as total_responses
                 FROM dvm_stats_rollups 
                 WHERE timestamp >= NOW() - INTERVAL '24 hours'
                 GROUP BY dvm_id
@@ -415,7 +448,7 @@ class BatchProcessor:
                 LIMIT 1
             ),
             PopularKind AS (
-                SELECT kind, SUM(period_requests) as total_requests
+                SELECT kind, SUM(period_requests)::integer as total_requests
                 FROM kind_stats_rollups
                 WHERE timestamp >= NOW() - INTERVAL '24 hours'
                 GROUP BY kind
@@ -423,29 +456,71 @@ class BatchProcessor:
                 LIMIT 1
             ),
             CompetitiveKind AS (
-                SELECT kind, COUNT(DISTINCT dvm) as dvm_count
+                SELECT kind, COUNT(DISTINCT dvm)::integer as dvm_count
                 FROM kind_dvm_support
                 WHERE last_seen >= NOW() - INTERVAL '24 hours'
                 GROUP BY kind
                 ORDER BY dvm_count DESC
                 LIMIT 1
+            ),
+            Totals AS (
+                SELECT 
+                    COALESCE(COUNT(DISTINCT id), 0)::integer as total_dvms 
+                FROM dvms
+            ),
+            KindTotals AS (
+                SELECT 
+                    COALESCE(COUNT(DISTINCT kind), 0)::integer as total_kinds
+                FROM kind_stats_rollups
+            ),
+            UserTotals AS (
+                SELECT 
+                    COALESCE(COUNT(DISTINCT id), 0)::integer as total_users
+                FROM users
             )
             SELECT 
                 p1.dvm_id as popular_dvm,
                 p2.kind as popular_kind,
                 c.kind as competitive_kind,
-                (SELECT COUNT(DISTINCT id) FROM dvms) as total_dvms,
-                (SELECT COUNT(DISTINCT kind) FROM kind_stats_rollups) as total_kinds,
-                (SELECT COUNT(DISTINCT id) FROM users) as total_users
-            FROM PopularDVM p1
-            CROSS JOIN PopularKind p2
-            CROSS JOIN CompetitiveKind c
+                t.total_dvms,
+                k.total_kinds,
+                u.total_users
+            FROM Totals t
+            CROSS JOIN KindTotals k
+            CROSS JOIN UserTotals u
+            LEFT JOIN PopularDVM p1 ON TRUE
+            LEFT JOIN PopularKind p2 ON TRUE
+            LEFT JOIN CompetitiveKind c ON TRUE
         """
+            )
+            or {
+                "popular_dvm": None,
+                "popular_kind": None,
+                "competitive_kind": None,
+                "total_dvms": 0,
+                "total_kinds": 0,
+                "total_users": 0,
+            }
         )
 
-        # Explicitly cast the values to integers where needed
-        period_requests = int(stats.period_requests)  # Force to integer
-        period_responses = int(stats.period_responses)  # Force to integer
+        # Get the last running totals with default values
+        last_totals = (
+            await conn.fetchrow(
+                """
+            SELECT 
+                COALESCE(MAX(running_total_requests), 0)::integer as last_requests,
+                COALESCE(MAX(running_total_responses), 0)::integer as last_responses
+            FROM global_stats_rollups
+        """
+            )
+            or {"last_requests": 0, "last_responses": 0}
+        )
+
+        # Calculate new running totals
+        new_total_requests = last_totals["last_requests"] + int(stats.period_requests)
+        new_total_responses = last_totals["last_responses"] + int(
+            stats.period_responses
+        )
 
         # Insert new global stats rollup
         await conn.execute(
@@ -457,17 +532,15 @@ class BatchProcessor:
                 running_total_unique_users, most_popular_dvm, most_popular_kind,
                 most_competitive_kind
             )
-            SELECT 
-                $1, $2, $3, $4,
-                COALESCE(MAX(running_total_requests), 0) + $3,
-                COALESCE(MAX(running_total_responses), 0) + $4,
-                $5, $6, $7, $8, $9, $10
-            FROM global_stats_rollups
+            VALUES ($1, $2, $3::integer, $4::integer, $5::integer, $6::integer, 
+                    $7::integer, $8::integer, $9::integer, $10, $11, $12)
         """,
             stats.period_end,
             stats.period_start,
-            period_requests,
-            period_responses,
+            int(stats.period_requests),
+            int(stats.period_responses),
+            new_total_requests,
+            new_total_responses,
             metrics["total_dvms"],
             metrics["total_kinds"],
             metrics["total_users"],
@@ -491,7 +564,7 @@ class BatchProcessor:
             return None
         return None
 
-    async def _save_events(self, events: List[dict]) -> None:
+    async def _save_events(self, conn: asyncpg.Connection, events: List[dict]) -> None:
         """Save raw events to the events database."""
         if not events:
             return
@@ -513,7 +586,7 @@ class BatchProcessor:
             ]
 
             # Bulk insert events
-            await self.events_pool.executemany(
+            await conn.executemany(
                 """
                 INSERT INTO raw_events 
                     (id, pubkey, created_at, kind, content, sig, tags, raw_data)

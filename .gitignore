@@ -46,3 +46,4 @@ ENV/
 
 # Docker
 .docker/
+/backend/event_collector/test_data/dvmdash.prod_events_29NOV2024.json

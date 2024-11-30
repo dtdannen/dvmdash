@@ -15,12 +15,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
 RUN mkdir -p /app/logs
+RUN mkdir -p /test_data
 
 # Copy the application code, including shared
 COPY ./backend/event_collector/src ./src
 COPY ./backend/shared ./shared
 
+# Copy the startup script
+COPY ./backend/event_collector/docker_entrypoint.sh /app/
+RUN chmod +x /app/docker_entrypoint.sh
+
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV USE_TEST_DATA="false"
+ENV TEST_DATA_BATCH_SIZE="10000"
+ENV TEST_DATA_BATCH_DELAY="1.0"
 
-CMD ["python", "-m", "src.main"]
+ENTRYPOINT ["/app/docker_entrypoint.sh"]
