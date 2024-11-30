@@ -302,60 +302,79 @@ class BatchProcessor:
         if not stats.dvm_responses and not stats.dvm_feedback:
             return
 
-        # Get previous running totals for each DVM
-        dvm_ids = list(set(stats.dvm_responses.keys()) | set(stats.dvm_feedback.keys()))
-        prev_totals = await conn.fetch(
-            """
-            SELECT dvm_id, 
-                   COALESCE(MAX(running_total_responses), 0) as total_responses,
-                   COALESCE(MAX(running_total_feedback), 0) as total_feedback
-            FROM dvm_stats_rollups
-            WHERE dvm_id = ANY($1)
-            GROUP BY dvm_id
-        """,
-            dvm_ids,
-        )
-
-        prev_totals_dict = {
-            row["dvm_id"]: (row["total_responses"], row["total_feedback"])
-            for row in prev_totals
-        }
-
-        # Prepare values for new rollup entries
-        values = [
-            (
-                dvm_id,
-                stats.period_end,
-                stats.period_start,
-                stats.dvm_feedback.get(dvm_id, 0),
-                stats.dvm_responses.get(dvm_id, 0),
-                prev_totals_dict.get(dvm_id, (0, 0))[1]
-                + stats.dvm_feedback.get(dvm_id, 0),
-                prev_totals_dict.get(dvm_id, (0, 0))[0]
-                + stats.dvm_responses.get(dvm_id, 0),
-            )
-            for dvm_id in dvm_ids
-        ]
-
         try:
-            result = await conn.executemany(
+            # Get previous running totals for each DVM
+            dvm_ids = list(
+                set(stats.dvm_responses.keys()) | set(stats.dvm_feedback.keys())
+            )
+            prev_totals = await conn.fetch(
+                """
+                SELECT dvm_id, 
+                       COALESCE(MAX(running_total_responses), 0) as total_responses,
+                       COALESCE(MAX(running_total_feedback), 0) as total_feedback
+                FROM dvm_stats_rollups
+                WHERE dvm_id = ANY($1)
+                GROUP BY dvm_id
+            """,
+                dvm_ids,
+            )
+
+            prev_totals_dict = {
+                row["dvm_id"]: (row["total_responses"], row["total_feedback"])
+                for row in prev_totals
+            }
+
+            # Prepare values for new rollup entries
+            values = [
+                (
+                    dvm_id,
+                    stats.period_end,  # timestamp
+                    stats.period_start,
+                    stats.period_end,  # add period_end
+                    stats.dvm_feedback.get(dvm_id, 0),
+                    stats.dvm_responses.get(dvm_id, 0),
+                    prev_totals_dict.get(dvm_id, (0, 0))[1]
+                    + stats.dvm_feedback.get(dvm_id, 0),
+                    prev_totals_dict.get(dvm_id, (0, 0))[0]
+                    + stats.dvm_responses.get(dvm_id, 0),
+                )
+                for dvm_id in dvm_ids
+            ]
+
+            await conn.executemany(
                 """
                 INSERT INTO dvm_stats_rollups 
-                    (dvm_id, timestamp, period_start, period_feedback, period_responses,
+                    (dvm_id, timestamp, period_start, period_end, period_feedback, period_responses,
                      running_total_feedback, running_total_responses)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (dvm_id, timestamp) DO NOTHING
-                RETURNING dvm_id, timestamp
-            """,
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ON CONFLICT (dvm_id, timestamp) DO UPDATE
+                SET period_start = EXCLUDED.period_start,
+                    period_end = EXCLUDED.period_end,
+                    period_feedback = EXCLUDED.period_feedback,
+                    period_responses = EXCLUDED.period_responses,
+                    running_total_feedback = EXCLUDED.running_total_feedback,
+                    running_total_responses = EXCLUDED.running_total_responses
+                """,
                 values,
             )
 
-            # If number of inserted rows is less than values provided, some were skipped
-            if len(result) < len(values):
-                skipped = len(values) - len(result)
+            # Count how many were actually inserted vs updated using a separate query
+            inserted_count = await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM dvm_stats_rollups
+                WHERE (dvm_id, timestamp) IN (
+                    SELECT unnest($1::text[]), unnest($2::timestamptz[])
+                )
+                """,
+                [v[0] for v in values],  # dvm_ids
+                [v[1] for v in values],  # timestamps
+            )
+
+            if inserted_count < len(values):
+                skipped = len(values) - inserted_count
                 logger.warning(
-                    f"Skipped {skipped} duplicate DVM stats rollup records, this is due to seeing the same"
-                    f" event twice and getting a collision on the timestamp"
+                    f"Some DVM stats rollup records were updated rather than inserted ({skipped} updates)"
                 )
 
         except Exception as e:
@@ -370,59 +389,78 @@ class BatchProcessor:
         if not stats.kind_requests and not stats.kind_responses:
             return
 
-        # Get previous running totals for each kind
-        kinds = list(set(stats.kind_requests.keys()) | set(stats.kind_responses.keys()))
-        prev_totals = await conn.fetch(
-            """
-            SELECT kind,
-                   COALESCE(MAX(running_total_requests), 0) as total_requests,
-                   COALESCE(MAX(running_total_responses), 0) as total_responses
-            FROM kind_stats_rollups
-            WHERE kind = ANY($1)
-            GROUP BY kind
-        """,
-            kinds,
-        )
-
-        prev_totals_dict = {
-            row["kind"]: (row["total_requests"], row["total_responses"])
-            for row in prev_totals
-        }
-
-        values = [
-            (
-                kind,
-                stats.period_end,
-                stats.period_start,
-                stats.kind_requests.get(kind, 0),
-                stats.kind_responses.get(kind, 0),
-                prev_totals_dict.get(kind, (0, 0))[0]
-                + stats.kind_requests.get(kind, 0),
-                prev_totals_dict.get(kind, (0, 0))[1]
-                + stats.kind_responses.get(kind, 0),
-            )
-            for kind in kinds
-        ]
-
         try:
-            result = await conn.executemany(
+            # Get previous running totals for each kind
+            kinds = list(
+                set(stats.kind_requests.keys()) | set(stats.kind_responses.keys())
+            )
+            prev_totals = await conn.fetch(
+                """
+                SELECT kind,
+                       COALESCE(MAX(running_total_requests), 0) as total_requests,
+                       COALESCE(MAX(running_total_responses), 0) as total_responses
+                FROM kind_stats_rollups
+                WHERE kind = ANY($1)
+                GROUP BY kind
+            """,
+                kinds,
+            )
+
+            prev_totals_dict = {
+                row["kind"]: (row["total_requests"], row["total_responses"])
+                for row in prev_totals
+            }
+
+            values = [
+                (
+                    kind,
+                    stats.period_end,  # timestamp
+                    stats.period_start,
+                    stats.period_end,  # add period_end
+                    stats.kind_requests.get(kind, 0),
+                    stats.kind_responses.get(kind, 0),
+                    prev_totals_dict.get(kind, (0, 0))[0]
+                    + stats.kind_requests.get(kind, 0),
+                    prev_totals_dict.get(kind, (0, 0))[1]
+                    + stats.kind_responses.get(kind, 0),
+                )
+                for kind in kinds
+            ]
+
+            await conn.executemany(
                 """
                 INSERT INTO kind_stats_rollups 
-                    (kind, timestamp, period_start, period_requests, period_responses,
+                    (kind, timestamp, period_start, period_end, period_requests, period_responses,
                      running_total_requests, running_total_responses)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (kind, timestamp) DO NOTHING
-                RETURNING kind, timestamp
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ON CONFLICT (kind, timestamp) DO UPDATE
+                SET period_start = EXCLUDED.period_start,
+                    period_end = EXCLUDED.period_end,
+                    period_requests = EXCLUDED.period_requests,
+                    period_responses = EXCLUDED.period_responses,
+                    running_total_requests = EXCLUDED.running_total_requests,
+                    running_total_responses = EXCLUDED.running_total_responses
                 """,
                 values,
             )
 
-            # Log if any duplicates were skipped
-            if len(result) < len(values):
-                skipped = len(values) - len(result)
+            # Count how many were actually inserted vs updated using a separate query
+            inserted_count = await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM kind_stats_rollups
+                WHERE (kind, timestamp) IN (
+                    SELECT unnest($1::integer[]), unnest($2::timestamptz[])
+                )
+                """,
+                [v[0] for v in values],  # kinds
+                [v[1] for v in values],  # timestamps
+            )
+
+            if inserted_count < len(values):
+                skipped = len(values) - inserted_count
                 logger.warning(
-                    f"Skipped {skipped} duplicate kind stats rollup records, this is due to seeing the same"
-                    f" event twice and getting a collision on the timestamp"
+                    f"Some kind stats rollup records were updated rather than inserted ({skipped} updates)"
                 )
 
         except Exception as e:
@@ -434,120 +472,124 @@ class BatchProcessor:
         self, conn: asyncpg.Connection, stats: BatchStats
     ) -> None:
         """Update global_stats_rollups table with new stats."""
-
-        # Get most popular DVM, most popular kind, and most competitive kind in a single query
-        metrics = (
-            await conn.fetchrow(
+        try:
+            # Get metrics about popular DVMs, kinds, etc.
+            metrics = (
+                await conn.fetchrow(
+                    """
+                WITH PopularDVM AS (
+                    SELECT dvm_id, SUM(period_responses)::integer as total_responses
+                    FROM dvm_stats_rollups 
+                    WHERE timestamp >= NOW() - INTERVAL '24 hours'
+                    GROUP BY dvm_id
+                    ORDER BY total_responses DESC
+                    LIMIT 1
+                ),
+                PopularKind AS (
+                    SELECT kind, SUM(period_requests)::integer as total_requests
+                    FROM kind_stats_rollups
+                    WHERE timestamp >= NOW() - INTERVAL '24 hours'
+                    GROUP BY kind
+                    ORDER BY total_requests DESC
+                    LIMIT 1
+                ),
+                CompetitiveKind AS (
+                    SELECT kind, COUNT(DISTINCT dvm)::integer as dvm_count
+                    FROM kind_dvm_support
+                    WHERE last_seen >= NOW() - INTERVAL '24 hours'
+                    GROUP BY kind
+                    ORDER BY dvm_count DESC
+                    LIMIT 1
+                ),
+                Totals AS (
+                    SELECT COALESCE(COUNT(DISTINCT id), 0)::integer as total_dvms 
+                    FROM dvms
+                ),
+                KindTotals AS (
+                    SELECT COALESCE(COUNT(DISTINCT kind), 0)::integer as total_kinds
+                    FROM kind_stats_rollups
+                ),
+                UserTotals AS (
+                    SELECT COALESCE(COUNT(DISTINCT id), 0)::integer as total_users
+                    FROM users
+                )
+                SELECT 
+                    p1.dvm_id as popular_dvm,
+                    p2.kind as popular_kind,
+                    c.kind as competitive_kind,
+                    t.total_dvms,
+                    k.total_kinds,
+                    u.total_users
+                FROM Totals t
+                CROSS JOIN KindTotals k
+                CROSS JOIN UserTotals u
+                LEFT JOIN PopularDVM p1 ON TRUE
+                LEFT JOIN PopularKind p2 ON TRUE
+                LEFT JOIN CompetitiveKind c ON TRUE
                 """
-            WITH PopularDVM AS (
-                SELECT dvm_id, SUM(period_responses)::integer as total_responses
-                FROM dvm_stats_rollups 
-                WHERE timestamp >= NOW() - INTERVAL '24 hours'
-                GROUP BY dvm_id
-                ORDER BY total_responses DESC
-                LIMIT 1
-            ),
-            PopularKind AS (
-                SELECT kind, SUM(period_requests)::integer as total_requests
-                FROM kind_stats_rollups
-                WHERE timestamp >= NOW() - INTERVAL '24 hours'
-                GROUP BY kind
-                ORDER BY total_requests DESC
-                LIMIT 1
-            ),
-            CompetitiveKind AS (
-                SELECT kind, COUNT(DISTINCT dvm)::integer as dvm_count
-                FROM kind_dvm_support
-                WHERE last_seen >= NOW() - INTERVAL '24 hours'
-                GROUP BY kind
-                ORDER BY dvm_count DESC
-                LIMIT 1
-            ),
-            Totals AS (
-                SELECT 
-                    COALESCE(COUNT(DISTINCT id), 0)::integer as total_dvms 
-                FROM dvms
-            ),
-            KindTotals AS (
-                SELECT 
-                    COALESCE(COUNT(DISTINCT kind), 0)::integer as total_kinds
-                FROM kind_stats_rollups
-            ),
-            UserTotals AS (
-                SELECT 
-                    COALESCE(COUNT(DISTINCT id), 0)::integer as total_users
-                FROM users
+                )
+                or {
+                    "popular_dvm": None,
+                    "popular_kind": None,
+                    "competitive_kind": None,
+                    "total_dvms": 0,
+                    "total_kinds": 0,
+                    "total_users": 0,
+                }
             )
-            SELECT 
-                p1.dvm_id as popular_dvm,
-                p2.kind as popular_kind,
-                c.kind as competitive_kind,
-                t.total_dvms,
-                k.total_kinds,
-                u.total_users
-            FROM Totals t
-            CROSS JOIN KindTotals k
-            CROSS JOIN UserTotals u
-            LEFT JOIN PopularDVM p1 ON TRUE
-            LEFT JOIN PopularKind p2 ON TRUE
-            LEFT JOIN CompetitiveKind c ON TRUE
-        """
-            )
-            or {
-                "popular_dvm": None,
-                "popular_kind": None,
-                "competitive_kind": None,
-                "total_dvms": 0,
-                "total_kinds": 0,
-                "total_users": 0,
-            }
-        )
 
-        # Get the last running totals with default values
-        last_totals = (
-            await conn.fetchrow(
+            # Get the last running totals with default values
+            last_totals = (
+                await conn.fetchrow(
+                    """
+                SELECT 
+                    COALESCE(MAX(running_total_requests), 0)::integer as last_requests,
+                    COALESCE(MAX(running_total_responses), 0)::integer as last_responses
+                FROM global_stats_rollups
                 """
-            SELECT 
-                COALESCE(MAX(running_total_requests), 0)::integer as last_requests,
-                COALESCE(MAX(running_total_responses), 0)::integer as last_responses
-            FROM global_stats_rollups
-        """
+                )
+                or {"last_requests": 0, "last_responses": 0}
             )
-            or {"last_requests": 0, "last_responses": 0}
-        )
 
-        # Calculate new running totals
-        new_total_requests = last_totals["last_requests"] + int(stats.period_requests)
-        new_total_responses = last_totals["last_responses"] + int(
-            stats.period_responses
-        )
+            # Calculate new running totals
+            new_total_requests = last_totals["last_requests"] + stats.period_requests
+            new_total_responses = last_totals["last_responses"] + stats.period_responses
 
-        # Insert new global stats rollup
-        await conn.execute(
-            """
-            INSERT INTO global_stats_rollups (
-                timestamp, period_start, period_requests, period_responses,
-                running_total_requests, running_total_responses,
-                running_total_unique_dvms, running_total_unique_kinds,
-                running_total_unique_users, most_popular_dvm, most_popular_kind,
-                most_competitive_kind
+            # Use current timestamp for the rollup
+            current_timestamp = datetime.now(timezone.utc)
+
+            # Insert new global stats rollup
+            await conn.execute(
+                """
+                INSERT INTO global_stats_rollups (
+                    timestamp, period_start, period_end, period_requests, period_responses,
+                    running_total_requests, running_total_responses,
+                    running_total_unique_dvms, running_total_unique_kinds,
+                    running_total_unique_users, most_popular_dvm, most_popular_kind,
+                    most_competitive_kind
+                )
+                VALUES ($1, $2, $3, $4::integer, $5::integer, $6::integer, $7::integer, 
+                        $8::integer, $9::integer, $10::integer, $11, $12, $13)
+                """,
+                current_timestamp,  # Use current time instead of period_end
+                stats.period_start,
+                stats.period_end,  # add period_end
+                int(stats.period_requests),
+                int(stats.period_responses),
+                new_total_requests,
+                new_total_responses,
+                metrics["total_dvms"],
+                metrics["total_kinds"],
+                metrics["total_users"],
+                metrics["popular_dvm"],
+                metrics["popular_kind"],
+                metrics["competitive_kind"],
             )
-            VALUES ($1, $2, $3::integer, $4::integer, $5::integer, $6::integer, 
-                    $7::integer, $8::integer, $9::integer, $10, $11, $12)
-        """,
-            stats.period_end,
-            stats.period_start,
-            int(stats.period_requests),
-            int(stats.period_responses),
-            new_total_requests,
-            new_total_responses,
-            metrics["total_dvms"],
-            metrics["total_kinds"],
-            metrics["total_users"],
-            metrics["popular_dvm"],
-            metrics["popular_kind"],
-            metrics["competitive_kind"],
-        )
+
+        except Exception as e:
+            logger.error(f"Error updating global stats rollups: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
     def _get_request_kind_from_response(self, response_event: dict) -> int:
         """Extract the original request kind from a response event's tags."""

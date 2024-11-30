@@ -16,6 +16,7 @@ CREATE TABLE dvm_stats_rollups (
     dvm_id TEXT REFERENCES dvms(id),
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_end TIMESTAMP WITH TIME ZONE NOT NULL,
     period_feedback BIGINT NOT NULL CHECK (period_feedback >= 0),
 	period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
     running_total_feedback BIGINT NOT NULL,
@@ -24,6 +25,8 @@ CREATE TABLE dvm_stats_rollups (
     PRIMARY KEY (dvm_id, timestamp),
 
     CHECK (period_start <= timestamp),
+    CHECK (period_end <= CURRENT_TIMESTAMP),
+    CHECK (period_start <= period_end),
     CHECK (running_total_feedback >= period_feedback),
     CHECK (running_total_responses >= period_responses)
 );
@@ -32,6 +35,7 @@ CREATE TABLE kind_stats_rollups (
     kind INTEGER CHECK (kind BETWEEN 5000 AND 5999),
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_end TIMESTAMP WITH TIME ZONE NOT NULL,
     period_requests BIGINT NOT NULL CHECK (period_requests >= 0),
     period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
     running_total_requests BIGINT NOT NULL,
@@ -40,6 +44,8 @@ CREATE TABLE kind_stats_rollups (
     PRIMARY KEY (kind, timestamp),
 
     CHECK (period_start <= timestamp),
+    CHECK (period_end <= CURRENT_TIMESTAMP),
+    CHECK (period_start <= period_end),
     CHECK (running_total_requests >= period_requests),
     CHECK (running_total_responses >= period_responses)
 );
@@ -68,8 +74,9 @@ CREATE TABLE kind_dvm_support (
 );
 
 CREATE TABLE global_stats_rollups (
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL CHECK (timestamp <= CURRENT_TIMESTAMP),
-	period_start TIMESTAMP WITH TIME ZONE NOT NULL CHECK (period_start <= CURRENT_TIMESTAMP),
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+	period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+	period_end TIMESTAMP WITH TIME ZONE NOT NULL,
     period_requests INTEGER NOT NULL CHECK (period_requests >= 0),
 	period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
 	running_total_requests BIGINT NOT NULL,
@@ -83,13 +90,17 @@ CREATE TABLE global_stats_rollups (
     PRIMARY KEY (timestamp),
 
     CHECK (period_start <= timestamp),
+    CHECK (period_end <= CURRENT_TIMESTAMP),
+    CHECK (period_start <= period_end),
     CHECK (running_total_requests >= period_requests),
     CHECK (running_total_responses >= period_responses)
 );
 
+
 -- Global Stats Rollups Indices
 CREATE INDEX idx_global_stats_timestamp ON global_stats_rollups (timestamp DESC);
 CREATE INDEX idx_global_stats_period ON global_stats_rollups (period_start DESC);
+CREATE INDEX idx_global_stats_period_end ON global_stats_rollups (period_end DESC);
 
 -- DVMs Table Indices
 CREATE INDEX idx_dvms_last_seen ON dvms (last_seen DESC);
