@@ -134,6 +134,28 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  api:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+    profiles: [ "core", "all" ]
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=dvmdash_pipeline
+      - POSTGRES_HOST=postgres_pipeline
+    depends_on:
+      postgres_pipeline:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/docs" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 volumes:
   postgres_pipeline_data:
   postgres_events_data:
