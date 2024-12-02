@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DVMDash Stats</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.10/htmx.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-gray-50">
+    <header class="border-b bg-white">
+        <div class="container mx-auto flex h-16 items-center justify-between px-4">
+            <div class="flex items-center space-x-3">
+                <a href="/" class="inline-flex items-center justify-center w-12 h-12 rounded-lg hover:bg-gray-100">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                </a>
+                <h1 class="text-xl font-bold">DVMDash Stats</h1>
+            </div>
+        </div>
+    </header>
+
+    <div class="w-full bg-gray-100 py-3">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-sm text-gray-600" id="last-updated">Loading...</p>
+        </div>
+    </div>
+
+    <div id="error-message" class="hidden">
+        <div class="container mx-auto p-4">
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <strong class="font-bold">Error!</strong>
+                <span class="block sm:inline"> Unable to connect to the API. Make sure the server is running at http://localhost:8000</span>
+            </div>
+        </div>
+    </div>
+
+    <main class="container mx-auto p-4">
+        <div id="stats-grid" class="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+             hx-get="http://localhost:8000/api/stats/global/latest"
+             hx-trigger="load, every 1s"
+             hx-swap="none">
+            <!-- Cards -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Total Job Requests</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="total-requests">-</div>
+                    <p class="text-xs text-gray-500" id="period-requests">- in current period</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Total Job Responses</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="total-responses">-</div>
+                    <p class="text-xs text-gray-500" id="period-responses">- in current period</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Unique Users</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="unique-users">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Unique DVMs</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="unique-dvms">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Unique Kinds</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M7 7h.01M7 3h5a1.99 1.99 0 013 0h5a2 2 0 012 2v14a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h3zm0 4h.01M11 7h.01M15 7h.01M19 7h.01M7 11h.01M11 11h.01M15 11h.01M19 11h.01M7 15h.01M11 15h.01M15 15h.01M19 15h.01"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="unique-kinds">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Most Popular DVM</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="popular-dvm">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Most Popular Kind</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="popular-kind">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Most Competitive Kind</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="competitive-kind">-</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Add error handling
+        htmx.on('htmx:sendError', function(evt) {
+            document.getElementById('error-message').classList.remove('hidden');
+            document.getElementById('last-updated').textContent = 'Connection failed';
+        });
+
+        // Handle successful responses
+        htmx.on('htmx:afterRequest', function(evt) {
+            if (evt.detail.successful) {
+                document.getElementById('error-message').classList.add('hidden');
+                try {
+                    const data = JSON.parse(evt.detail.xhr.response);
+
+                    // Update timestamp
+                    const timestamp = new Date(data.timestamp);
+                    const now = new Date();
+                    const secondsAgo = Math.floor((now - timestamp) / 1000);
+                    const lastUpdatedElement = document.getElementById('last-updated');
+                    if (lastUpdatedElement) {
+                        lastUpdatedElement.textContent = `Last updated ${secondsAgo} seconds ago`;
+                    }
+
+                    // Update each stat with error handling
+                    const updateElement = (id, value, formatter = (v) => v) => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.textContent = formatter(value);
+                        }
+                    };
+
+                    // Update all stats
+                    updateElement('total-requests', data.running_total_requests, v => v.toLocaleString());
+                    updateElement('period-requests', data.period_requests, v => `${v.toLocaleString()} in current period`);
+                    updateElement('total-responses', data.running_total_responses, v => v.toLocaleString());
+                    updateElement('period-responses', data.period_responses, v => `${v.toLocaleString()} in current period`);
+                    updateElement('unique-users', data.running_total_unique_users, v => v.toLocaleString());
+                    updateElement('unique-dvms', data.running_total_unique_dvms, v => v.toLocaleString());
+                    updateElement('unique-kinds', data.running_total_unique_kinds, v => v.toLocaleString());
+                    updateElement('popular-dvm', data.most_popular_dvm || 'Unavailable');
+                    updateElement('popular-kind', data.most_popular_kind || 'Unavailable');
+                    updateElement('competitive-kind', data.most_competitive_kind || 'Unavailable');
+                } catch (error) {
+                    console.error('Error processing response:', error);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

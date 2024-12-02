@@ -491,116 +491,135 @@ class BatchProcessor:
             logger.error(traceback.format_exc())
             raise
 
-    async def _update_global_stats_rollup(
+    async def get_metrics(
+        self, conn: asyncpg.Connection, interval: str = "24 hours"
+    ) -> dict:
+        """
+        Get metrics for a specified time interval with improved filtering and accuracy.
+        """
+        # Validate interval
+        valid_intervals = {"1 hour", "24 hours", "7 days", "30 days", "all time"}
+        if interval not in valid_intervals:
+            raise ValueError(f"Interval must be one of {valid_intervals}")
+
+        # For 'all time', we'll use a different query structure
+        time_filter = (
+            ""
+            if interval == "all time"
+            else f"AND timestamp >= NOW() - INTERVAL '{interval}'"
+        )
+
+        metrics = (
+            await conn.fetchrow(
+                f"""
+            WITH TimeWindowStats AS (
+                SELECT
+                    COALESCE(SUM(ksr.period_requests), 0)::integer as total_requests,
+                    COALESCE(SUM(ksr.period_responses), 0)::integer as total_responses
+                FROM kind_stats_rollups ksr
+                WHERE TRUE {time_filter}
+            ),
+            PopularDVM AS (
+                SELECT 
+                    dvm_id, 
+                    SUM(period_responses)::integer as total_responses
+                FROM dvm_stats_rollups 
+                WHERE TRUE {time_filter}
+                GROUP BY dvm_id
+                ORDER BY total_responses DESC
+                LIMIT 1
+            ),
+            PopularKind AS (
+                SELECT 
+                    kind, 
+                    SUM(period_requests)::integer as total_requests
+                FROM kind_stats_rollups
+                WHERE TRUE {time_filter}
+                GROUP BY kind
+                ORDER BY total_requests DESC
+                LIMIT 1
+            ),
+            CompetitiveKind AS (
+                SELECT 
+                    kind, 
+                    COUNT(DISTINCT dvm)::integer as dvm_count
+                FROM kind_dvm_support
+                WHERE TRUE {time_filter}
+                GROUP BY kind
+                ORDER BY dvm_count DESC
+                LIMIT 1
+            ),
+            ActiveDVMs AS (
+                SELECT COUNT(DISTINCT id)::integer as total_dvms
+                FROM dvms
+                WHERE TRUE {time_filter}
+            ),
+            ActiveKinds AS (
+                SELECT COUNT(DISTINCT kind)::integer as total_kinds
+                FROM kind_stats_rollups
+                WHERE TRUE {time_filter}
+            ),
+            ActiveUsers AS (
+                SELECT COUNT(DISTINCT id)::integer as total_users
+                FROM users
+                WHERE TRUE {time_filter}
+            )
+            SELECT 
+                tws.total_requests,
+                tws.total_responses,
+                p1.dvm_id as popular_dvm,
+                p2.kind as popular_kind,
+                c.kind as competitive_kind,
+                d.total_dvms,
+                k.total_kinds,
+                u.total_users
+            FROM TimeWindowStats tws
+            CROSS JOIN ActiveDVMs d
+            CROSS JOIN ActiveKinds k
+            CROSS JOIN ActiveUsers u
+            LEFT JOIN PopularDVM p1 ON TRUE
+            LEFT JOIN PopularKind p2 ON TRUE
+            LEFT JOIN CompetitiveKind c ON TRUE
+            """
+            )
+            or {
+                "total_requests": 0,
+                "total_responses": 0,
+                "popular_dvm": None,
+                "popular_kind": None,
+                "competitive_kind": None,
+                "total_dvms": 0,
+                "total_kinds": 0,
+                "total_users": 0,
+            }
+        )
+
+        return metrics
+
+    async def _update_window_stats(
         self, conn: asyncpg.Connection, stats: BatchStats
     ) -> None:
-        """Update global_stats_rollups table with new stats."""
-        try:
-            # Get metrics about popular DVMs, kinds, etc.
-            metrics = (
-                await conn.fetchrow(
-                    """
-                WITH PopularDVM AS (
-                    SELECT dvm_id, SUM(period_responses)::integer as total_responses
-                    FROM dvm_stats_rollups 
-                    WHERE timestamp >= NOW() - INTERVAL '24 hours'
-                    GROUP BY dvm_id
-                    ORDER BY total_responses DESC
-                    LIMIT 1
-                ),
-                PopularKind AS (
-                    SELECT kind, SUM(period_requests)::integer as total_requests
-                    FROM kind_stats_rollups
-                    WHERE timestamp >= NOW() - INTERVAL '24 hours'
-                    GROUP BY kind
-                    ORDER BY total_requests DESC
-                    LIMIT 1
-                ),
-                CompetitiveKind AS (
-                    SELECT kind, COUNT(DISTINCT dvm)::integer as dvm_count
-                    FROM kind_dvm_support
-                    WHERE last_seen >= NOW() - INTERVAL '24 hours'
-                    GROUP BY kind
-                    ORDER BY dvm_count DESC
-                    LIMIT 1
-                ),
-                Totals AS (
-                    SELECT COALESCE(COUNT(DISTINCT id), 0)::integer as total_dvms 
-                    FROM dvms
-                ),
-                KindTotals AS (
-                    SELECT COALESCE(COUNT(DISTINCT kind), 0)::integer as total_kinds
-                    FROM kind_stats_rollups
-                ),
-                UserTotals AS (
-                    SELECT COALESCE(COUNT(DISTINCT id), 0)::integer as total_users
-                    FROM users
-                )
-                SELECT 
-                    p1.dvm_id as popular_dvm,
-                    p2.kind as popular_kind,
-                    c.kind as competitive_kind,
-                    t.total_dvms,
-                    k.total_kinds,
-                    u.total_users
-                FROM Totals t
-                CROSS JOIN KindTotals k
-                CROSS JOIN UserTotals u
-                LEFT JOIN PopularDVM p1 ON TRUE
-                LEFT JOIN PopularKind p2 ON TRUE
-                LEFT JOIN CompetitiveKind c ON TRUE
-                """
-                )
-                or {
-                    "popular_dvm": None,
-                    "popular_kind": None,
-                    "competitive_kind": None,
-                    "total_dvms": 0,
-                    "total_kinds": 0,
-                    "total_users": 0,
-                }
-            )
+        """
+        Update all time window stats in a single efficient operation.
+        """
+        current_timestamp = datetime.now(timezone.utc)
+        window_sizes = ["1 hour", "24 hours", "7 days", "30 days", "all time"]
 
-            # Get the last running totals with default values
-            last_totals = (
-                await conn.fetchrow(
-                    """
-                SELECT 
-                    COALESCE(MAX(running_total_requests), 0)::integer as last_requests,
-                    COALESCE(MAX(running_total_responses), 0)::integer as last_responses
-                FROM global_stats_rollups
-                """
-                )
-                or {"last_requests": 0, "last_responses": 0}
-            )
+        # Get all window metrics in one operation
+        window_metrics = await asyncio.gather(
+            *[
+                self.get_metrics(conn, interval=window_size)
+                for window_size in window_sizes
+            ]
+        )
 
-            # Calculate new running totals
-            new_total_requests = last_totals["last_requests"] + stats.period_requests
-            new_total_responses = last_totals["last_responses"] + stats.period_responses
-
-            # Use current timestamp for the rollup
-            current_timestamp = datetime.now(timezone.utc)
-
-            # Insert new global stats rollup
-            await conn.execute(
-                """
-                INSERT INTO global_stats_rollups (
-                    timestamp, period_start, period_end, period_requests, period_responses,
-                    running_total_requests, running_total_responses,
-                    running_total_unique_dvms, running_total_unique_kinds,
-                    running_total_unique_users, most_popular_dvm, most_popular_kind,
-                    most_competitive_kind
-                )
-                VALUES ($1, $2, $3, $4::integer, $5::integer, $6::integer, $7::integer, 
-                        $8::integer, $9::integer, $10::integer, $11, $12, $13)
-                """,
-                current_timestamp,  # Use current time instead of period_end
-                stats.period_start,
-                stats.period_end,  # add period_end
-                int(stats.period_requests),
-                int(stats.period_responses),
-                new_total_requests,
-                new_total_responses,
+        # Prepare bulk insert for all windows
+        values = [
+            (
+                current_timestamp,
+                window_size,
+                metrics["total_requests"],
+                metrics["total_responses"],
                 metrics["total_dvms"],
                 metrics["total_kinds"],
                 metrics["total_users"],
@@ -608,9 +627,86 @@ class BatchProcessor:
                 metrics["popular_kind"],
                 metrics["competitive_kind"],
             )
+            for window_size, metrics in zip(window_sizes, window_metrics)
+        ]
+
+        # Bulk insert/update all windows at once
+        await conn.executemany(
+            """
+            INSERT INTO time_window_stats (
+                timestamp, window_size, total_requests, total_responses,
+                unique_dvms, unique_kinds, unique_users,
+                popular_dvm, popular_kind, competitive_kind
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (timestamp, window_size) 
+            DO UPDATE SET
+                total_requests = EXCLUDED.total_requests,
+                total_responses = EXCLUDED.total_responses,
+                unique_dvms = EXCLUDED.unique_dvms,
+                unique_kinds = EXCLUDED.unique_kinds,
+                unique_users = EXCLUDED.unique_users,
+                popular_dvm = EXCLUDED.popular_dvm,
+                popular_kind = EXCLUDED.popular_kind,
+                competitive_kind = EXCLUDED.competitive_kind,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            values,
+        )
+
+    async def _update_global_stats_rollup(
+        self, conn: asyncpg.Connection, stats: BatchStats
+    ) -> None:
+        """Update global_stats_rollups and time_window_stats tables with new stats."""
+        try:
+            # First do the existing global stats rollup update
+            metrics = await self.get_metrics(conn, interval="24 hours")
+            last_totals = (
+                await conn.fetchrow(
+                    """
+                        SELECT 
+                            COALESCE(MAX(running_total_requests), 0)::integer as last_requests,
+                            COALESCE(MAX(running_total_responses), 0)::integer as last_responses
+                        FROM global_stats_rollups
+                        """
+                )
+                or {"last_requests": 0, "last_responses": 0}
+            )
+
+            new_total_requests = last_totals["last_requests"] + stats.period_requests
+            new_total_responses = last_totals["last_responses"] + stats.period_responses
+            current_timestamp = datetime.now(timezone.utc)
+
+            async with conn.transaction():
+                # Insert new global stats rollup
+                await conn.execute(
+                    """
+                    INSERT INTO global_stats_rollups (
+                        timestamp, period_start, period_end, period_requests, period_responses,
+                        running_total_requests, running_total_responses,
+                        running_total_unique_dvms, running_total_unique_kinds,
+                        running_total_unique_users
+                    )
+                    VALUES ($1, $2, $3, $4::integer, $5::integer, $6::integer, $7::integer, 
+                            $8::integer, $9::integer, $10::integer)
+                    """,
+                    current_timestamp,
+                    stats.period_start,
+                    stats.period_end,
+                    int(stats.period_requests),
+                    int(stats.period_responses),
+                    new_total_requests,
+                    new_total_responses,
+                    metrics["total_dvms"],
+                    metrics["total_kinds"],
+                    metrics["total_users"],
+                )
+
+                # Update all time window stats efficiently
+                await self._update_window_stats(conn, stats)
 
         except Exception as e:
-            logger.error(f"Error updating global stats rollups: {e}")
+            logger.error(f"Error updating stats rollups: {e}")
             logger.error(traceback.format_exc())
             raise
 

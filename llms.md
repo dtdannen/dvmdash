@@ -604,6 +604,53 @@ FROM time_buckets
 ORDER BY bucket_time ASC;
 ```
 
+### How data moves through the database in batch processor
+
+Here's the high-level flow of how data moves through the system:
+Step 1: Get and Analyze Raw Events
+
+Pull batch of events from Redis queue
+Analyze events to compute period stats:
+
+Count requests/responses
+Track DVM activities
+Track user activities
+Track kind usage
+
+
+Store all this in BatchStats object
+
+Step 2: Base Table Updates (in transaction)
+
+Update dvms table with new DVMs and their timestamps
+Update users table with new users and their timestamps
+Update kind_dvm_support table to track which DVMs support which kinds
+
+Step 3: Rollup Table Updates (same transaction)
+
+Update dvm_stats_rollups with per-DVM metrics (responses, feedback)
+Update kind_stats_rollups with per-Kind metrics (requests, responses)
+Update global_stats_rollups with system-wide running totals
+
+Step 4: Time Window Stats Update (same transaction)
+
+Calculate metrics for each time window (1h, 24h, 7d, 30d, all time)
+Update time_window_stats with:
+
+Most popular DVM per window
+Most popular Kind per window
+Most competitive Kind per window
+Total counts for window
+
+
+
+Step 5: Event Backup
+
+Save raw events to events database for historical record
+This happens outside the main transaction
+
+Each step builds on the previous ones, and steps 2-4 happen in a single transaction to maintain consistency. The base tables track raw data, the rollup tables track running totals (for plots), and the time window stats track current popularity metrics.
+
 
 ## Problems to be solved later
 

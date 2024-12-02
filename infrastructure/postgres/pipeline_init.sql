@@ -73,20 +73,34 @@ CREATE TABLE kind_dvm_support (
     CHECK (first_seen <= last_seen)
 );
 
+CREATE TABLE time_window_stats (
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    window_size TEXT NOT NULL CHECK (window_size IN ('1 hour', '24 hours', '7 days', '30 days', 'all time')),
+    total_requests INTEGER NOT NULL CHECK (total_requests >= 0),
+    total_responses INTEGER NOT NULL CHECK (total_responses >= 0),
+    unique_dvms INTEGER NOT NULL CHECK (unique_dvms >= 0),
+    unique_kinds INTEGER NOT NULL CHECK (unique_kinds >= 0),
+    unique_users INTEGER NOT NULL CHECK (unique_users >= 0),
+    popular_dvm TEXT REFERENCES dvms(id),
+    popular_kind INTEGER CHECK (popular_kind BETWEEN 5000 AND 5999),
+    competitive_kind INTEGER CHECK (competitive_kind BETWEEN 5000 AND 5999),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (timestamp, window_size),
+
+    CHECK (timestamp <= CURRENT_TIMESTAMP)
+);
+
 CREATE TABLE global_stats_rollups (
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-	period_start TIMESTAMP WITH TIME ZONE NOT NULL,
-	period_end TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_end TIMESTAMP WITH TIME ZONE NOT NULL,
     period_requests INTEGER NOT NULL CHECK (period_requests >= 0),
-	period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
-	running_total_requests BIGINT NOT NULL,
+    period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
+    running_total_requests BIGINT NOT NULL,
     running_total_responses BIGINT NOT NULL,
-	running_total_unique_dvms BIGINT NOT NULL,
-	running_total_unique_kinds BIGINT NOT NULL,
-	running_total_unique_users BIGINT NOT NULL,
-	most_popular_dvm TEXT REFERENCES dvms(id),
-	most_popular_kind INTEGER CHECK (most_popular_kind BETWEEN 5000 AND 5999),
-	most_competitive_kind INTEGER CHECK (most_competitive_kind BETWEEN 5000 AND 5999),
+    running_total_unique_dvms BIGINT NOT NULL,
+    running_total_unique_kinds BIGINT NOT NULL,
+    running_total_unique_users BIGINT NOT NULL,
     PRIMARY KEY (timestamp),
 
     CHECK (period_start <= timestamp),
@@ -130,3 +144,8 @@ CREATE INDEX idx_kind_dvm_support_kind ON kind_dvm_support (kind, last_seen DESC
 
 -- For finding all kinds that a specific DVM supports
 CREATE INDEX idx_kind_dvm_support_dvm ON kind_dvm_support (dvm, last_seen DESC);
+
+-- Time Window Stats Indices
+CREATE INDEX idx_time_window_stats_timestamp ON time_window_stats (timestamp DESC);
+CREATE INDEX idx_time_window_stats_window ON time_window_stats (window_size, timestamp DESC);
+CREATE INDEX idx_time_window_stats_window_timestamp ON time_window_stats (window_size, timestamp DESC);
