@@ -36,8 +36,15 @@ class BatchStats:
     # Track DVMs and their activities
     dvm_responses: Dict[str, int] = None  # dvm -> count of responses
     dvm_feedback: Dict[str, int] = None  # dvm -> count of feedback
-    dvm_timestamps: Dict[str, datetime] = None  # dvm -> latest timestamp
+    dvm_timestamps: Dict[
+        str, datetime
+    ] = None  # dvm -> latest timestamp (for last_seen updates)
     dvm_kinds: Dict[str, Set[int]] = None  # dvm -> set of kinds supported
+
+    # NEW: Track all entity observations with timestamps
+    entity_activity: Dict[
+        str, List[Tuple[str, datetime]]
+    ] = None  # entity_type -> List[(id, timestamp)]
 
     # Track users and their activities
     user_timestamps: Dict[str, datetime] = None  # user -> latest timestamp
@@ -54,6 +61,11 @@ class BatchStats:
             lambda: datetime.min.replace(tzinfo=timezone.utc)
         )
         self.dvm_kinds = defaultdict(set)
+        self.entity_activity = {  # Initialize with empty lists for each entity type
+            "dvm": [],
+            "user": [],
+            "kind": [],
+        }
         self.user_timestamps = defaultdict(
             lambda: datetime.min.replace(tzinfo=timezone.utc)
         )
@@ -145,18 +157,23 @@ class BatchProcessor:
                     stats.user_timestamps[pubkey] = max(
                         stats.user_timestamps[pubkey], timestamp
                     )
+                    # Track each observation
+                    stats.entity_activity["user"].append((pubkey, timestamp))
+                    stats.entity_activity["kind"].append((str(kind), timestamp))
 
                 elif 6000 <= kind <= 6999:  # Response event
+                    request_kind = kind - 1000
                     stats.period_responses += 1
-                    request_kind = self._get_request_kind_from_response(event)
-                    if request_kind and 5000 <= request_kind <= 5999:
-                        stats.kind_responses[request_kind] += 1
-                        stats.dvm_responses[pubkey] += 1
-                        stats.dvm_timestamps[pubkey] = max(
-                            stats.dvm_timestamps[pubkey], timestamp
-                        )
-                        stats.dvm_kinds[pubkey].add(request_kind)
-                        stats.user_is_dvm[pubkey] = True
+                    stats.kind_responses[kind] += 1
+                    stats.user_is_dvm[pubkey] = True
+                    stats.dvm_responses[pubkey] += 1
+                    stats.dvm_timestamps[pubkey] = max(
+                        stats.dvm_timestamps[pubkey], timestamp
+                    )
+                    stats.dvm_kinds[pubkey].add(request_kind)
+
+                    stats.entity_activity["dvm"].append((pubkey, timestamp))
+                    stats.entity_activity["kind"].append((str(kind), timestamp))
 
                 elif kind == 7000:  # Feedback event
                     stats.period_feedback += 1
@@ -165,6 +182,8 @@ class BatchProcessor:
                         stats.dvm_timestamps[pubkey], timestamp
                     )
                     stats.user_is_dvm[pubkey] = True
+                    # Track each observation
+                    stats.entity_activity["dvm"].append((pubkey, timestamp))
 
             except Exception as e:
                 logger.error(f"Error processing event: {event}")
@@ -724,21 +743,6 @@ class BatchProcessor:
             logger.error(f"Error updating stats rollups: {e}")
             logger.error(traceback.format_exc())
             raise
-
-    def _get_request_kind_from_response(self, response_event: dict) -> int:
-        """Extract the original request kind from a response event's tags."""
-        try:
-            for tag in response_event["tags"]:
-                if tag[0] == "k":
-                    return int(tag[1])
-            # If no 'k' tag found, attempt to extract from 'e' tag reference
-            for tag in response_event["tags"]:
-                if tag[0] == "e":
-                    # The kind should be response_kind - 1000 to get request kind
-                    return response_event["kind"] - 1000
-        except (KeyError, IndexError, ValueError):
-            return None
-        return None
 
     async def _save_events(self, conn: asyncpg.Connection, events: List[dict]) -> None:
         """Save raw events to the events database."""
