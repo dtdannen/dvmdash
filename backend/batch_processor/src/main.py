@@ -166,7 +166,7 @@ class BatchProcessor:
                 elif 6000 <= kind <= 6999:  # Response event
                     request_kind = kind - 1000
                     stats.period_responses += 1
-                    stats.kind_responses[kind] += 1
+                    stats.kind_responses[request_kind] += 1
                     stats.user_is_dvm[pubkey] = True
                     stats.dvm_responses[pubkey] += 1
                     stats.dvm_timestamps[pubkey] = max(
