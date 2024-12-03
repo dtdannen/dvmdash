@@ -105,9 +105,7 @@ class BatchProcessor:
         async with self.metrics_pool.acquire() as conn:
             async with conn.transaction():
                 # Update base tables first
-                await self._update_dvms(conn, stats)
-                await self._update_users(conn, stats)
-                await self._update_kind_dvm_support(conn, stats)
+                await self._update_base_tables(conn, stats)
 
                 # Update rollup tables
                 await self._update_dvm_stats_rollup(conn, stats)
@@ -262,6 +260,87 @@ class BatchProcessor:
             logger.error(traceback.format_exc())
 
         return events
+
+    async def _update_base_tables(
+        self, conn: asyncpg.Connection, stats: BatchStats
+    ) -> None:
+        """Update all base tables including entity activity tracking."""
+        async with conn.transaction():
+            # 1. Update DVMs table
+            if stats.dvm_timestamps:
+                values = [
+                    (dvm_id, timestamp)
+                    for dvm_id, timestamp in stats.dvm_timestamps.items()
+                ]
+                await conn.executemany(
+                    """
+                    INSERT INTO dvms (id, first_seen, last_seen)
+                    VALUES ($1, $2, $2)
+                    ON CONFLICT (id) DO UPDATE 
+                    SET last_seen = GREATEST(dvms.last_seen, $2),
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    values,
+                )
+
+            # 2. Update Users table
+            if stats.user_timestamps:
+                values = [
+                    (
+                        user_id,
+                        timestamp,
+                        stats.user_is_dvm[user_id],
+                        timestamp if stats.user_is_dvm[user_id] else None,
+                    )
+                    for user_id, timestamp in stats.user_timestamps.items()
+                ]
+                await conn.executemany(
+                    """
+                    INSERT INTO users (id, first_seen, last_seen, is_dvm, discovered_as_dvm_at)
+                    VALUES ($1, $2, $2, $3, $4)
+                    ON CONFLICT (id) DO UPDATE 
+                    SET last_seen = GREATEST(users.last_seen, $2),
+                        is_dvm = COALESCE(users.is_dvm, $3),
+                        discovered_as_dvm_at = COALESCE(users.discovered_as_dvm_at, $4),
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    values,
+                )
+
+            # 3. Update Kind-DVM Support table
+            if stats.dvm_kinds:
+                values = [
+                    (kind, dvm_id, stats.dvm_timestamps[dvm_id])
+                    for dvm_id, kinds in stats.dvm_kinds.items()
+                    for kind in kinds
+                ]
+                await conn.executemany(
+                    """
+                    INSERT INTO kind_dvm_support (kind, dvm, first_seen, last_seen, interaction_type)
+                    VALUES ($1, $2, $3, $3, 'both')
+                    ON CONFLICT (kind, dvm) DO UPDATE 
+                    SET last_seen = GREATEST(kind_dvm_support.last_seen, $3),
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    values,
+                )
+
+            # 4. Update entity_activity table
+            all_activity = []
+            for entity_type, observations in stats.entity_activity.items():
+                all_activity.extend(
+                    (entity_id, entity_type, timestamp)
+                    for entity_id, timestamp in observations
+                )
+
+            if all_activity:
+                await conn.executemany(
+                    """
+                    INSERT INTO entity_activity (id, entity_type, observed_at)
+                    VALUES ($1, $2, $3)
+                    """,
+                    all_activity,
+                )
 
     async def _update_dvms(self, conn: asyncpg.Connection, stats: BatchStats) -> None:
         """Update DVMs table with new DVMs and timestamps."""
@@ -514,7 +593,7 @@ class BatchProcessor:
         self, conn: asyncpg.Connection, interval: str = "24 hours"
     ) -> dict:
         """
-        Get metrics for a specified time interval with improved filtering and accuracy.
+        Get metrics for a specified time interval using entity_activity table for unique counts.
         """
         # Validate interval
         valid_intervals = {"1 hour", "24 hours", "7 days", "30 days", "all time"}
@@ -573,28 +652,32 @@ class BatchProcessor:
                 ORDER BY dvm_count DESC
                 LIMIT 1
             ),
+            -- Use entity_activity for unique counts
             ActiveDVMs AS (
                 SELECT COUNT(DISTINCT id)::integer as total_dvms
-                FROM dvms d
-                WHERE CASE 
+                FROM entity_activity
+                WHERE entity_type = 'dvm'
+                AND CASE 
                     WHEN $1 = 'all time' THEN TRUE
-                    ELSE d.last_seen >= NOW() - ($1::interval)
+                    ELSE observed_at >= NOW() - ($1::interval)
                 END
             ),
             ActiveKinds AS (
-                SELECT COUNT(DISTINCT kind)::integer as total_kinds
-                FROM kind_stats_rollups ksr3
-                WHERE CASE 
+                SELECT COUNT(DISTINCT id)::integer as total_kinds
+                FROM entity_activity
+                WHERE entity_type = 'kind'
+                AND CASE 
                     WHEN $1 = 'all time' THEN TRUE
-                    ELSE ksr3.timestamp >= NOW() - ($1::interval)
+                    ELSE observed_at >= NOW() - ($1::interval)
                 END
             ),
             ActiveUsers AS (
                 SELECT COUNT(DISTINCT id)::integer as total_users
-                FROM users u
-                WHERE CASE 
+                FROM entity_activity
+                WHERE entity_type = 'user'
+                AND CASE 
                     WHEN $1 = 'all time' THEN TRUE
-                    ELSE u.last_seen >= NOW() - ($1::interval)
+                    ELSE observed_at >= NOW() - ($1::interval)
                 END
             )
             SELECT 
