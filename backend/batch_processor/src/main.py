@@ -727,13 +727,11 @@ class BatchProcessor:
         current_timestamp = datetime.now(timezone.utc)
         window_sizes = ["1 hour", "24 hours", "7 days", "30 days", "all time"]
 
-        # Get all window metrics in one operation
-        window_metrics = await asyncio.gather(
-            *[
-                self.get_metrics(conn, interval=window_size)
-                for window_size in window_sizes
-            ]
-        )
+        # Get metrics for each window size sequentially instead of using gather
+        window_metrics = []
+        for window_size in window_sizes:
+            metrics = await self.get_metrics(conn, interval=window_size)
+            window_metrics.append(metrics)
 
         # Prepare bulk insert for all windows
         values = [
@@ -799,33 +797,32 @@ class BatchProcessor:
             new_total_responses = last_totals["last_responses"] + stats.period_responses
             current_timestamp = datetime.now(timezone.utc)
 
-            async with conn.transaction():
-                # Insert new global stats rollup
-                await conn.execute(
-                    """
-                    INSERT INTO global_stats_rollups (
-                        timestamp, period_start, period_end, period_requests, period_responses,
-                        running_total_requests, running_total_responses,
-                        running_total_unique_dvms, running_total_unique_kinds,
-                        running_total_unique_users
-                    )
-                    VALUES ($1, $2, $3, $4::integer, $5::integer, $6::integer, $7::integer, 
-                            $8::integer, $9::integer, $10::integer)
-                    """,
-                    current_timestamp,
-                    stats.period_start,
-                    stats.period_end,
-                    int(stats.period_requests),
-                    int(stats.period_responses),
-                    new_total_requests,
-                    new_total_responses,
-                    metrics["total_dvms"],
-                    metrics["total_kinds"],
-                    metrics["total_users"],
+            # Insert new global stats rollup
+            await conn.execute(
+                """
+                INSERT INTO global_stats_rollups (
+                    timestamp, period_start, period_end, period_requests, period_responses,
+                    running_total_requests, running_total_responses,
+                    running_total_unique_dvms, running_total_unique_kinds,
+                    running_total_unique_users
                 )
+                VALUES ($1, $2, $3, $4::integer, $5::integer, $6::integer, $7::integer, 
+                        $8::integer, $9::integer, $10::integer)
+                """,
+                current_timestamp,
+                stats.period_start,
+                stats.period_end,
+                int(stats.period_requests),
+                int(stats.period_responses),
+                new_total_requests,
+                new_total_responses,
+                metrics["total_dvms"],
+                metrics["total_kinds"],
+                metrics["total_users"],
+            )
 
-                # Update all time window stats efficiently
-                await self._update_window_stats(conn, stats)
+            # Update all time window stats efficiently
+            await self._update_window_stats(conn, stats)
 
         except Exception as e:
             logger.error(f"Error updating stats rollups: {e}")
