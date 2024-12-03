@@ -72,8 +72,10 @@ CREATE TABLE kind_dvm_support (
 );
 
 CREATE TABLE time_window_stats (
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,    -- When this stat was computed
     window_size TEXT NOT NULL CHECK (window_size IN ('1 hour', '24 hours', '7 days', '30 days', 'all time')),
+    period_start TIMESTAMP WITH TIME ZONE NOT NULL, -- Start of the period these stats cover
+    period_end TIMESTAMP WITH TIME ZONE NOT NULL,   -- End of the period these stats cover
     total_requests INTEGER NOT NULL CHECK (total_requests >= 0),
     total_responses INTEGER NOT NULL CHECK (total_responses >= 0),
     unique_dvms INTEGER NOT NULL CHECK (unique_dvms >= 0),
@@ -82,10 +84,11 @@ CREATE TABLE time_window_stats (
     popular_dvm TEXT REFERENCES dvms(id),
     popular_kind INTEGER CHECK (popular_kind BETWEEN 5000 AND 5999),
     competitive_kind INTEGER CHECK (competitive_kind BETWEEN 5000 AND 5999),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (timestamp, window_size),
 
-    CHECK (timestamp <= CURRENT_TIMESTAMP)
+    CHECK (timestamp <= CURRENT_TIMESTAMP),
+    CHECK (period_start <= period_end),
+    CHECK (period_end <= CURRENT_TIMESTAMP)
 );
 
 CREATE TABLE global_stats_rollups (

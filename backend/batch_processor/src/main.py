@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 from collections import defaultdict
@@ -14,6 +14,10 @@ import traceback
 from loguru import logger
 import redis
 from redis import Redis
+
+NOSTR_EPOCH = datetime(
+    2020, 11, 7, tzinfo=timezone.utc
+)  # need a minimum date for DVM activity; apparently this is the day Nostr was first published
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
@@ -724,8 +728,18 @@ class BatchProcessor:
         """
         Update all time window stats in a single efficient operation.
         """
-        current_timestamp = datetime.now(timezone.utc)
+        # Use period_end from stats which we know is valid
+        current_timestamp = stats.period_end
         window_sizes = ["1 hour", "24 hours", "7 days", "30 days", "all time"]
+
+        # Map to convert window size strings to timedelta
+        window_to_delta = {
+            "1 hour": timedelta(hours=1),
+            "24 hours": timedelta(days=1),
+            "7 days": timedelta(days=7),
+            "30 days": timedelta(days=30),
+            "all time": None,  # Special case, will handle separately
+        }
 
         # Get metrics for each window size sequentially instead of using gather
         window_metrics = []
@@ -734,42 +748,48 @@ class BatchProcessor:
             window_metrics.append(metrics)
 
         # Prepare bulk insert for all windows
-        values = [
-            (
-                current_timestamp,
-                window_size,
-                metrics["total_requests"],
-                metrics["total_responses"],
-                metrics["total_dvms"],
-                metrics["total_kinds"],
-                metrics["total_users"],
-                metrics["popular_dvm"],
-                metrics["popular_kind"],
-                metrics["competitive_kind"],
-            )
-            for window_size, metrics in zip(window_sizes, window_metrics)
-        ]
+        values = []
+        for window_size, metrics in zip(window_sizes, window_metrics):
+            if window_size == "all time":
+                # For "all time", we need to get the earliest timestamp from our data
+                # This could come from various tables, but let's use the global_stats_rollups
+                earliest_timestamp = (
+                    await conn.fetchval(
+                        "SELECT MIN(period_start) FROM global_stats_rollups"
+                    )
+                    or NOSTR_EPOCH
+                )
+                period_start = earliest_timestamp
+            else:
+                period_start = stats.period_end - window_to_delta[window_size]
 
-        # Bulk insert/update all windows at once
+            values.append(
+                (
+                    datetime.now(timezone.utc),
+                    window_size,
+                    period_start,
+                    stats.period_end,  # period_end is same as timestamp
+                    metrics["total_requests"],
+                    metrics["total_responses"],
+                    metrics["total_dvms"],
+                    metrics["total_kinds"],
+                    metrics["total_users"],
+                    metrics["popular_dvm"],
+                    metrics["popular_kind"],
+                    metrics["competitive_kind"],
+                )
+            )
+
+        # Bulk insert all windows at once
         await conn.executemany(
             """
             INSERT INTO time_window_stats (
-                timestamp, window_size, total_requests, total_responses,
+                timestamp, window_size, period_start, period_end,
+                total_requests, total_responses,
                 unique_dvms, unique_kinds, unique_users,
                 popular_dvm, popular_kind, competitive_kind
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            ON CONFLICT (timestamp, window_size) 
-            DO UPDATE SET
-                total_requests = EXCLUDED.total_requests,
-                total_responses = EXCLUDED.total_responses,
-                unique_dvms = EXCLUDED.unique_dvms,
-                unique_kinds = EXCLUDED.unique_kinds,
-                unique_users = EXCLUDED.unique_users,
-                popular_dvm = EXCLUDED.popular_dvm,
-                popular_kind = EXCLUDED.popular_kind,
-                competitive_kind = EXCLUDED.competitive_kind,
-                updated_at = CURRENT_TIMESTAMP
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             """,
             values,
         )
