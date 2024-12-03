@@ -502,29 +502,28 @@ class BatchProcessor:
         if interval not in valid_intervals:
             raise ValueError(f"Interval must be one of {valid_intervals}")
 
-        # For 'all time', we'll use a different query structure
-        time_filter = (
-            ""
-            if interval == "all time"
-            else f"AND timestamp >= NOW() - INTERVAL '{interval}'"
-        )
-
         metrics = (
             await conn.fetchrow(
-                f"""
+                """
             WITH TimeWindowStats AS (
                 SELECT
                     COALESCE(SUM(ksr.period_requests), 0)::integer as total_requests,
                     COALESCE(SUM(ksr.period_responses), 0)::integer as total_responses
                 FROM kind_stats_rollups ksr
-                WHERE TRUE {time_filter}
+                WHERE CASE 
+                    WHEN $1 = 'all time' THEN TRUE
+                    ELSE ksr.timestamp >= NOW() - ($1::interval)
+                END
             ),
             PopularDVM AS (
                 SELECT 
                     dvm_id, 
                     SUM(period_responses)::integer as total_responses
-                FROM dvm_stats_rollups 
-                WHERE TRUE {time_filter}
+                FROM dvm_stats_rollups dsr
+                WHERE CASE 
+                    WHEN $1 = 'all time' THEN TRUE
+                    ELSE dsr.timestamp >= NOW() - ($1::interval)
+                END
                 GROUP BY dvm_id
                 ORDER BY total_responses DESC
                 LIMIT 1
@@ -533,8 +532,11 @@ class BatchProcessor:
                 SELECT 
                     kind, 
                     SUM(period_requests)::integer as total_requests
-                FROM kind_stats_rollups
-                WHERE TRUE {time_filter}
+                FROM kind_stats_rollups ksr2
+                WHERE CASE 
+                    WHEN $1 = 'all time' THEN TRUE
+                    ELSE ksr2.timestamp >= NOW() - ($1::interval)
+                END
                 GROUP BY kind
                 ORDER BY total_requests DESC
                 LIMIT 1
@@ -543,26 +545,38 @@ class BatchProcessor:
                 SELECT 
                     kind, 
                     COUNT(DISTINCT dvm)::integer as dvm_count
-                FROM kind_dvm_support
-                WHERE TRUE {time_filter}
+                FROM kind_dvm_support kds
+                WHERE CASE 
+                    WHEN $1 = 'all time' THEN TRUE
+                    ELSE kds.last_seen >= NOW() - ($1::interval)
+                END
                 GROUP BY kind
                 ORDER BY dvm_count DESC
                 LIMIT 1
             ),
             ActiveDVMs AS (
                 SELECT COUNT(DISTINCT id)::integer as total_dvms
-                FROM dvms
-                WHERE TRUE {time_filter}
+                FROM dvms d
+                WHERE CASE 
+                    WHEN $1 = 'all time' THEN TRUE
+                    ELSE d.last_seen >= NOW() - ($1::interval)
+                END
             ),
             ActiveKinds AS (
                 SELECT COUNT(DISTINCT kind)::integer as total_kinds
-                FROM kind_stats_rollups
-                WHERE TRUE {time_filter}
+                FROM kind_stats_rollups ksr3
+                WHERE CASE 
+                    WHEN $1 = 'all time' THEN TRUE
+                    ELSE ksr3.timestamp >= NOW() - ($1::interval)
+                END
             ),
             ActiveUsers AS (
                 SELECT COUNT(DISTINCT id)::integer as total_users
-                FROM users
-                WHERE TRUE {time_filter}
+                FROM users u
+                WHERE CASE 
+                    WHEN $1 = 'all time' THEN TRUE
+                    ELSE u.last_seen >= NOW() - ($1::interval)
+                END
             )
             SELECT 
                 tws.total_requests,
@@ -580,7 +594,8 @@ class BatchProcessor:
             LEFT JOIN PopularDVM p1 ON TRUE
             LEFT JOIN PopularKind p2 ON TRUE
             LEFT JOIN CompetitiveKind c ON TRUE
-            """
+            """,
+                interval,
             )
             or {
                 "total_requests": 0,
