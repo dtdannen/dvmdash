@@ -113,8 +113,8 @@ CREATE TABLE entity_activity (
     entity_id TEXT NOT NULL, -- either a user npub, dvm npub, or kind integer as text
     entity_type TEXT NOT NULL CHECK (entity_type IN ('dvm', 'user', 'kind')),
     observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    event_id TEXT DEFAULT NULL -- Optional, give an event id if you have one, this will
-                               -- help reconcile when two or more events have the exact same timestamps
+    event_id TEXT NOT NULL,
+    UNIQUE (entity_id, observed_at, event_id)
 );
 
 -- Entity Activity Table Indices

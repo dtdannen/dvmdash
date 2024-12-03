@@ -41,10 +41,11 @@ class BatchStats:
     ] = None  # dvm -> latest timestamp (for last_seen updates)
     dvm_kinds: Dict[str, Set[int]] = None  # dvm -> set of kinds supported
 
-    # NEW: Track all entity observations with timestamps
+    # Track all entity observations with timestamps
+    # entity_id is either a kind or npub (user or dvm)
     entity_activity: Dict[
-        str, List[Tuple[str, datetime]]
-    ] = None  # entity_type -> List[(id, timestamp)]
+        str, List[Tuple[str, datetime, str]]
+    ] = None  # entity_type -> List[(entity_id, timestamp, event_id)]
 
     # Track users and their activities
     user_timestamps: Dict[str, datetime] = None  # user -> latest timestamp
@@ -148,6 +149,7 @@ class BatchProcessor:
 
                 kind = event["kind"]
                 pubkey = event["pubkey"]
+                event_id = event.get("id")
 
                 if 5000 <= kind <= 5999:  # Request event
                     stats.period_requests += 1
@@ -156,8 +158,10 @@ class BatchProcessor:
                         stats.user_timestamps[pubkey], timestamp
                     )
                     # Track each observation
-                    stats.entity_activity["user"].append((pubkey, timestamp))
-                    stats.entity_activity["kind"].append((str(kind), timestamp))
+                    stats.entity_activity["user"].append((pubkey, timestamp, event_id))
+                    stats.entity_activity["kind"].append(
+                        (str(kind), timestamp, event_id)
+                    )
 
                 elif 6000 <= kind <= 6999:  # Response event
                     request_kind = kind - 1000
@@ -170,8 +174,10 @@ class BatchProcessor:
                     )
                     stats.dvm_kinds[pubkey].add(request_kind)
 
-                    stats.entity_activity["dvm"].append((pubkey, timestamp))
-                    stats.entity_activity["kind"].append((str(kind), timestamp))
+                    stats.entity_activity["dvm"].append((pubkey, timestamp, event_id))
+                    stats.entity_activity["kind"].append(
+                        (str(kind), timestamp, event_id)
+                    )
 
                 elif kind == 7000:  # Feedback event
                     stats.period_feedback += 1
@@ -181,7 +187,7 @@ class BatchProcessor:
                     )
                     stats.user_is_dvm[pubkey] = True
                     # Track each observation
-                    stats.entity_activity["dvm"].append((pubkey, timestamp))
+                    stats.entity_activity["dvm"].append((pubkey, timestamp, event_id))
 
             except Exception as e:
                 logger.error(f"Error processing event: {event}")
@@ -328,15 +334,15 @@ class BatchProcessor:
         all_activity = []
         for entity_type, observations in stats.entity_activity.items():
             all_activity.extend(
-                (entity_id, entity_type, timestamp)
-                for entity_id, timestamp in observations
+                (entity_id, entity_type, timestamp, event_id)
+                for entity_id, timestamp, event_id in observations
             )
 
         if all_activity:
             await conn.executemany(
                 """
-                INSERT INTO entity_activity (id, entity_type, observed_at)
-                VALUES ($1, $2, $3)
+                INSERT INTO entity_activity (entity_id, entity_type, observed_at, event_id)
+                VALUES ($1, $2, $3, $4)
                 """,
                 all_activity,
             )
