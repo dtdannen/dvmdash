@@ -728,8 +728,7 @@ class BatchProcessor:
         """
         Update all time window stats in a single efficient operation.
         """
-        # Use period_end from stats which we know is valid
-        current_timestamp = stats.period_end
+
         window_sizes = ["1 hour", "24 hours", "7 days", "30 days", "all time"]
 
         # Map to convert window size strings to timedelta
