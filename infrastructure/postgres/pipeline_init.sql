@@ -86,7 +86,6 @@ CREATE TABLE time_window_stats (
     competitive_kind INTEGER CHECK (competitive_kind BETWEEN 5000 AND 5999),
     PRIMARY KEY (timestamp, window_size),
 
-    CHECK (timestamp <= CURRENT_TIMESTAMP),
     CHECK (period_start <= period_end),
     CHECK (period_end <= CURRENT_TIMESTAMP)
 );

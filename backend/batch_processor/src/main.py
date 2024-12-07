@@ -767,7 +767,7 @@ class BatchProcessor:
                     datetime.now(timezone.utc),
                     window_size,
                     period_start,
-                    stats.period_end,  # period_end is same as timestamp
+                    stats.period_end,
                     metrics["total_requests"],
                     metrics["total_responses"],
                     metrics["total_dvms"],

@@ -51,7 +51,6 @@
                 </div>
                 <div class="mt-2">
                     <div class="text-2xl font-bold" id="total-requests">-</div>
-                    <p class="text-xs text-gray-500" id="period-requests">- in current period</p>
                 </div>
             </div>
 
@@ -64,7 +63,6 @@
                 </div>
                 <div class="mt-2">
                     <div class="text-2xl font-bold" id="total-responses">-</div>
-                    <p class="text-xs text-gray-500" id="period-responses">- in current period</p>
                 </div>
             </div>
 
@@ -175,9 +173,7 @@
 
                     // Update all stats
                     updateElement('total-requests', data.running_total_requests, v => v.toLocaleString());
-                    updateElement('period-requests', data.period_requests, v => `${v.toLocaleString()} in current period`);
                     updateElement('total-responses', data.running_total_responses, v => v.toLocaleString());
-                    updateElement('period-responses', data.period_responses, v => `${v.toLocaleString()} in current period`);
                     updateElement('unique-users', data.running_total_unique_users, v => v.toLocaleString());
                     updateElement('unique-dvms', data.running_total_unique_dvms, v => v.toLocaleString());
                     updateElement('unique-kinds', data.running_total_unique_kinds, v => v.toLocaleString());
