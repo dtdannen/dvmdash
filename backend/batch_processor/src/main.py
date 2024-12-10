@@ -675,6 +675,7 @@ class BatchProcessor:
                 SELECT COUNT(DISTINCT entity_id)::integer as total_kinds
                 FROM entity_activity
                 WHERE entity_type = 'kind'
+                AND CAST(entity_id AS integer) BETWEEN 5000 AND 5999
                 AND CASE 
                     WHEN $1 = 'all time' THEN TRUE
                     ELSE observed_at >= NOW() - ($1::interval)

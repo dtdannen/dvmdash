@@ -105,7 +105,7 @@ services:
       - EVENTS_POSTGRES_DB=dvmdash_events
       - EVENTS_POSTGRES_HOST=postgres_events
       - MAX_WAIT_SECONDS=3
-      - BATCH_SIZE=300
+      - BATCH_SIZE=10000
     volumes:
       - ./backend:/app/backend
       - batch_processor_logs:/app/logs
