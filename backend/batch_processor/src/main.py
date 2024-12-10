@@ -663,7 +663,7 @@ class BatchProcessor:
             ),
             -- Use entity_activity for unique counts
             ActiveDVMs AS (
-                SELECT COUNT(DISTINCT id)::integer as total_dvms
+                SELECT COUNT(DISTINCT entity_id)::integer as total_dvms
                 FROM entity_activity
                 WHERE entity_type = 'dvm'
                 AND CASE 
@@ -672,7 +672,7 @@ class BatchProcessor:
                 END
             ),
             ActiveKinds AS (
-                SELECT COUNT(DISTINCT id)::integer as total_kinds
+                SELECT COUNT(DISTINCT entity_id)::integer as total_kinds
                 FROM entity_activity
                 WHERE entity_type = 'kind'
                 AND CASE 
@@ -681,7 +681,7 @@ class BatchProcessor:
                 END
             ),
             ActiveUsers AS (
-                SELECT COUNT(DISTINCT id)::integer as total_users
+                SELECT COUNT(DISTINCT entity_id)::integer as total_users
                 FROM entity_activity
                 WHERE entity_type = 'user'
                 AND CASE 
