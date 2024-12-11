@@ -11,11 +11,22 @@ from fastapi import Query
 
 
 class TimeWindow(str, Enum):
-    ONE_HOUR = "1 hour"
-    ONE_DAY = "24 hours"
-    ONE_WEEK = "7 days"
-    ONE_MONTH = "30 days"
-    ALL_TIME = "all time"
+    ONE_HOUR = "1h"
+    ONE_DAY = "24h"
+    ONE_WEEK = "7d"
+    ONE_MONTH = "30d"
+    ALL_TIME = "all"
+
+    def to_db_value(self) -> str:
+        """Convert frontend time window to database value"""
+        mapping = {
+            "1h": "1 hour",
+            "24h": "24 hours",
+            "7d": "7 days",
+            "30d": "30 days",
+            "all": "all time",
+        }
+        return mapping[self.value]
 
 
 class GlobalStatsResponse(BaseModel):
@@ -66,9 +77,10 @@ async def shutdown():
 
 @app.get("/api/stats/global/latest", response_model=GlobalStatsResponse)
 async def get_latest_global_stats(
-    window: TimeWindow = Query(
+    timeRange: TimeWindow = Query(
         default=TimeWindow.ALL_TIME,
-        description=f"Time window for stats should be one of: {', '.join(TimeWindow.__members__)}",
+        alias="timeRange",  # Match the frontend parameter name
+        description="Time window for stats",
     )
 ):
     async with app.state.pool.acquire() as conn:
@@ -90,12 +102,14 @@ async def get_latest_global_stats(
             ORDER BY timestamp DESC 
             LIMIT 1
         """
-        row = await conn.fetchrow(query, window)
+        row = await conn.fetchrow(query, timeRange.to_db_value())
+
+        print(f"row is {row}")
 
         if not row:
             raise HTTPException(
                 status_code=404,
-                detail=f"No global stats found for window size {window}",
+                detail=f"No global stats found for window size {timeRange}",
             )
 
         return dict(row)

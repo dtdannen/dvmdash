@@ -6,10 +6,42 @@
     <title>DVMDash Stats</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.10/htmx.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        .tab-active {
+            background-color: rgb(var(--primary-color, 59 130 246));
+            color: white;
+        }
+        .tab-list {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.5rem;
+            background-color: rgb(243 244 246);
+            padding: 0.25rem;
+            border-radius: 0.5rem;
+            width: 100%;
+            max-width: 20rem;
+        }
+        .tab-trigger {
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 0.375rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .tab-trigger:hover {
+            background-color: rgb(229 231 235);
+        }
+        .tab-trigger.active {
+            background-color: white;
+        }
+    </style>
 </head>
 <body class="min-h-screen bg-gray-50">
     <header class="border-b bg-white">
-        <div class="container mx-auto flex h-16 items-center justify-between px-4">
+        <div class="container mx-auto flex h-16 items-center justify-between pl-2 pr-4">
+            <!-- Left side: Home and Title -->
             <div class="flex items-center space-x-3">
                 <a href="/" class="inline-flex items-center justify-center w-12 h-12 rounded-lg hover:bg-gray-100">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -17,6 +49,39 @@
                     </svg>
                 </a>
                 <h1 class="text-xl font-bold">DVMDash Stats</h1>
+            </div>
+
+            <!-- Center: Navigation -->
+            <div class="flex-1 flex justify-center">
+                <nav class="flex items-center space-x-2" aria-label="Main Navigation">
+                    <a href="/stats" class="inline-flex items-center justify-center w-12 h-12 rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-700" aria-label="Global Stats">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18M9 9v8m4-6v6m4-8v8"/>
+                        </svg>
+                    </a>
+                    <a href="/dvm-stats" class="inline-flex items-center justify-center w-12 h-12 rounded-lg transition-colors hover:bg-gray-100" aria-label="Per DVM Stats">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 16a3 3 0 110-6 3 3 0 010 6z"/>
+                        </svg>
+                    </a>
+                    <a href="/kind-stats" class="inline-flex items-center justify-center w-12 h-12 rounded-lg transition-colors hover:bg-gray-100" aria-label="Per Kind Stats">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 7h.01M7 3h5a1.99 1.99 0 013 0h5a2 2 0 012 2v14a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h3z"/>
+                        </svg>
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Right side: Time Range Selector -->
+            <div class="flex items-center">
+                <div class="tab-list">
+                    <input type="hidden" name="timeRange" value="all" />
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="none" onclick="updateTimeRange(this, '1h')">1h</button>
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="none" onclick="updateTimeRange(this, '24h')">24h</button>
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="none" onclick="updateTimeRange(this, '7d')">7d</button>
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="none" onclick="updateTimeRange(this, '30d')">30d</button>
+                    <button class="tab-trigger active" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="none" onclick="updateTimeRange(this, 'all')">All</button>
+                </div>
             </div>
         </div>
     </header>
@@ -40,7 +105,8 @@
         <div id="stats-grid" class="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
              hx-get="http://localhost:8000/api/stats/global/latest"
              hx-trigger="load, every 1s"
-             hx-swap="none">
+             hx-swap="none"
+             hx-include="[name='timeRange']">
             <!-- Cards -->
             <div class="bg-white p-6 rounded-lg shadow">
                 <div class="flex items-center justify-between">
@@ -141,11 +207,26 @@
     </main>
 
     <script>
-        // Add error handling
+        // Error handling
         htmx.on('htmx:sendError', function(evt) {
             document.getElementById('error-message').classList.remove('hidden');
             document.getElementById('last-updated').textContent = 'Connection failed';
         });
+
+        // Handle time range selection
+        function updateTimeRange(button, range) {
+            // Update hidden input
+            document.querySelector('input[name="timeRange"]').value = range;
+
+            // Update active state of buttons
+            document.querySelectorAll('.tab-trigger').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            button.classList.add('active');
+
+            // Trigger immediate refresh
+            htmx.trigger('#stats-grid', 'refresh');
+        }
 
         // Handle successful responses
         htmx.on('htmx:afterRequest', function(evt) {
@@ -184,6 +265,34 @@
                     console.error('Error processing response:', error);
                 }
             }
+        });
+
+        // Initialize the time range on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set initial time range value
+            const timeRangeInput = document.querySelector('input[name="timeRange"]');
+            if (!timeRangeInput) {
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'timeRange';
+                hiddenInput.value = 'all';
+                document.body.appendChild(hiddenInput);
+            }
+
+            // Set initial active state
+            const allTimeButton = document.querySelector('.tab-trigger:last-child');
+            if (allTimeButton) {
+                allTimeButton.classList.add('active');
+            }
+        });
+
+        // Add debug logging for development
+        htmx.on('htmx:beforeRequest', function(evt) {
+            console.log('Making request with parameters:', evt.detail);
+        });
+
+        htmx.on('htmx:responseError', function(evt) {
+            console.error('Response error:', evt.detail);
         });
     </script>
 </body>
