@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DVMDash Stats</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.10/htmx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <style>
         .tab-active {
@@ -204,72 +206,113 @@
                 </div>
             </div>
         </div>
+
+        <!-- New chart section -->
+        <div class="mt-8 bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-medium mb-4">Activity Over Time</h2>
+            <div class="h-[400px]">
+                <canvas id="timeSeriesChart"></canvas>
+            </div>
+        </div>
+
+
     </main>
 
     <script>
-        // Error handling
-        htmx.on('htmx:sendError', function(evt) {
-            document.getElementById('error-message').classList.remove('hidden');
-            document.getElementById('last-updated').textContent = 'Connection failed';
-        });
+        let timeSeriesChart = null;
 
-        // Handle time range selection
+        // Initialize the chart
+        function initializeChart() {
+            const ctx = document.getElementById('timeSeriesChart').getContext('2d');
+            timeSeriesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Total Requests',
+                            borderColor: 'rgb(59, 130, 246)',
+                            data: []
+                        },
+                        {
+                            label: 'Total Responses',
+                            borderColor: 'rgb(16, 185, 129)',
+                            data: []
+                        },
+                        {
+                            label: 'Unique Users',
+                            borderColor: 'rgb(245, 158, 11)',
+                            data: []
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update the chart with new data
+        async function updateChart() {
+            const timeRange = document.querySelector('input[name="timeRange"]').value;
+            try {
+                const response = await fetch(`http://localhost:8000/api/stats/global/timeseries?timeRange=${timeRange}`);
+                const data = await response.json();
+
+                if (!timeSeriesChart) {
+                    initializeChart();
+                }
+
+                timeSeriesChart.data.labels = data.map(d => new Date(d.timestamp));
+                timeSeriesChart.data.datasets[0].data = data.map(d => d.total_requests);
+                timeSeriesChart.data.datasets[1].data = data.map(d => d.total_responses);
+                timeSeriesChart.data.datasets[2].data = data.map(d => d.unique_users);
+
+                // Adjust time unit based on time range
+                const timeUnit = timeRange === '1h' ? 'minute'
+                             : timeRange === '24h' ? 'hour'
+                             : timeRange === '7d' ? 'day'
+                             : 'day';
+
+                timeSeriesChart.options.scales.x.time.unit = timeUnit;
+                timeSeriesChart.update();
+            } catch (error) {
+                console.error('Error updating chart:', error);
+            }
+        }
+
+        // Update your existing updateTimeRange function
         function updateTimeRange(button, range) {
-            // Update hidden input
             document.querySelector('input[name="timeRange"]').value = range;
-
-            // Update active state of buttons
             document.querySelectorAll('.tab-trigger').forEach(btn => {
                 btn.classList.remove('active');
             });
             button.classList.add('active');
 
-            // Trigger immediate refresh
+            // Update both stats and chart
             htmx.trigger('#stats-grid', 'refresh');
+            updateChart();
         }
 
-        // Handle successful responses
-        htmx.on('htmx:afterRequest', function(evt) {
-            if (evt.detail.successful) {
-                document.getElementById('error-message').classList.add('hidden');
-                try {
-                    const data = JSON.parse(evt.detail.xhr.response);
-
-                    // Update timestamp
-                    const timestamp = new Date(data.timestamp);
-                    const now = new Date();
-                    const secondsAgo = Math.floor((now - timestamp) / 1000);
-                    const lastUpdatedElement = document.getElementById('last-updated');
-                    if (lastUpdatedElement) {
-                        lastUpdatedElement.textContent = `Last updated ${secondsAgo} seconds ago`;
-                    }
-
-                    // Update each stat with error handling
-                    const updateElement = (id, value, formatter = (v) => v) => {
-                        const element = document.getElementById(id);
-                        if (element) {
-                            element.textContent = formatter(value);
-                        }
-                    };
-
-                    // Update all stats
-                    updateElement('total-requests', data.running_total_requests, v => v.toLocaleString());
-                    updateElement('total-responses', data.running_total_responses, v => v.toLocaleString());
-                    updateElement('unique-users', data.running_total_unique_users, v => v.toLocaleString());
-                    updateElement('unique-dvms', data.running_total_unique_dvms, v => v.toLocaleString());
-                    updateElement('unique-kinds', data.running_total_unique_kinds, v => v.toLocaleString());
-                    updateElement('popular-dvm', data.most_popular_dvm || 'Unavailable');
-                    updateElement('popular-kind', data.most_popular_kind || 'Unavailable');
-                    updateElement('competitive-kind', data.most_competitive_kind || 'Unavailable');
-                } catch (error) {
-                    console.error('Error processing response:', error);
-                }
-            }
-        });
-
-        // Initialize the time range on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // Set initial time range value
+            // Initialize time range
             const timeRangeInput = document.querySelector('input[name="timeRange"]');
             if (!timeRangeInput) {
                 const hiddenInput = document.createElement('input');
@@ -284,15 +327,11 @@
             if (allTimeButton) {
                 allTimeButton.classList.add('active');
             }
-        });
 
-        // Add debug logging for development
-        htmx.on('htmx:beforeRequest', function(evt) {
-            console.log('Making request with parameters:', evt.detail);
-        });
-
-        htmx.on('htmx:responseError', function(evt) {
-            console.error('Response error:', evt.detail);
+            // Initialize and start chart updates
+            initializeChart();
+            updateChart();
+            setInterval(updateChart, 1000);
         });
     </script>
 </body>

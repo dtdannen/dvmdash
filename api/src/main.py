@@ -115,6 +115,55 @@ async def get_latest_global_stats(
         return dict(row)
 
 
+@app.get("/api/stats/global/timeseries")
+async def get_global_stats_timeseries(
+    timeRange: TimeWindow = Query(
+        default=TimeWindow.ALL_TIME,
+        alias="timeRange",
+        description="Time window for stats",
+    )
+):
+    async with app.state.pool.acquire() as conn:
+        # Calculate the start time based on the time range
+        window_mapping = {
+            "1h": "NOW() - INTERVAL '1 hour'",
+            "24h": "NOW() - INTERVAL '24 hours'",
+            "7d": "NOW() - INTERVAL '7 days'",
+            "30d": "NOW() - INTERVAL '30 days'",
+            "all": "timestamp '1970-01-01'",  # Or some reasonable start date
+        }
+
+        query = """
+            WITH time_series AS (
+                SELECT 
+                    timestamp,
+                    total_requests,
+                    total_responses,
+                    unique_dvms,
+                    unique_kinds,
+                    unique_users
+                FROM time_window_stats 
+                WHERE 
+                    window_size = $1
+                    AND timestamp >= {}
+                ORDER BY timestamp ASC
+            )
+            SELECT * FROM time_series
+        """.format(
+            window_mapping[timeRange.value]
+        )
+
+        rows = await conn.fetch(query, timeRange.to_db_value())
+
+        if not rows:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No time series data found for window size {timeRange}",
+            )
+
+        return [dict(row) for row in rows]
+
+
 if __name__ == "__main__":
     import uvicorn
 
