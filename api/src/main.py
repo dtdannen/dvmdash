@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import asyncpg
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 from fastapi import Query
 
@@ -29,18 +29,27 @@ class TimeWindow(str, Enum):
         return mapping[self.value]
 
 
+class TimeSeriesPoint(BaseModel):
+    time: str
+    jobCount: int
+    users: int
+    agents: int
+
+
 class GlobalStatsResponse(BaseModel):
     timestamp: datetime
     period_start: datetime
     period_end: datetime
-    running_total_requests: int
-    running_total_responses: int
-    running_total_unique_dvms: int
-    running_total_unique_kinds: int
-    running_total_unique_users: int
+    total_requests: int
+    total_responses: int
+    total_unique_dvms: int
+    total_unique_kinds: int
+    total_unique_users: int
     most_popular_dvm: Optional[str]
     most_popular_kind: Optional[int]
     most_competitive_kind: Optional[int]
+    job_count_data: List[dict]
+    actor_count_data: List[dict]
 
 
 app = FastAPI(title="DVMDash API")
@@ -83,17 +92,18 @@ async def get_latest_global_stats(
         description="Time window for stats",
     )
 ):
+    print(f"get_latest_global_stats called with timeRange {timeRange}")
     async with app.state.pool.acquire() as conn:
         query = """
             SELECT 
                 timestamp,
                 period_start,
                 period_end,
-                total_requests as running_total_requests,
-                total_responses as running_total_responses,
-                unique_users as running_total_unique_users,
-                unique_kinds as running_total_unique_kinds,
-                unique_dvms as running_total_unique_dvms,
+                total_requests,
+                total_responses,
+                unique_users,
+                unique_kinds,
+                unique_dvms,
                 popular_dvm as most_popular_dvm,
                 popular_kind as most_popular_kind,
                 competitive_kind as most_competitive_kind
@@ -133,7 +143,7 @@ async def get_global_stats_timeseries(
             "all": "timestamp '1970-01-01'",  # Or some reasonable start date
         }
 
-        query = """
+        stats_query = """
             WITH time_series AS (
                 SELECT 
                     timestamp,
@@ -153,15 +163,20 @@ async def get_global_stats_timeseries(
             window_mapping[timeRange.value]
         )
 
-        rows = await conn.fetch(query, timeRange.to_db_value())
+        stats = await conn.fetch(stats_query, timeRange.to_db_value())
 
-        if not rows:
+        if not stats:
             raise HTTPException(
                 status_code=404,
                 detail=f"No time series data found for window size {timeRange}",
             )
 
-        return [dict(row) for row in rows]
+        rows_as_dicts = [dict(row) for row in stats]
+
+        for i in range(max(5, len(rows_as_dicts))):
+            print(f"Row {i}: {rows_as_dicts[i]}")
+
+        return rows_as_dicts
 
 
 if __name__ == "__main__":

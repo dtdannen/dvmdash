@@ -7,13 +7,10 @@ class StatsDVM(EZDVM):
         super().__init__(kinds=[5050])
 
     async def do_work(self, event):
-        return "Hello World!"
+        return
 
 
 if __name__ == "__main__":
-    hello_world_dvm = HelloWorldDVM()
-    hello_world_dvm.add_relay("wss://relay.damus.io")
-    hello_world_dvm.add_relay("wss://relay.primal.net")
-    hello_world_dvm.add_relay("wss://nos.lol")
-    hello_world_dvm.add_relay("wss://nostr-pub.wellorder.net")
+    hello_world_dvm = StatsDVM()
+    hello_world_dvm.add_relay("wss://localhost:8081")
     hello_world_dvm.start()

@@ -347,6 +347,7 @@ class BatchProcessor:
                 """
                 INSERT INTO entity_activity (entity_id, entity_type, observed_at, event_id)
                 VALUES ($1, $2, $3, $4)
+                ON CONFLICT (entity_id, observed_at, event_id) DO NOTHING
                 """,
                 all_activity,
             )
