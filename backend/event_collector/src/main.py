@@ -327,6 +327,8 @@ def get_relevant_kinds():
         # Get excluded kinds
         excluded_kinds = {k["kind"] for k in config.get("excluded_kinds", [])}
 
+        logger.warning(f"Excluding kinds: {excluded_kinds}")
+
         # Combine all kinds
         all_kinds = set(known_kinds + list(request_range) + list(result_range))
 

@@ -49,3 +49,7 @@ ENV/
 /backend/event_collector/test_data/dvmdash.prod_events_29NOV2024.json
 /v1/docs/articles/DVMDash_ProgressReport_2_Oct_2024.md
 /v1/docs/articles/DVMDash_ProgressReport_Nov_2024.md
+/v1/dvmdash/staticfiles/admin/
+/v1/dvmdash/staticfiles/bootstrap/
+/v1/dvmdash/staticfiles/fontawesome/
+/v1/dvmdash/staticfiles/js/
