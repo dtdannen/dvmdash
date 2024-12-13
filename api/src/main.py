@@ -29,11 +29,11 @@ class TimeWindow(str, Enum):
         return mapping[self.value]
 
 
-class TimeSeriesPoint(BaseModel):
+class TimeSeriesData(BaseModel):
     time: str
-    jobCount: int
-    users: int
-    agents: int
+    total_requests: int
+    unique_users: int
+    unique_dvms: int
 
 
 class GlobalStatsResponse(BaseModel):
@@ -42,14 +42,13 @@ class GlobalStatsResponse(BaseModel):
     period_end: datetime
     total_requests: int
     total_responses: int
-    total_unique_dvms: int
-    total_unique_kinds: int
-    total_unique_users: int
-    most_popular_dvm: Optional[str]
-    most_popular_kind: Optional[int]
-    most_competitive_kind: Optional[int]
-    job_count_data: List[dict]
-    actor_count_data: List[dict]
+    unique_dvms: int
+    unique_kinds: int
+    unique_users: int
+    popular_dvm: Optional[str]
+    popular_kind: Optional[int]
+    competitive_kind: Optional[int]
+    time_series: List[TimeSeriesData]
 
 
 app = FastAPI(title="DVMDash API")
@@ -88,13 +87,13 @@ async def shutdown():
 async def get_latest_global_stats(
     timeRange: TimeWindow = Query(
         default=TimeWindow.ALL_TIME,
-        alias="timeRange",  # Match the frontend parameter name
+        alias="timeRange",
         description="Time window for stats",
     )
 ):
-    print(f"get_latest_global_stats called with timeRange {timeRange}")
     async with app.state.pool.acquire() as conn:
-        query = """
+        # Get the latest stats
+        stats_query = """
             SELECT 
                 timestamp,
                 period_start,
@@ -104,79 +103,60 @@ async def get_latest_global_stats(
                 unique_users,
                 unique_kinds,
                 unique_dvms,
-                popular_dvm as most_popular_dvm,
-                popular_kind as most_popular_kind,
-                competitive_kind as most_competitive_kind
+                popular_dvm,
+                popular_kind,
+                competitive_kind
             FROM time_window_stats 
             WHERE window_size = $1
             ORDER BY timestamp DESC 
             LIMIT 1
         """
-        row = await conn.fetchrow(query, timeRange.to_db_value())
+        stats = await conn.fetchrow(stats_query, timeRange.to_db_value())
 
-        print(f"row is {row}")
-
-        if not row:
+        if not stats:
             raise HTTPException(
                 status_code=404,
                 detail=f"No global stats found for window size {timeRange}",
             )
 
-        return dict(row)
-
-
-@app.get("/api/stats/global/timeseries")
-async def get_global_stats_timeseries(
-    timeRange: TimeWindow = Query(
-        default=TimeWindow.ALL_TIME,
-        alias="timeRange",
-        description="Time window for stats",
-    )
-):
-    async with app.state.pool.acquire() as conn:
-        # Calculate the start time based on the time range
-        window_mapping = {
-            "1h": "NOW() - INTERVAL '1 hour'",
-            "24h": "NOW() - INTERVAL '24 hours'",
-            "7d": "NOW() - INTERVAL '7 days'",
-            "30d": "NOW() - INTERVAL '30 days'",
-            "all": "timestamp '1970-01-01'",  # Or some reasonable start date
-        }
-
-        stats_query = """
-            WITH time_series AS (
-                SELECT 
-                    timestamp,
-                    total_requests,
-                    total_responses,
-                    unique_dvms,
-                    unique_kinds,
-                    unique_users
-                FROM time_window_stats 
-                WHERE 
-                    window_size = $1
-                    AND timestamp >= {}
-                ORDER BY timestamp ASC
+        # Get time series data
+        timeseries_query = """
+            WITH timestamps AS (
+                SELECT generate_series(
+                    CASE 
+                        WHEN $1 = '1 hour' THEN NOW() - INTERVAL '1 hour'
+                        WHEN $1 = '24 hours' THEN NOW() - INTERVAL '24 hours'
+                        WHEN $1 = '7 days' THEN NOW() - INTERVAL '7 days'
+                        WHEN $1 = '30 days' THEN NOW() - INTERVAL '30 days'
+                        ELSE timestamp '1970-01-01'
+                    END,
+                    NOW(),
+                    CASE 
+                        WHEN $1 = '1 hour' THEN INTERVAL '5 minutes'
+                        WHEN $1 = '24 hours' THEN INTERVAL '1 hour'
+                        WHEN $1 = '7 days' THEN INTERVAL '6 hours'
+                        WHEN $1 = '30 days' THEN INTERVAL '1 day'
+                        ELSE INTERVAL '1 day'
+                    END
+                ) AS ts
             )
-            SELECT * FROM time_series
-        """.format(
-            window_mapping[timeRange.value]
-        )
+            SELECT 
+                to_char(t.ts, 'YYYY-MM-DD HH24:MI:SS') as time,
+                COALESCE(s.total_requests, 0) as total_requests,
+                COALESCE(s.unique_users, 0) as unique_users,
+                COALESCE(s.unique_dvms, 0) as unique_dvms
+            FROM timestamps t
+            LEFT JOIN time_window_stats s ON 
+                date_trunc('hour', s.timestamp) = date_trunc('hour', t.ts)
+                AND s.window_size = $1
+            ORDER BY t.ts ASC
+        """
 
-        stats = await conn.fetch(stats_query, timeRange.to_db_value())
+        timeseries_rows = await conn.fetch(timeseries_query, timeRange.to_db_value())
+        time_series = [dict(row) for row in timeseries_rows]
 
-        if not stats:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No time series data found for window size {timeRange}",
-            )
-
-        rows_as_dicts = [dict(row) for row in stats]
-
-        for i in range(max(5, len(rows_as_dicts))):
-            print(f"Row {i}: {rows_as_dicts[i]}")
-
-        return rows_as_dicts
+        # Combine all data
+        return {**dict(stats), "time_series": time_series}
 
 
 if __name__ == "__main__":
