@@ -42,17 +42,24 @@ def load_dvm_config() -> dict:
                     "end": EventKind.DVM_RESULT_RANGE_END,
                 },
             },
-            "excluded_kinds": [
-                {"kind": 5300, "description": "Used for gaming leaderboards"},
-                {"kind": 5100, "description": "Used for community categorization"},
-            ],
+            "excluded_kinds": [],
         }
 
 
 def get_excluded_kinds() -> Set[int]:
     """Get set of excluded kind numbers"""
     config = load_dvm_config()
-    return {k["kind"] for k in config["excluded_kinds"]}
+    excluded_kinds = {k["kind"] for k in config["excluded_kinds"]}
+
+    for kind in excluded_kinds:
+        if kind < 6000:
+            if kind + 1000 not in excluded_kinds:
+                excluded_kinds.add(kind + 1000)
+        elif kind >= 6000:
+            if kind - 1000 not in excluded_kinds:
+                excluded_kinds.add(kind - 1000)
+
+    return excluded_kinds
 
 
 def get_relevant_kinds() -> List[int]:

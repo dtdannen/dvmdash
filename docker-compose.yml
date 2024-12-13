@@ -156,6 +156,33 @@ services:
       retries: 3
       start_period: 10s
 
+  nostr_relay:
+    build:
+      context: ./infrastructure/nostr_rs_relay
+      dockerfile: Dockerfile
+    profiles: [ "core", "all" ]
+    ports:
+      - "8081:8080"  # Using 8081 since 8080 might be used by other services
+    volumes:
+      - nostr_relay_data:/usr/src/app/db
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 
 
 volumes:
@@ -164,3 +191,4 @@ volumes:
   redis_data:
   event_collector_logs:
   batch_processor_logs:
+  nostr_relay_data:
