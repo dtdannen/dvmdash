@@ -121,14 +121,19 @@ async def get_latest_global_stats(
 
         # Get time series data
         timeseries_query = """
-            WITH timestamps AS (
+            WITH first_timestamp AS (
+                SELECT MIN(timestamp) as first_ts
+                FROM time_window_stats
+                WHERE window_size = $1
+            ),
+            timestamps AS (
                 SELECT generate_series(
                     CASE 
-                        WHEN $1 = '1 hour' THEN NOW() - INTERVAL '1 hour'
-                        WHEN $1 = '24 hours' THEN NOW() - INTERVAL '24 hours'
-                        WHEN $1 = '7 days' THEN NOW() - INTERVAL '7 days'
-                        WHEN $1 = '30 days' THEN NOW() - INTERVAL '30 days'
-                        ELSE timestamp '1970-01-01'
+                        WHEN $1 = '1 hour' THEN GREATEST(NOW() - INTERVAL '1 hour', (SELECT first_ts FROM first_timestamp))
+                        WHEN $1 = '24 hours' THEN GREATEST(NOW() - INTERVAL '24 hours', (SELECT first_ts FROM first_timestamp))
+                        WHEN $1 = '7 days' THEN GREATEST(NOW() - INTERVAL '7 days', (SELECT first_ts FROM first_timestamp))
+                        WHEN $1 = '30 days' THEN GREATEST(NOW() - INTERVAL '30 days', (SELECT first_ts FROM first_timestamp))
+                        ELSE (SELECT first_ts FROM first_timestamp)
                     END,
                     NOW(),
                     CASE 
@@ -156,7 +161,17 @@ async def get_latest_global_stats(
         time_series = [dict(row) for row in timeseries_rows]
 
         # Combine all data
-        return {**dict(stats), "time_series": time_series}
+        resulting_data = {**dict(stats), "time_series": time_series}
+
+        # print out the stats:
+        for k, v in resulting_data.items():
+            if k != "time_series":
+                print(f"{k}: {v}")
+
+        for i in range(min(5, len(resulting_data["time_series"]))):
+            print(resulting_data["time_series"][i])
+
+        return resulting_data
 
 
 if __name__ == "__main__":
