@@ -164,12 +164,12 @@ async def get_latest_global_stats(
         resulting_data = {**dict(stats), "time_series": time_series}
 
         # print out the stats:
-        for k, v in resulting_data.items():
-            if k != "time_series":
-                print(f"{k}: {v}")
-
-        for i in range(min(5, len(resulting_data["time_series"]))):
-            print(resulting_data["time_series"][i])
+        # for k, v in resulting_data.items():
+        #     if k != "time_series":
+        #         print(f"{k}: {v}")
+        #
+        # for i in range(min(5, len(resulting_data["time_series"]))):
+        #     print(resulting_data["time_series"][i])
 
         return resulting_data
 

@@ -120,6 +120,8 @@ services:
         condition: service_healthy
       postgres_events:
         condition: service_healthy
+      event_collector:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:

@@ -39,6 +39,84 @@ nostr_sdk.init_logger(LogLevel.DEBUG)
 RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
 
 
+def load_dvm_config():
+    """Load DVM configuration from YAML file. Raises exceptions if file is not found or invalid."""
+
+    # Log the current working directory
+    logger.debug(f"Current working directory: {os.getcwd()}")
+
+    config_path = Path("/app/backend/shared/dvm/config/dvm_kinds.yaml")
+
+    if not config_path.exists():
+        raise FileNotFoundError(f"Required config file not found at: {config_path}")
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    if not config:
+        raise ValueError(f"Config file is empty: {config_path}")
+
+    # Validate required fields
+    required_fields = ["known_kinds", "ranges"]
+    missing_fields = [field for field in required_fields if field not in config]
+    if missing_fields:
+        raise ValueError(
+            f"Missing required fields in config: {', '.join(missing_fields)}"
+        )
+
+    # Validate ranges structure
+    required_range_fields = ["request", "result"]
+    for range_field in required_range_fields:
+        if range_field not in config["ranges"]:
+            raise ValueError(f"Missing required range field: {range_field}")
+        if (
+            "start" not in config["ranges"][range_field]
+            or "end" not in config["ranges"][range_field]
+        ):
+            raise ValueError(f"Range {range_field} missing start or end value")
+
+    return config
+
+
+def get_relevant_kinds():
+    """Get relevant kinds from config file. Will raise exceptions if config is invalid."""
+    try:
+        config = load_dvm_config()
+
+        # Get explicitly known kinds
+        known_kinds = [k["kind"] for k in config["known_kinds"]]
+
+        # Generate ranges
+        request_range = range(
+            config["ranges"]["request"]["start"], config["ranges"]["request"]["end"]
+        )
+        result_range = range(
+            config["ranges"]["result"]["start"], config["ranges"]["result"]["end"]
+        )
+
+        # Get excluded kinds
+        excluded_kinds = {k["kind"] for k in config.get("excluded_kinds", [])}
+
+        # Combine all kinds
+        all_kinds = set(known_kinds + list(request_range) + list(result_range))
+
+        # Remove excluded kinds
+        valid_kinds = all_kinds - excluded_kinds
+
+        logger.info(
+            f"Loaded {len(valid_kinds)} valid kinds, and excluding kinds: {excluded_kinds}"
+        )
+
+        return [Kind(k) for k in valid_kinds]
+    except Exception as e:
+        logger.error(f"Failed to get relevant kinds: {str(e)}")
+        raise
+
+
+# This will now raise an error if the config file can't be found or is invalid
+RELEVANT_KINDS = get_relevant_kinds()
+
+
 class TestDataLoader:
     """
     Loads test data from a MongoDB JSON export file and simulates real-time event ingestion
@@ -50,7 +128,7 @@ class TestDataLoader:
         redis_client,
         filepath: str,
         batch_size: int = 10000,
-        delay_between_batches: float = 1.0,
+        delay_between_batches: float = 0.05,
         deduplicator=None,
         max_batches: Optional[int] = None,
     ):
@@ -74,17 +152,22 @@ class TestDataLoader:
                 batch_processed = 0
 
                 for event in batch:
-                    # Check for duplicate if deduplicator is configured
-                    is_duplicate = False
-                    if self.deduplicator:
-                        is_duplicate = self.deduplicator.check_duplicate(event["id"])
+                    if Kind(int(event["kind"])) in RELEVANT_KINDS:
+                        # Check for duplicate if deduplicator is configured
+                        is_duplicate = False
+                        if self.deduplicator:
+                            is_duplicate = self.deduplicator.check_duplicate(
+                                event["id"]
+                            )
 
-                    if not is_duplicate:
-                        # Add to processing queue if not duplicate
-                        self.redis.rpush("dvmdash_events", json.dumps(event))
-                        batch_processed += 1
+                        if not is_duplicate:
+                            # Add to processing queue if not duplicate
+                            self.redis.rpush("dvmdash_events", json.dumps(event))
+                            batch_processed += 1
+                        else:
+                            batch_duplicates += 1
                     else:
-                        batch_duplicates += 1
+                        logger.debug(f"Skipping irrelevant event: {event['kind']}")
 
                 self.events_processed += batch_processed
                 self.events_duplicate += batch_duplicates
@@ -148,7 +231,7 @@ class TestDataLoader:
 
         if (
             self.events_processed % self.header_interval == 0
-            or current_time - self.last_header_time > 60
+            or current_time - self.last_header_time > 10
         ):
             header = (
                 f"{'Time':^12}|{'Processed':^15}|{'Duplicates':^15}|{'Batches':^10}"
@@ -168,7 +251,7 @@ async def load_test_data(
     redis_client,
     filepath: str,
     batch_size: int = 10000,
-    delay: float = 1.0,
+    delay: float = 0.05,
     deduplicator=None,
     max_batches: Optional[int] = None,
 ) -> None:
@@ -267,86 +350,6 @@ class EventDeduplicator:
         except Exception as e:
             logger.error(f"Error checking duplicate: {e}")
             return False
-
-
-def load_dvm_config():
-    """Load DVM configuration from YAML file. Raises exceptions if file is not found or invalid."""
-
-    # Log the current working directory
-    logger.debug(f"Current working directory: {os.getcwd()}")
-
-    config_path = Path("/app/backend/shared/dvm/config/dvm_kinds.yaml")
-
-    if not config_path.exists():
-        raise FileNotFoundError(f"Required config file not found at: {config_path}")
-
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
-    if not config:
-        raise ValueError(f"Config file is empty: {config_path}")
-
-    # Validate required fields
-    required_fields = ["known_kinds", "ranges"]
-    missing_fields = [field for field in required_fields if field not in config]
-    if missing_fields:
-        raise ValueError(
-            f"Missing required fields in config: {', '.join(missing_fields)}"
-        )
-
-    # Validate ranges structure
-    required_range_fields = ["request", "result"]
-    for range_field in required_range_fields:
-        if range_field not in config["ranges"]:
-            raise ValueError(f"Missing required range field: {range_field}")
-        if (
-            "start" not in config["ranges"][range_field]
-            or "end" not in config["ranges"][range_field]
-        ):
-            raise ValueError(f"Range {range_field} missing start or end value")
-
-    return config
-
-
-def get_relevant_kinds():
-    """Get relevant kinds from config file. Will raise exceptions if config is invalid."""
-    try:
-        config = load_dvm_config()
-
-        # Get explicitly known kinds
-        known_kinds = [k["kind"] for k in config["known_kinds"]]
-
-        # Generate ranges
-        request_range = range(
-            config["ranges"]["request"]["start"], config["ranges"]["request"]["end"]
-        )
-        result_range = range(
-            config["ranges"]["result"]["start"], config["ranges"]["result"]["end"]
-        )
-
-        # Get excluded kinds
-        excluded_kinds = {k["kind"] for k in config.get("excluded_kinds", [])}
-
-        logger.warning(f"Excluding kinds: {excluded_kinds}")
-
-        # Combine all kinds
-        all_kinds = set(known_kinds + list(request_range) + list(result_range))
-
-        # Remove excluded kinds
-        valid_kinds = all_kinds - excluded_kinds
-
-        logger.info(
-            f"Loaded {len(valid_kinds)} valid kinds, and excluding kinds: {excluded_kinds}"
-        )
-
-        return [Kind(k) for k in valid_kinds]
-    except Exception as e:
-        logger.error(f"Failed to get relevant kinds: {str(e)}")
-        raise
-
-
-# This will now raise an error if the config file can't be found or is invalid
-RELEVANT_KINDS = get_relevant_kinds()
 
 
 class NotificationHandler(HandleNotification):
