@@ -468,13 +468,13 @@ def parse_args():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=10000,
+        default=1000,
         help="Number of events to process in each batch when loading test data",
     )
     parser.add_argument(
         "--batch-delay",
         type=float,
-        default=1.0,
+        default=0.001,
         help="Delay in seconds between processing batches of test data",
     )
     parser.add_argument(
