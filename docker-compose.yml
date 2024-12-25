@@ -187,6 +187,8 @@ services:
 
 
 
+
+
 volumes:
   postgres_pipeline_data:
   postgres_events_data:
