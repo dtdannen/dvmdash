@@ -191,12 +191,23 @@ class EventCollectorAppPlatformRunner:
             ).json()
 
             # Print response to debug
-            print(f"Status response: {json.dumps(response, indent=2)}")
+            # print(f"Status response: {json.dumps(response, indent=2)}")
 
             # Change this line to match actual response structure
-            status = response.get("app", {}).get("status", {}).get("phase")
-            if status == "ACTIVE":
-                break
+            app_content = response.get("app")
+            print(f"App content: {app_content}")
+            if app_content:
+                active_deployment = app_content.get("active_deployment")
+                print(f"Active deployment: {active_deployment}")
+                if active_deployment:
+                    progress = active_deployment.get("progress")
+                    print(f"Progress: {progress}")
+                    if progress:
+                        phase = progress.get("phase")
+                        print(f"Phase: {phase}")
+                        if phase == "ACTIVE":
+                            print(f"App is active")
+                            break
             await asyncio.sleep(10)
 
         logger.info("App Platform application is ready!")

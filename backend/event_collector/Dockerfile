@@ -19,7 +19,7 @@ RUN mkdir -p /test_data
 
 # Copy the application code, including shared
 COPY ./backend/event_collector/src ./src
-COPY ./backend/shared ./shared
+COPY ./backend/shared ./backend/shared
 
 # Copy the startup script
 COPY ./backend/event_collector/docker_entrypoint.sh /app/
