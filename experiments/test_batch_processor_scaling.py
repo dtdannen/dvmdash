@@ -200,14 +200,12 @@ class EventCollectorAppPlatformRunner:
                 active_deployment = app_content.get("active_deployment")
                 print(f"Active deployment: {active_deployment}")
                 if active_deployment:
-                    progress = active_deployment.get("progress")
-                    print(f"Progress: {progress}")
-                    if progress:
-                        phase = progress.get("phase")
-                        print(f"Phase: {phase}")
-                        if phase == "ACTIVE":
-                            print(f"App is active")
-                            break
+                    phase = active_deployment.get("phase")
+                    print(f"Phase: {phase}")
+                    if phase == "ACTIVE":
+                        print(f"App is active")
+                        break
+
             await asyncio.sleep(10)
 
         logger.info("App Platform application is ready!")
