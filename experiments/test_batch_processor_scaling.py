@@ -140,10 +140,10 @@ class EventCollectorAppPlatformRunner:
                             "branch": branch,
                             "deploy_on_push": False,
                         },
-                        "source_dir": "backend/event_collector",
+                        "source_dir": ".",
                         "instance_count": 1,
                         "instance_size_slug": "apps-s-1vcpu-0.5gb",
-                        "dockerfile_path": "Dockerfile",
+                        "dockerfile_path": "backend/event_collector/Dockerfile",
                         "log_destinations": [
                             {
                                 "name": "betterstack",
