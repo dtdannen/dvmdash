@@ -477,7 +477,6 @@ async def main():
         )
 
         print(f"Redis db config is {redis_runner.db_config}")
-        time.sleep(1000)
         # Setup App Platform
         logs_token = betterstack_log_runner.create_source("event-collector")
         print(f"Logs token: {logs_token}")
@@ -487,6 +486,7 @@ async def main():
         await app_runner.setup_app_platform(
             branch="full-redesign", betterstack_rsyslog_token=logs_token
         )
+        print(f"App runner setup for event collector complete")
 
         # Initialize metrics collector
         # metrics_collector = MetricsCollector()
