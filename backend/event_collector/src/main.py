@@ -24,6 +24,11 @@ import redis
 from redis import Redis
 from typing import Optional, Tuple, AsyncIterator, Dict
 
+# print all the env variables to the console, to see what we start with:
+print("Environment variables:")
+for key, value in os.environ.items():
+    print(f"{key}={value}")
+
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 # Get log level from environment variable, default to INFO

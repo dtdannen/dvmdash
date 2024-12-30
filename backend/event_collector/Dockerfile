@@ -30,5 +30,9 @@ ENV PYTHONUNBUFFERED=1
 ENV USE_TEST_DATA="false"
 ENV TEST_DATA_BATCH_SIZE="1000"
 ENV TEST_DATA_BATCH_DELAY="0.001"
+ENV RELAYS="wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org"
+ENV START_LISTENING=true
+ENV LOG_LEVEL=DEBUG
+ENV DAYS_LOOKBACK=7
 
 ENTRYPOINT ["/app/docker_entrypoint.sh"]
