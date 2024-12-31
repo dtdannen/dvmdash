@@ -26,8 +26,28 @@ load_dotenv()
 class MetricsCollector:
     """Collects and stores metrics from various components"""
 
-    def __init__(self):
+    def __init__(self, redis_client):
         self.metrics_history = []
+        self.redis_db_info = redis_client
+
+    async def monitor_redis_items(self, redis_client, delay: int = 1):
+        while not shutdown_event.is_set():
+            try:
+                # Only get dvmdash_events count
+                events_count = await redis_client.llen("dvmdash_events")
+                processed_count = await redis_client.scard("dvmdash_processed_events")
+
+                # Get memory info
+                memory_info = await redis_client.info("memory")
+                used_memory_mb = int(memory_info["used_memory"]) / (1024 * 1024)
+
+                print(
+                    f"Events: {events_count}, Processed: {processed_count}, Memory: {used_memory_mb:.2f}MB"
+                )
+                await asyncio.sleep(delay)
+            except redis.RedisError as e:
+                logger.error(f"Redis error: {e}")
+                await asyncio.sleep(delay)
 
     async def collect_metrics(
         self,
@@ -460,19 +480,35 @@ async def main():
             "brown",
             "black",
             "white",
+            "gray",
         ]
     )
 
     random_animal_word = random.choice(
-        ["dog", "cat", "bird", "fish", "rabbit", "mouse"]
+        [
+            "dog",
+            "cat",
+            "bird",
+            "fish",
+            "rabbit",
+            "mouse",
+            "horse",
+            "cow",
+            "sheep",
+            "pig",
+            "chicken",
+            "duck",
+            "goat",
+            "turkey",
+        ]
     )
 
     project_name = f"{random_color_word}-{random_animal_word}"
     print(f"PROJECT_NAME={project_name}")
     # Setup signal handlers
-    # loop = asyncio.get_running_loop()
-    # for sig in (signal.SIGTERM, signal.SIGINT):
-    #     loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(shutdown(s)))
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(shutdown(s)))
 
     events_db, metrics_db, redis_runner = None, None, None
     try:
@@ -497,44 +533,37 @@ async def main():
         )
         print(f"App runner setup for event collector complete")
 
+        # todo - test the following code after this line, everything before is working
         # Initialize metrics collector
-        # metrics_collector = MetricsCollector()
-        #
-        # # Setup tasks
-        # tasks = [
-        #     metrics_collector.collect_metrics(
-        #         postgres_runners={"events": events_db, "metrics": metrics_db},
-        #         redis_client=redis_runner.redis_client,
-        #     ),
-        #     events_db.stream_test_data(
-        #         "backend/event_collector/test_data/dvmdash.prod_events_29NOV2024.json",
-        #         max_events=50000,
-        #     ),
-        #     # TODO: Add tasks for:
-        #     # - Starting event collector worker
-        #     # - Starting batch processor worker
-        #     # - Monitoring app deployment status
-        # ]
-        #
-        # # Run tasks with graceful shutdown handling
-        # running_tasks = [asyncio.create_task(t) for t in tasks]
-        #
-        # try:
-        #     await asyncio.gather(*running_tasks)
-        # except asyncio.CancelledError:
-        #     logger.info("Tasks cancelled, starting cleanup...")
+        metrics_collector = MetricsCollector(redis_runner.redis_client)
+
+        tasks = [metrics_collector.monitor_redis_items(redis_runner.redis_client)]
+        running_tasks = [asyncio.create_task(t) for t in tasks]
+
+        done, pending = await asyncio.wait(
+            running_tasks, return_when=asyncio.FIRST_EXCEPTION
+        )
+
+        # Handle any exceptions
+        for task in done:
+            try:
+                await task
+            except Exception as e:
+                logger.error(f"Task failed: {e}")
 
     finally:
+        # Cancel pending tasks
+        if running_tasks:
+            for task in running_tasks:
+                task.cancel()
+            await asyncio.gather(*running_tasks, return_exceptions=True)
         # Cleanup
-        # await asyncio.gather(
-        #     events_db.cleanup(), metrics_db.cleanup(), redis_runner.cleanup()
-        # )
-        pass
-
-        # Plot metrics if any were collected
-        # if metrics_collector.metrics_history:
-        #     # TODO: Implement metrics visualization
-        #     pass
+        await asyncio.gather(
+            events_db.cleanup(),
+            metrics_db.cleanup(),
+            redis_runner.cleanup(),
+            app_runner.cleanup_app_platform(),
+        )
 
 
 if __name__ == "__main__":
