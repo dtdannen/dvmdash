@@ -41,12 +41,23 @@ class MetricsCollector:
                 memory_info = await redis_client.info("memory")
                 used_memory_mb = int(memory_info["used_memory"]) / (1024 * 1024)
 
-                print(
+                logger.info(
                     f"Events: {events_count}, Processed: {processed_count}, Memory: {used_memory_mb:.2f}MB"
                 )
                 await asyncio.sleep(delay)
             except redis.RedisError as e:
                 logger.error(f"Redis error: {e}")
+                await asyncio.sleep(delay)
+
+    async def monitor_postgres_events_db(self, postgres_pool, delay: int = 1):
+        while not shutdown_event.is_set():
+            try:
+                async with postgres_pool.acquire() as conn:
+                    count = await conn.fetchval("SELECT COUNT(*) FROM raw_events")
+                    logger.info(f"Events in Postgres: {count}")
+                    await asyncio.sleep(delay)
+            except asyncpg.exceptions.PostgresError as e:
+                logger.error(f"Postgres error: {e}")
                 await asyncio.sleep(delay)
 
     async def collect_metrics(
@@ -105,28 +116,28 @@ class BetterStackLogsRunner:
         response = requests.post(url, headers=headers, json=payload)
 
         # check if the request was successful
-        print(response.json())
+        logger.info(response.json())
         if response.status_code == 201:
-            print("Source created successfully")
+            logger.info("Source created successfully")
             response_json = response.json()
             if "data" in response_json:
                 if "attributes" in response_json["data"]:
                     if "token" in response_json["data"]["attributes"]:
-                        print(
+                        logger.info(
                             "logs token is: "
                             + response_json["data"]["attributes"]["token"]
                         )
                         return response_json["data"]["attributes"]["token"]
                     else:
-                        print(f"No token in response['attributes']")
+                        logger.info(f"No token in response['attributes']")
                 else:
-                    print(f"No attributes in response['data']")
+                    logger.info(f"No attributes in response['data']")
             else:
-                print(f"No data in response")
+                logger.info(f"No data in response")
 
         else:
-            print("Error creating source")
-            print(response.text)
+            logger.info("Error creating source")
+            logger.info(response.text)
 
 
 class EventCollectorAppPlatformRunner:
@@ -135,7 +146,7 @@ class EventCollectorAppPlatformRunner:
     def __init__(self, do_token: str, project_name: str, redis_db_config):
         self.token = do_token
         self.project_name = project_name
-        self.name_prefix = "event_collector"
+        self.name_prefix = "event-collector"
         self.headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
@@ -150,7 +161,7 @@ class EventCollectorAppPlatformRunner:
 
         event_collector_app_spec = {
             "spec": {
-                "name": f"{self.project_name}-event-collector",  # Changed underscore to hyphen
+                "name": f"{self.project_name}-{self.name_prefix}",  # Changed underscore to hyphen
                 "region": "nyc",
                 "workers": [
                     {
@@ -186,9 +197,9 @@ class EventCollectorAppPlatformRunner:
             "project_id": os.getenv("DO_PROJECT_ID"),
         }
 
-        print(
-            f"About to send spec to do for event collector: {json.dumps(event_collector_app_spec, indent=2)}"
-        )
+        # logger.info(
+        #     f"About to send spec to do for event collector: {json.dumps(event_collector_app_spec, indent=2)}"
+        # )
 
         response = requests.post(
             "https://api.digitalocean.com/v2/apps",
@@ -198,7 +209,7 @@ class EventCollectorAppPlatformRunner:
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError:
-            print(f"Error response: {response.text}")
+            logger.info(f"Error response: {response.text}")
             raise
 
         self.app_id = response.json()["app"]["id"]
@@ -211,19 +222,186 @@ class EventCollectorAppPlatformRunner:
             ).json()
 
             # Print response to debug
-            # print(f"Status response: {json.dumps(response, indent=2)}")
+            # logger.info(f"Status response: {json.dumps(response, indent=2)}")
 
             # Change this line to match actual response structure
             app_content = response.get("app")
-            print(f"App content: {app_content}")
+            # logger.info(f"App content: {app_content}")
             if app_content:
                 active_deployment = app_content.get("active_deployment")
-                print(f"Active deployment: {active_deployment}")
+                # logger.info(f"Active deployment: {active_deployment}")
                 if active_deployment:
                     phase = active_deployment.get("phase")
-                    print(f"Phase: {phase}")
+                    # logger.info(f"Phase: {phase}")
                     if phase == "ACTIVE":
-                        print(f"App is active")
+                        logger.info(f"App is active")
+                        break
+
+            await asyncio.sleep(10)
+
+        logger.info("App Platform application is ready!")
+
+    async def cleanup_app_platform(self):
+        if self.app_id:
+            logger.info("Cleaning up App Platform application...")
+            response = requests.delete(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            logger.info("App Platform application cleaned up successfully")
+
+
+class BatchProcessorAppPlatformRunner:
+    """Sets up the App Platform for both the event collector and batch processor on Digital Ocean"""
+
+    def __init__(
+        self,
+        do_token: str,
+        project_name: str,
+        redis_db_config,
+        postgres_pipeline_config,
+        postgres_events_config,
+    ):
+        self.token = do_token
+        self.project_name = project_name
+        self.name_prefix = "batch-processor"
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+        }
+        self.app_id = None
+        self.redis_db_config = redis_db_config
+        self.postgres_pipeline_config = postgres_pipeline_config
+        self.postgres_events_config = postgres_events_config
+
+    async def setup_app_platform(
+        self, branch: str = "main", betterstack_rsyslog_token: str = None
+    ):
+        logger.info("Creating App Platform application...")
+
+        batch_processor_app_spec = {
+            "spec": {
+                "name": f"{self.project_name}-{self.name_prefix}",  # Changed underscore to hyphen
+                "region": "nyc",
+                "workers": [
+                    {
+                        "name": "worker",
+                        "github": {
+                            "repo": "dtdannen/dvmdash",
+                            "branch": branch,
+                            "deploy_on_push": False,
+                        },
+                        "source_dir": ".",
+                        "instance_count": 1,
+                        "instance_size_slug": "apps-s-1vcpu-0.5gb",
+                        "dockerfile_path": "backend/batch_processor/Dockerfile",
+                        "log_destinations": [
+                            {
+                                "name": "betterstack",
+                                "logtail": {
+                                    "token": betterstack_rsyslog_token,
+                                },
+                            }
+                        ],
+                        "envs": [
+                            {
+                                "key": "REDIS_URL",
+                                "value": f"rediss://default:{self.redis_db_config['password']}@"
+                                f"{self.redis_db_config['host']}:{self.redis_db_config['port']}",
+                                "type": "SECRET",
+                            },
+                            {
+                                "key": "LOG_LEVEL",
+                                "value": "DEBUG",
+                            },
+                            {
+                                "key": "POSTGRES_USER",
+                                "value": self.postgres_pipeline_config["user"],
+                            },
+                            {
+                                "key": "POSTGRES_PASSWORD",
+                                "value": self.postgres_pipeline_config["password"],
+                                "type": "SECRET",
+                            },
+                            {
+                                "key": "POSTGRES_DB",
+                                "value": self.postgres_pipeline_config["database"],
+                            },
+                            {
+                                "key": "POSTGRES_HOST",
+                                "value": self.postgres_pipeline_config["host"],
+                            },
+                            {
+                                "key": "EVENTS_POSTGRES_USER",
+                                "value": self.postgres_events_config["user"],
+                            },
+                            {
+                                "key": "EVENTS_POSTGRES_PASSWORD",
+                                "value": self.postgres_events_config["password"],
+                                "type": "SECRET",
+                            },
+                            {
+                                "key": "EVENTS_POSTGRES_DB",
+                                "value": self.postgres_events_config["database"],
+                            },
+                            {
+                                "key": "EVENTS_POSTGRES_HOST",
+                                "value": self.postgres_events_config["host"],
+                            },
+                            {
+                                "key": "MAX_WAIT_SECONDS",
+                                "value": "3",
+                            },
+                            {
+                                "key": "BATCH_SIZE",
+                                "value": "10000",
+                            },
+                        ],
+                    }
+                ],
+            },
+            "project_id": os.getenv("DO_PROJECT_ID"),
+        }
+
+        logger.info(
+            f"About to send spec to do for batch_processor: {json.dumps(batch_processor_app_spec, indent=2)}"
+        )
+
+        response = requests.post(
+            "https://api.digitalocean.com/v2/apps",
+            headers=self.headers,
+            json=batch_processor_app_spec,
+        )
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            logger.info(f"Error response: {response.text}")
+            raise
+
+        self.app_id = response.json()["app"]["id"]
+
+        logger.info("Waiting for App Platform application to be ready...")
+        while True:
+            response = requests.get(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+                headers=self.headers,
+            ).json()
+
+            # Print response to debug
+            # logger.info(f"Status response: {json.dumps(response, indent=2)}")
+
+            # Change this line to match actual response structure
+            app_content = response.get("app")
+            # logger.info(f"App content: {app_content}")
+            if app_content:
+                active_deployment = app_content.get("active_deployment")
+                # logger.info(f"Active deployment: {active_deployment}")
+                if active_deployment:
+                    phase = active_deployment.get("phase")
+                    # logger.info(f"Phase: {phase}")
+                    if phase == "ACTIVE":
+                        logger.info(f"App is active")
                         break
 
             await asyncio.sleep(10)
@@ -504,7 +682,7 @@ async def main():
     )
 
     project_name = f"{random_color_word}-{random_animal_word}"
-    print(f"PROJECT_NAME={project_name}")
+    logger.info(f"PROJECT_NAME={project_name}")
     # Setup signal handlers
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -514,30 +692,45 @@ async def main():
     try:
         # create a better stack logs runner
         betterstack_log_runner = BetterStackLogsRunner(project_name)
-        print(f"Created betterstack runner with project name is {project_name}")
+        logger.info(f"Created betterstack runner with project name is {project_name}")
 
         # Setup managed databases
         events_db, metrics_db, redis_runner = await setup_infrastructure(
             do_token, project_name, project_id=os.getenv("DO_PROJECT_ID")
         )
 
-        print(f"Redis db config is {redis_runner.db_config}")
+        logger.info(f"Redis db config is {redis_runner.db_config}")
         # Setup App Platform
         logs_token = betterstack_log_runner.create_source("event-collector")
-        print(f"Logs token: {logs_token}")
-        app_runner = EventCollectorAppPlatformRunner(
+        logger.info(f"Logs token: {logs_token}")
+        event_collector_app_runner = EventCollectorAppPlatformRunner(
             do_token, project_name=project_name, redis_db_config=redis_runner.db_config
         )
-        await app_runner.setup_app_platform(
+        await event_collector_app_runner.setup_app_platform(
             branch="full-redesign", betterstack_rsyslog_token=logs_token
         )
-        print(f"App runner setup for event collector complete")
+        logger.info(f"App runner setup for event collector complete")
 
-        # todo - test the following code after this line, everything before is working
+        batch_process_app_runner = BatchProcessorAppPlatformRunner(
+            do_token,
+            project_name=project_name,
+            redis_db_config=redis_runner.db_config,
+            postgres_pipeline_config=metrics_db.db_config,
+            postgres_events_config=events_db.db_config,
+        )
+
+        bp_logs_token = betterstack_log_runner.create_source("batch-processor")
+        await batch_process_app_runner.setup_app_platform(
+            branch="full-redesign", betterstack_rsyslog_token=bp_logs_token
+        )
+
         # Initialize metrics collector
         metrics_collector = MetricsCollector(redis_runner.redis_client)
 
-        tasks = [metrics_collector.monitor_redis_items(redis_runner.redis_client)]
+        tasks = [
+            metrics_collector.monitor_redis_items(redis_runner.redis_client),
+            metrics_collector.monitor_postgres_events_db(events_db.pool),
+        ]
         running_tasks = [asyncio.create_task(t) for t in tasks]
 
         done, pending = await asyncio.wait(
@@ -562,7 +755,8 @@ async def main():
             events_db.cleanup(),
             metrics_db.cleanup(),
             redis_runner.cleanup(),
-            app_runner.cleanup_app_platform(),
+            event_collector_app_runner.cleanup_app_platform(),
+            batch_process_app_runner.cleanup_app_platform(),
         )
 
 
