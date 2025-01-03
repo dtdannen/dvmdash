@@ -333,6 +333,10 @@ class BatchProcessorAppPlatformRunner:
                                 "value": self.postgres_pipeline_config["host"],
                             },
                             {
+                                "key": "POSTGRES_PORT",
+                                "value": self.postgres_pipeline_config["port"],
+                            },
+                            {
                                 "key": "EVENTS_POSTGRES_USER",
                                 "value": self.postgres_events_config["user"],
                             },
@@ -348,6 +352,10 @@ class BatchProcessorAppPlatformRunner:
                             {
                                 "key": "EVENTS_POSTGRES_HOST",
                                 "value": self.postgres_events_config["host"],
+                            },
+                            {
+                                "key": "EVENTS_POSTGRES_PORT",
+                                "value": self.postgres_events_config["port"],
                             },
                             {
                                 "key": "MAX_WAIT_SECONDS",
@@ -477,6 +485,8 @@ class PostgresTestRunner:
             f"https://api.digitalocean.com/v2/databases/{self.db_id}", headers=headers
         ).json()["database"]
 
+        logger.info(f"DB info: {db_info}")
+
         self.db_config = {
             "host": db_info["connection"]["host"],
             "port": db_info["connection"]["port"],
@@ -500,7 +510,7 @@ class PostgresTestRunner:
         async with self.pool.acquire() as conn:
             await conn.execute(schema)
 
-        logger.info("Database setup complete!")
+        logger.info(f"{self.name_prefix} database setup complete!")
 
     async def cleanup(self) -> None:
         """Clean up resources"""

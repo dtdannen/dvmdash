@@ -984,6 +984,7 @@ async def main():
             password=os.getenv("POSTGRES_PASSWORD", "postgres"),
             database=os.getenv("POSTGRES_DB", "dvmdash"),
             host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", 5432),
             min_size=5,
             max_size=20,
         )
@@ -995,6 +996,7 @@ async def main():
             password=os.getenv("EVENTS_POSTGRES_PASSWORD", "postgres"),
             database=os.getenv("EVENTS_POSTGRES_DB", "dvmdash_events"),
             host=os.getenv("EVENTS_POSTGRES_HOST", "localhost"),
+            port=os.getenv("EVENTS_POSTGRES_PORT", 5432),
             min_size=5,
             max_size=20,
         )
