@@ -334,7 +334,7 @@ class BatchProcessorAppPlatformRunner:
                             },
                             {
                                 "key": "POSTGRES_PORT",
-                                "value": self.postgres_pipeline_config["port"],
+                                "value": str(self.postgres_pipeline_config["port"]),
                             },
                             {
                                 "key": "EVENTS_POSTGRES_USER",
@@ -355,7 +355,7 @@ class BatchProcessorAppPlatformRunner:
                             },
                             {
                                 "key": "EVENTS_POSTGRES_PORT",
-                                "value": self.postgres_events_config["port"],
+                                "value": str(self.postgres_events_config["port"]),
                             },
                             {
                                 "key": "MAX_WAIT_SECONDS",
