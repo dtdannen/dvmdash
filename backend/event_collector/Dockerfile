@@ -35,4 +35,4 @@ ENV START_LISTENING=true
 ENV LOG_LEVEL=DEBUG
 ENV DAYS_LOOKBACK=7
 
-ENTRYPOINT ["/app/docker_entrypoint.sh"]
+CMD ["python", "-u", "backend/event_collector/src/main.py"]

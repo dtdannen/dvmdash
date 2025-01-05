@@ -21,6 +21,8 @@ import datetime
 import time
 import yaml
 import redis
+import tempfile
+import aiohttp
 from redis import Redis
 from typing import Optional, Tuple, AsyncIterator, Dict
 
@@ -131,14 +133,14 @@ class TestDataLoader:
     def __init__(
         self,
         redis_client,
-        filepath: str,
+        urls: list[str],
         batch_size: int = 10000,
         delay_between_batches: float = 0.05,
         deduplicator=None,
         max_batches: Optional[int] = None,
     ):
         self.redis = redis_client
-        self.filepath = Path(filepath)
+        self.urls = urls
         self.batch_size = batch_size
         self.delay_between_batches = delay_between_batches
         self.deduplicator = deduplicator
@@ -148,6 +150,32 @@ class TestDataLoader:
         self.batches_processed = 0
         self.last_header_time = 0
         self.header_interval = 20
+
+    async def download_file(self, url: str) -> Path:
+        """Download file from URL to temporary location."""
+        logger.info(f"Downloading file from {url}")
+
+        # Create temp file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+        temp_path = Path(temp_file.name)
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+
+                    # Stream the download to avoid memory issues
+                    with open(temp_path, "wb") as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            f.write(chunk)
+
+            return temp_path
+
+        except Exception as e:
+            # Clean up temp file if download fails
+            temp_file.close()
+            os.unlink(temp_path)
+            raise Exception(f"Failed to download file from {url}: {str(e)}")
 
     async def process_events(self) -> None:
         """Process events from file in batches."""
@@ -254,7 +282,7 @@ class TestDataLoader:
 
 async def load_test_data(
     redis_client,
-    filepath: str,
+    urls: list[str],
     batch_size: int = 10000,
     delay: float = 0.05,
     deduplicator=None,
@@ -263,7 +291,7 @@ async def load_test_data(
     """Helper function to load test data."""
     loader = TestDataLoader(
         redis_client=redis_client,
-        filepath=filepath,
+        urls=urls,
         batch_size=batch_size,
         delay_between_batches=delay,
         deduplicator=deduplicator,
@@ -462,12 +490,35 @@ def parse_args():
     parser.add_argument(
         "--test-data",
         action="store_true",
-        help="Load events from test data file instead of connecting to relays",
+        help="Load events from test data urls instead of connecting to relays",
     )
     parser.add_argument(
-        "--test-data-path",
+        "--test-data-urls",
         type=str,
-        default="backend/event_collector/test_data/dvmdash.prod_events_29NOV2024.json",
+        default=(
+            os.getenv(
+                "TEST_DATA_URLS",
+                (
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_aug.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_sep.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_oct.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_nov.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_dec.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jan.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_feb.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_mar.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_apr.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_may.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jun.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jul.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_aug.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_sep.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_oct.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_nov.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_dec.json"
+                ),
+            )
+        ),
         help="Path to test data JSON file",
     )
     parser.add_argument(
@@ -496,22 +547,28 @@ async def main(args):
         redis_client = redis.from_url(REDIS_URL)
         deduplicator = EventDeduplicator(redis_client)
 
-        logger.info(f"Loading test data from {args.test_data_path}")
-        try:
-            await load_test_data(
-                redis_client=redis_client,
-                filepath=args.test_data_path,
-                batch_size=args.batch_size,
-                delay=args.batch_delay,
-                deduplicator=deduplicator,
-                max_batches=args.max_batches,
-            )
-        except FileNotFoundError:
-            logger.error(f"Test data file not found: {args.test_data_path}")
-            return
-        except Exception as e:
-            logger.error(f"Error loading test data: {e}")
-            return
+        if args.test_data_urls:
+            # Split URLs and process them
+            urls = [
+                url.strip() for url in args.test_data_urls.split(",") if url.strip()
+            ]
+            if not urls:
+                logger.error("No valid URLs provided in TEST_DATA_URLS")
+                return
+
+            logger.info(f"Loading test data from URLs: {urls}")
+            try:
+                await load_test_data(
+                    redis_client=redis_client,
+                    urls=urls,
+                    batch_size=args.batch_size,
+                    delay=args.batch_delay,
+                    deduplicator=deduplicator,
+                    max_batches=args.max_batches,
+                )
+            except Exception as e:
+                logger.error(f"Error loading test data: {e}")
+                return
     else:
         try:
             (
