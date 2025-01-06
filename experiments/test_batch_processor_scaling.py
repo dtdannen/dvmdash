@@ -316,6 +316,12 @@ class EventCollectorAppPlatformRunner:
                     if phase == "ACTIVE":
                         logger.info(f"App is active")
                         break
+                    else:
+                        logger.info(f"Phase is not active")
+                else:
+                    logger.error(f"Active deployment is empty")
+            else:
+                logger.error(f"App content is empty")
 
             await asyncio.sleep(10)
 
