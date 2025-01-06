@@ -60,6 +60,82 @@ class MetricsCollector:
                 logger.error(f"Postgres error: {e}")
                 await asyncio.sleep(delay)
 
+    async def wait_for_queue_size(
+        self,
+        redis_client,
+        target_size: int,
+        check_interval: int = 10,
+        timeout: int = 3600,
+    ):
+        """
+        Wait for Redis queue to reach target size
+
+        Args:
+            redis_client: Redis client instance
+            target_size: Target number of items in queue
+            check_interval: How often to check queue size (seconds)
+            timeout: Maximum time to wait (seconds)
+
+        Returns:
+            bool: True if target size reached, False if timeout occurred
+        """
+        start_time = time.time()
+        logger.info(f"Waiting for Redis queue to reach {target_size:,} items...")
+
+        while not shutdown_event.is_set():
+            try:
+                current_size = await redis_client.llen("dvmdash_events")
+                processed_count = await redis_client.scard("dvmdash_processed_events")
+
+                logger.info(
+                    f"Current queue size: {current_size:,}, Processed: {processed_count:,}"
+                )
+
+                if current_size >= target_size:
+                    logger.info(f"Target queue size of {target_size:,} reached!")
+                    return True
+
+                # Check timeout
+                if time.time() - start_time > timeout:
+                    logger.warning(f"Timeout reached after {timeout} seconds")
+                    return False
+
+                # Calculate and log ingestion rate
+                await asyncio.sleep(check_interval)
+                new_size = await redis_client.llen("dvmdash_events")
+                rate = (new_size - current_size) / check_interval
+                logger.info(f"Current ingestion rate: {rate:.2f} items/second")
+
+                # Estimate time remaining
+                if rate > 0:
+                    items_remaining = target_size - new_size
+                    time_remaining = items_remaining / rate
+                    logger.info(
+                        f"Estimated time remaining: {time_remaining:.2f} seconds"
+                    )
+
+            except redis.RedisError as e:
+                logger.error(f"Redis error while monitoring queue size: {e}")
+                await asyncio.sleep(check_interval)
+
+        return False
+
+    # Add this method for a more detailed progress visualization
+    async def monitor_queue_progress(self, redis_client, target_size: int):
+        """Monitor and display queue progress with percentage and progress bar"""
+        try:
+            current_size = await redis_client.llen("dvmdash_events")
+            percentage = min(100, (current_size / target_size) * 100)
+            bar_length = 50
+            filled_length = int(bar_length * current_size / target_size)
+            bar = "=" * filled_length + "-" * (bar_length - filled_length)
+
+            logger.info(
+                f"Progress: [{bar}] {percentage:.1f}% ({current_size:,}/{target_size:,})"
+            )
+        except redis.RedisError as e:
+            logger.error(f"Error monitoring progress: {e}")
+
     async def collect_metrics(
         self,
         postgres_runners: Dict[str, "PostgresTestRunner"],
@@ -189,6 +265,10 @@ class EventCollectorAppPlatformRunner:
                                 "value": f"rediss://default:{self.redis_db_config['password']}@"
                                 f"{self.redis_db_config['host']}:{self.redis_db_config['port']}",
                                 "type": "SECRET",
+                            },
+                            {
+                                "key": "USE_TEST_DATA",
+                                "value": "true",
                             },
                         ],
                     }
@@ -565,7 +645,7 @@ class RedisRunner:
             "name": f"{self.project_name}-redis",
             "engine": "redis",
             "version": "7",
-            "size": "4-8-175",
+            "size": "db-s-4vcpu-8gb",  # this is expensive, make sure it gets teared down ($120 a month)
             "region": "nyc1",
             "num_nodes": 1,
         }
@@ -699,6 +779,7 @@ async def main():
         loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(shutdown(s)))
 
     events_db, metrics_db, redis_runner = None, None, None
+    running_tasks = []
     try:
         # create a better stack logs runner
         betterstack_log_runner = BetterStackLogsRunner(project_name)
@@ -710,7 +791,7 @@ async def main():
         )
 
         logger.info(f"Redis db config is {redis_runner.db_config}")
-        # Setup App Platform
+        # Setup App Platform for event collector
         logs_token = betterstack_log_runner.create_source("event-collector")
         logger.info(f"Logs token: {logs_token}")
         event_collector_app_runner = EventCollectorAppPlatformRunner(
@@ -729,45 +810,97 @@ async def main():
             postgres_events_config=events_db.db_config,
         )
 
+        # Initialize metrics collector
+        metrics_collector = MetricsCollector(redis_runner.redis_client)
+
+        monitoring_tasks = [
+            asyncio.create_task(
+                metrics_collector.monitor_redis_items(redis_runner.redis_client)
+            ),
+            asyncio.create_task(
+                metrics_collector.monitor_postgres_events_db(events_db.pool)
+            ),
+        ]
+        running_tasks.extend(monitoring_tasks)
+
+        # Wait for queue to fill up
+        REDIS_EVENTS_MINIMUM = 1_000_000
+        logger.info(
+            f"Waiting for Redis queue to accumulate {REDIS_EVENTS_MINIMUM} events..."
+        )
+        queue_ready = await metrics_collector.wait_for_queue_size(
+            redis_client=redis_runner.redis_client,
+            target_size=REDIS_EVENTS_MINIMUM,
+            check_interval=10,
+            timeout=10_000,
+        )
+
+        if not queue_ready:
+            logger.warning(
+                "Queue didn't reach target size within timeout, proceeding anyway"
+            )
+
+        logger.info(
+            f"Queue is ready with {REDIS_EVENTS_MINIMUM} events, starting to monitor queue progress"
+        )
+        # Start progress monitoring
+        progress_monitor = asyncio.create_task(
+            metrics_collector.monitor_queue_progress(
+                redis_client=redis_runner.redis_client, target_size=1_000_000
+            )
+        )
+        running_tasks.append(progress_monitor)
+
+        # Start batch processor
         bp_logs_token = betterstack_log_runner.create_source("batch-processor")
         await batch_process_app_runner.setup_app_platform(
             branch="full-redesign", betterstack_rsyslog_token=bp_logs_token
         )
+        logger.info("Batch processor started")
 
-        # Initialize metrics collector
-        metrics_collector = MetricsCollector(redis_runner.redis_client)
+        # Keep running until interrupted or error occurs
+        while not shutdown_event.is_set():
+            done, pending = await asyncio.wait(
+                running_tasks, timeout=60, return_when=asyncio.FIRST_EXCEPTION
+            )
 
-        tasks = [
-            metrics_collector.monitor_redis_items(redis_runner.redis_client),
-            metrics_collector.monitor_postgres_events_db(events_db.pool),
-        ]
-        running_tasks = [asyncio.create_task(t) for t in tasks]
+            # Check for exceptions
+            for task in done:
+                try:
+                    await task
+                except Exception as e:
+                    logger.error(f"Task failed with error: {e}")
+                    shutdown_event.set()
+                    break
 
-        done, pending = await asyncio.wait(
-            running_tasks, return_when=asyncio.FIRST_EXCEPTION
-        )
-
-        # Handle any exceptions
-        for task in done:
-            try:
-                await task
-            except Exception as e:
-                logger.error(f"Task failed: {e}")
+            running_tasks = list(pending)
 
     finally:
         # Cancel pending tasks
+        # Cancel all running tasks
+        for task in running_tasks:
+            task.cancel()
+
         if running_tasks:
-            for task in running_tasks:
-                task.cancel()
             await asyncio.gather(*running_tasks, return_exceptions=True)
-        # Cleanup
-        await asyncio.gather(
-            events_db.cleanup(),
-            metrics_db.cleanup(),
-            redis_runner.cleanup(),
-            event_collector_app_runner.cleanup_app_platform(),
-            batch_process_app_runner.cleanup_app_platform(),
-        )
+
+        cleanup_tasks = [
+            events_db.cleanup() if events_db else None,
+            metrics_db.cleanup() if metrics_db else None,
+            redis_runner.cleanup() if redis_runner else None,
+            event_collector_app_runner.cleanup_app_platform()
+            if event_collector_app_runner
+            else None,
+            batch_process_app_runner.cleanup_app_platform()
+            if batch_process_app_runner
+            else None,
+        ]
+        cleanup_tasks = [t for t in cleanup_tasks if t is not None]
+
+        if cleanup_tasks:
+            await asyncio.gather(*cleanup_tasks)
+
+        logger.info("Cleanup complete")
 
 
 if __name__ == "__main__":
