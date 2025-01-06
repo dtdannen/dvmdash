@@ -178,48 +178,67 @@ class TestDataLoader:
             raise Exception(f"Failed to download file from {url}: {str(e)}")
 
     async def process_events(self) -> None:
-        """Process events from file in batches."""
-        try:
-            async for batch in self._read_batches():
-                batch_duplicates = 0
-                batch_processed = 0
+        """Process events from all URLs sequentially."""
+        for url in self.urls:
+            logger.info(f"Starting to process events from {url}")
+            temp_path = None
 
-                for event in batch:
-                    if Kind(int(event["kind"])) in RELEVANT_KINDS:
-                        # Check for duplicate if deduplicator is configured
-                        is_duplicate = False
-                        if self.deduplicator:
-                            is_duplicate = self.deduplicator.check_duplicate(
-                                event["id"]
-                            )
+            try:
+                # Download current file
+                temp_path = await self.download_file(url)
 
-                        if not is_duplicate:
-                            # Add to processing queue if not duplicate
-                            self.redis.rpush("dvmdash_events", json.dumps(event))
-                            batch_processed += 1
+                # Process the downloaded file
+                async for batch in self._read_batches(temp_path):
+                    batch_duplicates = 0
+                    batch_processed = 0
+
+                    for event in batch:
+                        if Kind(int(event["kind"])) in RELEVANT_KINDS:
+                            # Check for duplicate if deduplicator is configured
+                            is_duplicate = False
+                            if self.deduplicator:
+                                is_duplicate = self.deduplicator.check_duplicate(
+                                    event["id"]
+                                )
+
+                            if not is_duplicate:
+                                # Add to processing queue if not duplicate
+                                self.redis.rpush("dvmdash_events", json.dumps(event))
+                                batch_processed += 1
+                            else:
+                                batch_duplicates += 1
                         else:
-                            batch_duplicates += 1
-                    else:
-                        logger.debug(f"Skipping irrelevant event: {event['kind']}")
+                            logger.debug(f"Skipping irrelevant event: {event['kind']}")
 
-                self.events_processed += batch_processed
-                self.events_duplicate += batch_duplicates
-                self.batches_processed += 1
+                    self.events_processed += batch_processed
+                    self.events_duplicate += batch_duplicates
+                    self.batches_processed += 1
 
-                await self._print_stats()
+                    await self._print_stats()
 
-                # Simulate real-time ingestion with delay
-                await asyncio.sleep(self.delay_between_batches)
+                    # Simulate real-time ingestion with delay
+                    await asyncio.sleep(self.delay_between_batches)
 
-                if self.max_batches and self.batches_processed >= self.max_batches:
-                    logger.info(f"\nReached maximum batch limit of {self.max_batches}")
-                    break
+                    if self.max_batches and self.batches_processed >= self.max_batches:
+                        logger.info(
+                            f"\nReached maximum batch limit of {self.max_batches}"
+                        )
+                        return
 
-        except Exception as e:
-            logger.error(f"Error processing test data: {e}")
-            raise
+                logger.info(f"Completed processing events from {url}")
 
-    async def _read_batches(self) -> AsyncIterator[list[Dict]]:
+            except Exception as e:
+                logger.error(f"Error processing URL {url}: {e}")
+                raise
+            finally:
+                # Clean up temp file
+                if temp_path and temp_path.exists():
+                    try:
+                        os.unlink(temp_path)
+                    except Exception as e:
+                        logger.error(f"Error cleaning up temp file {temp_path}: {e}")
+
+    async def _read_batches(self, filepath: Path) -> AsyncIterator[list[Dict]]:
         """Read MongoDB export JSON file in batches using ijson for memory efficiency."""
         try:
             import ijson  # Import here to keep it optional
@@ -227,7 +246,7 @@ class TestDataLoader:
             logger.info("Starting streaming JSON processing...")
             current_batch = []
 
-            with open(self.filepath, "rb") as f:  # Open in binary mode for ijson
+            with open(filepath, "rb") as f:  # Open in binary mode for ijson
                 # MongoDB exports are arrays of objects
                 parser = ijson.items(f, "item")
 
@@ -491,6 +510,7 @@ def parse_args():
         "--test-data",
         action="store_true",
         help="Load events from test data urls instead of connecting to relays",
+        default=(os.getenv("USE_TEST_DATA", "false").lower() == "true"),
     )
     parser.add_argument(
         "--test-data-urls",
@@ -543,6 +563,7 @@ def parse_args():
 
 async def main(args):
     if args.test_data:
+        logger.info(f"Test data flag is {args.test_data} Running test data loader...")
         # Initialize Redis and deduplicator
         redis_client = redis.from_url(REDIS_URL)
         deduplicator = EventDeduplicator(redis_client)
@@ -599,7 +620,6 @@ async def main(args):
             logger.info("All tasks have been cancelled, exiting...")
 
 
-# Update your __main__ section:
 if __name__ == "__main__":
     logger.info("Starting event collector...")
     args = parse_args()

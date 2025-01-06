@@ -565,7 +565,7 @@ class RedisRunner:
             "name": f"{self.project_name}-redis",
             "engine": "redis",
             "version": "7",
-            "size": "db-s-1vcpu-1gb",
+            "size": "4-8-175",
             "region": "nyc1",
             "num_nodes": 1,
         }

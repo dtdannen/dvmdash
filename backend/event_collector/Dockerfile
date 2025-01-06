@@ -21,13 +21,9 @@ RUN mkdir -p /test_data
 COPY ./backend/event_collector/src ./src
 COPY ./backend/shared ./backend/shared
 
-# Copy the startup script
-COPY ./backend/event_collector/docker_entrypoint.sh /app/
-RUN chmod +x /app/docker_entrypoint.sh
-
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
-ENV USE_TEST_DATA="false"
+ENV USE_TEST_DATA="true"
 ENV TEST_DATA_BATCH_SIZE="1000"
 ENV TEST_DATA_BATCH_DELAY="0.001"
 ENV RELAYS="wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org"

@@ -162,7 +162,7 @@ services:
     build:
       context: ./infrastructure/nostr_rs_relay
       dockerfile: Dockerfile
-    #profiles: # todo [ "core", "all" ]
+    profiles: ["all"] # todo [ "core", "all" ]
     ports:
       - "8081:8080"  # Using 8081 since 8080 might be used by other services
     volumes:
