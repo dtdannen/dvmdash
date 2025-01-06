@@ -270,6 +270,14 @@ class EventCollectorAppPlatformRunner:
                                 "key": "USE_TEST_DATA",
                                 "value": "true",
                             },
+                            {
+                                "key": "TEST_DATA_BATCH_SIZE",
+                                "value": "100000",
+                            },
+                            {
+                                "key": "TEST_DATA_BATCH_DELAY",
+                                "value": "0.0001",
+                            },
                         ],
                     }
                 ],
@@ -845,6 +853,13 @@ async def main():
             logger.warning(
                 "Queue didn't reach target size within timeout, proceeding anyway"
             )
+
+        # if shutdown was triggered, exit early
+        if shutdown_event.is_set():
+            logger.warning(
+                f"Shutdown event triggered, exiting early and skipping batch processor setup"
+            )
+            return
 
         logger.info(
             f"Queue is ready with {REDIS_EVENTS_MINIMUM} events, starting to monitor queue progress"
