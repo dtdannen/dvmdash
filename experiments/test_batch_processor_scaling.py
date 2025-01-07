@@ -34,7 +34,7 @@ class MetricsCollector:
         self.start_time = None
 
         # Create metrics directory if it doesn't exist
-        self.metrics_dir = "metrics"
+        self.metrics_dir = "experiments/data"
         if not os.path.exists(self.metrics_dir):
             os.makedirs(self.metrics_dir)
 
@@ -154,11 +154,13 @@ class MetricsCollector:
         """Monitor Redis queue and trigger shutdown when empty"""
         while not shutdown_event.is_set():
             try:
-                queue_size = await redis_client.llen("dvmdash_events")
-                if queue_size == 0:
-                    logger.info("Redis queue is empty, initiating shutdown...")
-                    shutdown_event.set()
-                    return
+                # this check is to avoid premature shutdown
+                if self.start_time is not None:
+                    queue_size = await redis_client.llen("dvmdash_events")
+                    if queue_size == 0:
+                        logger.info("Redis queue is empty, initiating shutdown...")
+                        shutdown_event.set()
+                        return
                 await asyncio.sleep(delay)
             except redis.RedisError as e:
                 logger.error(f"Redis error while checking queue: {e}")
