@@ -335,7 +335,7 @@ class EventCollectorAppPlatformRunner:
                             },
                             {
                                 "key": "TEST_DATA_BATCH_SIZE",
-                                "value": "50000",
+                                "value": "20000",
                             },
                             {
                                 "key": "TEST_DATA_BATCH_DELAY",
@@ -867,6 +867,24 @@ async def main():
             do_token, project_name, project_id=os.getenv("DO_PROJECT_ID")
         )
 
+        # Initialize metrics collector
+        metrics_collector = MetricsCollector(redis_runner.redis_client, project_name)
+
+        monitoring_tasks = [
+            asyncio.create_task(
+                metrics_collector.monitor_redis_items(redis_runner.redis_client)
+            ),
+            asyncio.create_task(
+                metrics_collector.monitor_postgres_events_db(events_db.pool)
+            ),
+            asyncio.create_task(
+                metrics_collector.collect_metrics_history(
+                    redis_runner.redis_client, events_db.pool
+                )
+            ),
+        ]
+        running_tasks.extend(monitoring_tasks)
+
         logger.info(f"Redis db config is {redis_runner.db_config}")
         # Setup App Platform for event collector
         logs_token = betterstack_log_runner.create_source("event-collector")
@@ -886,24 +904,6 @@ async def main():
             postgres_pipeline_config=metrics_db.db_config,
             postgres_events_config=events_db.db_config,
         )
-
-        # Initialize metrics collector
-        metrics_collector = MetricsCollector(redis_runner.redis_client, project_name)
-
-        monitoring_tasks = [
-            asyncio.create_task(
-                metrics_collector.monitor_redis_items(redis_runner.redis_client)
-            ),
-            asyncio.create_task(
-                metrics_collector.monitor_postgres_events_db(events_db.pool)
-            ),
-            asyncio.create_task(
-                metrics_collector.collect_metrics_history(
-                    redis_runner.redis_client, events_db.pool
-                )
-            ),
-        ]
-        running_tasks.extend(monitoring_tasks)
 
         # Wait for queue to fill up
         REDIS_EVENTS_MINIMUM = 2_000_000

@@ -331,7 +331,7 @@ class TestDataLoader:
             return
 
         # Chunk the work for concurrent processing
-        chunk_size = 1000
+        chunk_size = 500
         chunks = [
             potentially_relevant[i : i + chunk_size]
             for i in range(0, len(potentially_relevant), chunk_size)
