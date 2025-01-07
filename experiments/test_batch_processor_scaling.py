@@ -15,6 +15,7 @@ from asyncio import Queue
 import matplotlib.pyplot as plt
 import numpy as np
 import signal
+import csv
 
 # handle signal to shutdown so we shutdown gracefully
 shutdown_event = asyncio.Event()
@@ -29,6 +30,30 @@ class MetricsCollector:
     def __init__(self, redis_client):
         self.metrics_history = []
         self.redis_db_info = redis_client
+
+        # Create metrics directory if it doesn't exist
+        self.metrics_dir = "metrics"
+        if not os.path.exists(self.metrics_dir):
+            os.makedirs(self.metrics_dir)
+
+        # Initialize CSV file with headers
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        self.csv_filename = (
+            f"{self.metrics_dir}/{self.project_name}_{current_date}_metrics.csv"
+        )
+
+        if not os.path.exists(self.csv_filename):
+            with open(self.csv_filename, "w", newline="") as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=[
+                        "timestamp",
+                        "project",
+                        "redis_queue_size",
+                        "postgres_events",
+                    ],
+                )
+                writer.writeheader()
 
     async def monitor_redis_items(self, redis_client, delay: int = 1):
         while not shutdown_event.is_set():
@@ -169,6 +194,43 @@ class MetricsCollector:
 
             await asyncio.sleep(1)
 
+    async def collect_metrics_history(self, redis_client, postgres_pool):
+        """Collect and store metrics history with timestamps"""
+        while not shutdown_event.is_set():
+            try:
+                timestamp = datetime.now().isoformat()
+                metrics = {
+                    "timestamp": timestamp,
+                    "project": self.project_name,
+                    "redis_queue_size": await redis_client.llen("dvmdash_events"),
+                    "postgres_events": await postgres_pool.fetchval(
+                        "SELECT COUNT(*) FROM raw_events"
+                    ),
+                }
+
+                self.metrics_history.append(metrics)
+
+                # Write to CSV file
+                with open(self.csv_filename, "a", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=metrics.keys())
+                    writer.writerow(metrics)
+
+                # Log current metrics
+                logger.info(
+                    f"Metrics at {timestamp}: "
+                    f"Redis Queue={metrics['redis_queue_size']}, "
+                    f"Postgres Events={metrics['postgres_events']}"
+                )
+
+                await asyncio.sleep(2)  # Collect every 2 seconds
+
+            except (redis.RedisError, asyncpg.PostgresError) as e:
+                logger.error(f"Error collecting metrics: {e}")
+                await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"Unexpected error in metrics collection: {e}")
+                await asyncio.sleep(1)
+
 
 class BetterStackLogsRunner:
     """Create betterstack logs so we can get all logs from the app platform"""
@@ -249,7 +311,7 @@ class EventCollectorAppPlatformRunner:
                         },
                         "source_dir": ".",
                         "instance_count": 1,
-                        "instance_size_slug": "apps-s-2vcpu-4gb",
+                        "instance_size_slug": "apps-pro-2vcpu-8gb",
                         "dockerfile_path": "backend/event_collector/Dockerfile",
                         "log_destinations": [
                             {
@@ -833,6 +895,11 @@ async def main():
             ),
             asyncio.create_task(
                 metrics_collector.monitor_postgres_events_db(events_db.pool)
+            ),
+            asyncio.create_task(
+                metrics_collector.collect_metrics_history(
+                    redis_runner.redis_client, events_db.pool
+                )
             ),
         ]
         running_tasks.extend(monitoring_tasks)
