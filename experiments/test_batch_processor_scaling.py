@@ -554,7 +554,7 @@ class BatchProcessorAppPlatformRunner:
                             },
                             {
                                 "key": "BATCH_SIZE",
-                                "value": "10000",
+                                "value": "5000",
                             },
                         ],
                     }
@@ -762,7 +762,7 @@ class RedisRunner:
             "name": f"{self.project_name}-redis",
             "engine": "redis",
             "version": "7",
-            "size": "apps-d-4vcpu-16gb",  # this is expensive, make sure it gets torn down
+            "size": "db-s-6vcpu-16gb",  # this is expensive, make sure it gets torn down
             "region": "nyc1",
             "num_nodes": 1,
         }
