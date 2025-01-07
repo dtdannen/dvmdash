@@ -312,7 +312,7 @@ class EventCollectorAppPlatformRunner:
                         },
                         "source_dir": ".",
                         "instance_count": 1,
-                        "instance_size_slug": "apps-pro-2vcpu-8gb",
+                        "instance_size_slug": "apps-d-2vcpu-8gb",
                         "dockerfile_path": "backend/event_collector/Dockerfile",
                         "log_destinations": [
                             {
