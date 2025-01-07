@@ -85,7 +85,7 @@ def load_dvm_config():
     return config
 
 
-def get_relevant_kinds():
+def get_relevant_kinds() -> list[Kind]:
     """Get relevant kinds from config file. Will raise exceptions if config is invalid."""
     try:
         config = load_dvm_config()
@@ -238,6 +238,121 @@ class TestDataLoader:
                     except Exception as e:
                         logger.error(f"Error cleaning up temp file {temp_path}: {e}")
 
+    async def process_events_parallel(self, max_concurrent: int = 5) -> None:
+        """Process multiple files concurrently with bounded concurrency."""
+        semaphore = asyncio.Semaphore(max_concurrent)
+        tasks = []
+
+        async def process_url(url: str):
+            async with semaphore:
+                logger.info(f"Starting to process events from {url}")
+                temp_path = None
+                try:
+                    temp_path = await self.download_file(url)
+                    async for batch in self._read_batches(temp_path):
+                        await self._process_batch(batch)
+                finally:
+                    if temp_path and temp_path.exists():
+                        try:
+                            os.unlink(temp_path)
+                        except Exception as e:
+                            logger.error(
+                                f"Error cleaning up temp file {temp_path}: {e}"
+                            )
+
+        # Create tasks for all URLs
+        for url in self.urls:
+            tasks.append(asyncio.create_task(process_url(url)))
+
+        # Wait for all tasks to complete
+        await asyncio.gather(*tasks)
+
+    async def _process_batch(self, batch: list[Dict]) -> None:
+        """Process a batch of events more efficiently."""
+        logger.info(f"Processing batch of {len(batch)} events...")
+        start_time = time.time()
+
+        # Convert RELEVANT_KINDS to a set of integers for faster lookup
+        relevant_kinds_set = {k.as_u16() for k in RELEVANT_KINDS}
+        logger.info("relevant_kinds_set", relevant_kinds_set)
+
+        # First pass - fast filtering of relevant events
+        potentially_relevant = [
+            event for event in batch if int(event["kind"]) in relevant_kinds_set
+        ]
+
+        if not potentially_relevant:
+            logger.info(f"No relevant events found in batch of {len(batch)}")
+            return
+
+        # Chunk the work for concurrent processing
+        chunk_size = 1000
+        chunks = [
+            potentially_relevant[i : i + chunk_size]
+            for i in range(0, len(potentially_relevant), chunk_size)
+        ]
+
+        async def process_chunk(events):
+            relevant = []
+            duplicates = 0
+
+            # Check duplicates in a single pipeline
+            if self.deduplicator:
+                with self.redis.pipeline() as pipe:
+                    for event in events:
+                        self.deduplicator._add_to_pipeline(pipe, event["id"])
+                    results = pipe.execute()
+
+                    # results come in pairs (sadd result, zadd result)
+                    for i, event in enumerate(events):
+                        is_new = results[i * 2]  # Get sadd result
+                        if is_new:
+                            relevant.append(event)
+                        else:
+                            duplicates += 1
+            else:
+                relevant = events
+
+            return relevant, duplicates
+
+        # Process chunks concurrently
+        logger.info(f"Processing {len(chunks)} chunks concurrently...")
+        tasks = [process_chunk(chunk) for chunk in chunks]
+        results = await asyncio.gather(*tasks)
+
+        # Combine results
+        relevant_events = []
+        total_duplicates = 0
+        for chunk_relevant, chunk_duplicates in results:
+            relevant_events.extend(chunk_relevant)
+            total_duplicates += chunk_duplicates
+
+        logger.info(
+            f"Took {time.time()-start_time}s to check {len(relevant_events)} relevant events out of {len(batch)}"
+        )
+
+        if relevant_events:
+            # Pipeline the Redis write operations
+            with self.redis.pipeline() as pipe:
+                for event in relevant_events:
+                    pipe.rpush("dvmdash_events", json.dumps(event))
+                pipe.execute()
+
+            self.events_processed += len(relevant_events)
+            self.events_duplicate += total_duplicates
+            self.batches_processed += 1
+            logger.info(
+                f"Processed batch of {len(relevant_events)} events and ignored {total_duplicates} duplicates"
+            )
+            await self._print_stats()
+
+        if self.delay_between_batches > 0:
+            await asyncio.sleep(self.delay_between_batches)
+
+        if self.max_batches and self.batches_processed >= self.max_batches:
+            logger.info(f"\nReached maximum batch limit of {self.max_batches}")
+            return
+
     async def _read_batches(self, filepath: Path) -> AsyncIterator[list[Dict]]:
         """Read MongoDB export JSON file in batches using ijson for memory efficiency."""
         try:
@@ -299,6 +414,7 @@ class TestDataLoader:
         )
 
 
+# old
 async def load_test_data(
     redis_client,
     urls: list[str],
@@ -402,6 +518,12 @@ class EventDeduplicator:
         except Exception as e:
             logger.error(f"Error checking duplicate: {e}")
             return False
+
+    def _add_to_pipeline(self, pipe, event_id: str):
+        """Add deduplication checks to an existing pipeline."""
+        timestamp = time.time()
+        pipe.sadd(self.set_key, event_id)
+        pipe.zadd(self.zset_key, {event_id: timestamp})
 
 
 class NotificationHandler(HandleNotification):
@@ -565,7 +687,13 @@ async def main(args):
     if args.test_data:
         logger.info(f"Test data flag is {args.test_data} Running test data loader...")
         # Initialize Redis and deduplicator
-        redis_client = redis.from_url(REDIS_URL)
+        redis_client = redis.from_url(
+            REDIS_URL,
+            socket_timeout=5,
+            socket_connect_timeout=5,
+            socket_keepalive=True,
+            health_check_interval=30,
+        )
         deduplicator = EventDeduplicator(redis_client)
 
         if args.test_data_urls:
@@ -579,14 +707,19 @@ async def main(args):
 
             logger.info(f"Loading test data from URLs: {urls}")
             try:
-                await load_test_data(
+                loader = TestDataLoader(
                     redis_client=redis_client,
                     urls=urls,
                     batch_size=args.batch_size,
-                    delay=args.batch_delay,
+                    delay_between_batches=args.batch_delay,
                     deduplicator=deduplicator,
                     max_batches=args.max_batches,
                 )
+                logger.info(
+                    f"Created test data loader, now about to run process events parallel"
+                )
+                # Use parallel processing instead of sequential
+                await loader.process_events_parallel(max_concurrent=5)
             except Exception as e:
                 logger.error(f"Error loading test data: {e}")
                 return

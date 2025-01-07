@@ -249,7 +249,7 @@ class EventCollectorAppPlatformRunner:
                         },
                         "source_dir": ".",
                         "instance_count": 1,
-                        "instance_size_slug": "apps-s-1vcpu-0.5gb",
+                        "instance_size_slug": "apps-s-1vcpu-2gb",
                         "dockerfile_path": "backend/event_collector/Dockerfile",
                         "log_destinations": [
                             {
@@ -272,7 +272,7 @@ class EventCollectorAppPlatformRunner:
                             },
                             {
                                 "key": "TEST_DATA_BATCH_SIZE",
-                                "value": "100000",
+                                "value": "50000",
                             },
                             {
                                 "key": "TEST_DATA_BATCH_DELAY",
