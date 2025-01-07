@@ -838,7 +838,7 @@ async def main():
         running_tasks.extend(monitoring_tasks)
 
         # Wait for queue to fill up
-        REDIS_EVENTS_MINIMUM = 1_000_000
+        REDIS_EVENTS_MINIMUM = 2_000_000
         logger.info(
             f"Waiting for Redis queue to accumulate {REDIS_EVENTS_MINIMUM} events..."
         )
@@ -846,7 +846,7 @@ async def main():
             redis_client=redis_runner.redis_client,
             target_size=REDIS_EVENTS_MINIMUM,
             check_interval=10,
-            timeout=10_000,
+            timeout=1500,
         )
 
         if not queue_ready:

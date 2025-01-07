@@ -151,31 +151,57 @@ class TestDataLoader:
         self.last_header_time = 0
         self.header_interval = 20
 
-    async def download_file(self, url: str) -> Path:
-        """Download file from URL to temporary location."""
+    async def download_file(
+        self, url: str, max_retries: int = 3, timeout: int = 300
+    ) -> Path:
+        """Download file from URL to temporary location with retries."""
         logger.info(f"Downloading file from {url}")
 
         # Create temp file
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
         temp_path = Path(temp_file.name)
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    response.raise_for_status()
+        for attempt in range(max_retries):
+            try:
+                timeout_client = aiohttp.ClientTimeout(
+                    total=timeout
+                )  # 5 minute timeout
+                async with aiohttp.ClientSession(timeout=timeout_client) as session:
+                    async with session.get(url) as response:
+                        response.raise_for_status()
 
-                    # Stream the download to avoid memory issues
-                    with open(temp_path, "wb") as f:
-                        async for chunk in response.content.iter_chunked(8192):
-                            f.write(chunk)
+                        # Stream the download to avoid memory issues
+                        with open(temp_path, "wb") as f:
+                            async for chunk in response.content.iter_chunked(8192):
+                                f.write(chunk)
 
-            return temp_path
+                return temp_path
 
-        except Exception as e:
-            # Clean up temp file if download fails
-            temp_file.close()
-            os.unlink(temp_path)
-            raise Exception(f"Failed to download file from {url}: {str(e)}")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Timeout downloading {url}, attempt {attempt + 1} of {max_retries}"
+                )
+                if attempt == max_retries - 1:
+                    raise
+                await asyncio.sleep(5 * (attempt + 1))  # Exponential backoff
+
+            except Exception as e:
+                # Clean up temp file if download fails
+                temp_file.close()
+                if temp_path.exists():
+                    os.unlink(temp_path)
+                if attempt == max_retries - 1:
+                    raise Exception(
+                        f"Failed to download file from {url} after {max_retries} attempts: {str(e)}"
+                    )
+                logger.warning(
+                    f"Error downloading {url}, attempt {attempt + 1} of {max_retries}: {e}"
+                )
+                await asyncio.sleep(5 * (attempt + 1))  # Exponential backoff
+
+        raise Exception(
+            f"Failed to download file from {url} after {max_retries} attempts"
+        )
 
     async def process_events(self) -> None:
         """Process events from all URLs sequentially."""
@@ -238,34 +264,50 @@ class TestDataLoader:
                     except Exception as e:
                         logger.error(f"Error cleaning up temp file {temp_path}: {e}")
 
-    async def process_events_parallel(self, max_concurrent: int = 5) -> None:
+    async def process_events_parallel(self, max_concurrent: int = 3) -> None:
         """Process multiple files concurrently with bounded concurrency."""
         semaphore = asyncio.Semaphore(max_concurrent)
         tasks = []
 
-        async def process_url(url: str):
+        async def process_url(url: str, max_retries: int = 3):
             async with semaphore:
                 logger.info(f"Starting to process events from {url}")
                 temp_path = None
-                try:
-                    temp_path = await self.download_file(url)
-                    async for batch in self._read_batches(temp_path):
-                        await self._process_batch(batch)
-                finally:
-                    if temp_path and temp_path.exists():
-                        try:
-                            os.unlink(temp_path)
-                        except Exception as e:
+
+                for attempt in range(max_retries):
+                    try:
+                        temp_path = await self.download_file(url)
+                        async for batch in self._read_batches(temp_path):
+                            await self._process_batch(batch)
+                        logger.info(f"Successfully processed {url}")
+                        break
+                    except Exception as e:
+                        if attempt == max_retries - 1:
                             logger.error(
-                                f"Error cleaning up temp file {temp_path}: {e}"
+                                f"Failed to process {url} after {max_retries} attempts: {e}"
                             )
+                            raise
+                        logger.warning(
+                            f"Error processing {url}, attempt {attempt + 1} of {max_retries}: {e}"
+                        )
+                        await asyncio.sleep(5 * (attempt + 1))  # Exponential backoff
+                    finally:
+                        if temp_path and temp_path.exists():
+                            try:
+                                os.unlink(temp_path)
+                            except Exception as e:
+                                logger.error(
+                                    f"Error cleaning up temp file {temp_path}: {e}"
+                                )
 
         # Create tasks for all URLs
         for url in self.urls:
             tasks.append(asyncio.create_task(process_url(url)))
 
         # Wait for all tasks to complete
-        await asyncio.gather(*tasks)
+        await asyncio.gather(
+            *tasks, return_exceptions=True
+        )  # Allow some URLs to fail without stopping everything
 
     async def _process_batch(self, batch: list[Dict]) -> None:
         """Process a batch of events more efficiently."""
