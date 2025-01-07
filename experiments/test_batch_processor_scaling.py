@@ -38,7 +38,8 @@ class MetricsCollector:
             os.makedirs(self.metrics_dir)
 
         # Initialize CSV file with headers
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        current_date = datetime.now().strftime("%Y-%m-%d_%I-%M%p")
+
         self.csv_filename = (
             f"{self.metrics_dir}/{self.project_name}_{current_date}_metrics.csv"
         )
