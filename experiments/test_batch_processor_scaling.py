@@ -569,10 +569,16 @@ class BatchProcessorAppPlatformRunner:
                     if phase == "ACTIVE":
                         logger.info(f"App is active")
                         break
+                    else:
+                        logger.info(f"Phase is not active")
+                else:
+                    logger.debug(f"Batch Processor active deployment is empty")
+            else:
+                logger.error(f"App content is empty")
 
             await asyncio.sleep(10)
 
-        logger.info("App Platform application is ready!")
+        logger.info("Batch Processor App Platform application is ready!")
 
     async def cleanup_app_platform(self):
         if self.app_id:

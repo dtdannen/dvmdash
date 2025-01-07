@@ -155,7 +155,7 @@ class TestDataLoader:
         self.header_interval = 20
 
     async def download_file(
-        self, url: str, max_retries: int = 3, timeout: int = 300
+        self, url: str, max_retries: int = 3, timeout: int = 600
     ) -> Path:
         """Download file from URL to temporary location with retries."""
         logger.info(f"Downloading file from {url}")
@@ -167,7 +167,9 @@ class TestDataLoader:
         for attempt in range(max_retries):
             try:
                 timeout_client = aiohttp.ClientTimeout(
-                    total=timeout
+                    total=timeout,
+                    connect=60,  # 60 seconds to establish connection
+                    sock_read=300,  # 5 minutes to read data chunks
                 )  # 5 minute timeout
                 async with aiohttp.ClientSession(timeout=timeout_client) as session:
                     async with session.get(url) as response:
