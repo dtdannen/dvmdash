@@ -303,7 +303,7 @@ class EventCollectorAppPlatformRunner:
         self.app_id = response.json()["app"]["id"]
 
         logger.info("Waiting for App Platform application to be ready...")
-        while True:
+        while not shutdown_event.is_set():
             response = requests.get(
                 f"https://api.digitalocean.com/v2/apps/{self.app_id}",
                 headers=self.headers,
@@ -327,7 +327,7 @@ class EventCollectorAppPlatformRunner:
                     else:
                         logger.info(f"Phase is not active")
                 else:
-                    logger.error(f"Active deployment is empty")
+                    logger.debug(f"Event Collector active deployment is empty")
             else:
                 logger.error(f"App content is empty")
 
