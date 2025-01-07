@@ -907,7 +907,7 @@ async def main():
         )
 
         # Wait for queue to fill up
-        REDIS_EVENTS_MINIMUM = 2_000_000
+        REDIS_EVENTS_MINIMUM = 1_700_000
         logger.info(
             f"Waiting for Redis queue to accumulate {REDIS_EVENTS_MINIMUM} events..."
         )
@@ -936,7 +936,7 @@ async def main():
         # Start progress monitoring
         progress_monitor = asyncio.create_task(
             metrics_collector.monitor_queue_progress(
-                redis_client=redis_runner.redis_client, target_size=1_000_000
+                redis_client=redis_runner.redis_client, target_size=REDIS_EVENTS_MINIMUM
             )
         )
         running_tasks.append(progress_monitor)

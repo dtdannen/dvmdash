@@ -331,7 +331,7 @@ class TestDataLoader:
             return
 
         # Chunk the work for concurrent processing
-        chunk_size = 500
+        chunk_size = 200
         chunks = [
             potentially_relevant[i : i + chunk_size]
             for i in range(0, len(potentially_relevant), chunk_size)
@@ -383,7 +383,7 @@ class TestDataLoader:
                     event_json = json.dumps(event)
                     size_mb = len(event_json.encode("utf-8")) / (1024 * 1024)
 
-                    if size_mb > 200:  # 200MB limit
+                    if size_mb > 1:  # 100MB limit
                         logger.warning(
                             f"Event (id {event['id'] if 'id' in event else '<no-id-found>'})"
                             f" size exceeds limit: {size_mb:.2f}MB, skipping"
