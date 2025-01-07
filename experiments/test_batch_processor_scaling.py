@@ -238,10 +238,34 @@ class MetricsCollector:
                     "postgres_pipeline_entity_activity_count": await postgres_pipeline_pool.fetchval(
                         "SELECT COUNT(*) FROM entity_activity"
                     ),
-                    "postgres_pipeline_global_stats_latest_row": await postgres_pipeline_pool.fetchval(
-                        "SELECT * FROM global_stats_rollups ORDER BY timestamp DESC LIMIT 1"
-                    ),
                 }
+
+                global_stats = await postgres_pipeline_pool.fetchrow(
+                    """
+                    SELECT 
+                        timestamp,
+                        period_start,
+                        period_end,
+                        period_requests,
+                        period_responses,
+                        running_total_requests,
+                        running_total_responses,
+                        running_total_unique_dvms,
+                        running_total_unique_kinds,
+                        running_total_unique_users
+                    FROM global_stats_rollups 
+                    ORDER BY timestamp DESC 
+                    LIMIT 1
+                    """
+                )
+                # Convert to dict if not None
+                global_stats_dict = dict(global_stats) if global_stats else {}
+                if not global_stats_dict:
+                    logger.warning("No global stats received from db")
+                else:
+                    metrics[
+                        "postgres_pipeline_global_stats_latest_row"
+                    ] = global_stats_dict
 
                 self.metrics_history.append(metrics)
 
@@ -256,7 +280,11 @@ class MetricsCollector:
                     f"Redis Queue={metrics['redis_queue_size']:,}, "
                     f"Postgres Events={metrics['postgres_events']:,},"
                     f"Postgres Pipeline Entity Activity Count={metrics['postgres_pipeline_entity_activity_count']:,},"
-                    f"Postgres Pipeline Global Stats Latest Row={metrics['postgres_pipeline_global_stats_latest_row']}"
+                    f"Running Total Requests={global_stats_dict.get('running_total_requests', 'MISSING'):,},"
+                    f"Running Total Responses={global_stats_dict.get('running_total_responses', 'MISSING'):,},"
+                    f"Running Total Unique DVMS={global_stats_dict.get('running_total_unique_dvms', 'MISSING'):,},"
+                    f"Running Total Unique Kinds={global_stats_dict.get('running_total_unique_kinds', 'MISSING'):,},"
+                    f"Running Total Unique Users={global_stats_dict.get('running_total_unique_users', 'MISSING'):,}"
                 )
 
                 await asyncio.sleep(2)  # Collect every 2 seconds
@@ -316,7 +344,7 @@ class BetterStackLogsRunner:
 
 
 class EventCollectorAppPlatformRunner:
-    """Sets up the App Platform for both the event collector and batch processor on Digital Ocean"""
+    """Sets up the App Platform for the event collector  on Digital Ocean"""
 
     def __init__(self, do_token: str, project_name: str, redis_db_config):
         self.token = do_token
@@ -487,7 +515,7 @@ class BatchProcessorAppPlatformRunner:
                         },
                         "source_dir": ".",
                         "instance_count": 1,
-                        "instance_size_slug": "apps-s-1vcpu-0.5gb",
+                        "instance_size_slug": "apps-s-1vcpu-2gb",
                         "dockerfile_path": "backend/batch_processor/Dockerfile",
                         "log_destinations": [
                             {
@@ -556,7 +584,7 @@ class BatchProcessorAppPlatformRunner:
                             },
                             {
                                 "key": "BATCH_SIZE",
-                                "value": "5000",
+                                "value": "10000",
                             },
                         ],
                     }
