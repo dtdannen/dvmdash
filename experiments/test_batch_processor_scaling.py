@@ -31,6 +31,7 @@ class MetricsCollector:
         self.metrics_history = []
         self.redis_db_info = redis_client
         self.project_name = project_name
+        self.start_time = None
 
         # Create metrics directory if it doesn't exist
         self.metrics_dir = "metrics"
@@ -49,10 +50,12 @@ class MetricsCollector:
                 writer = csv.DictWriter(
                     f,
                     fieldnames=[
-                        "timestamp",
+                        "time_since_start",
                         "project",
                         "redis_queue_size",
                         "postgres_events",
+                        "postgres_pipeline_entity_activity_count",
+                        "postgres_pipeline_global_stats_latest_row",
                     ],
                 )
                 writer.writeheader()
@@ -147,6 +150,20 @@ class MetricsCollector:
 
         return False
 
+    async def check_redis_empty(self, redis_client, delay: int = 5):
+        """Monitor Redis queue and trigger shutdown when empty"""
+        while not shutdown_event.is_set():
+            try:
+                queue_size = await redis_client.llen("dvmdash_events")
+                if queue_size == 0:
+                    logger.info("Redis queue is empty, initiating shutdown...")
+                    shutdown_event.set()
+                    return
+                await asyncio.sleep(delay)
+            except redis.RedisError as e:
+                logger.error(f"Redis error while checking queue: {e}")
+                await asyncio.sleep(delay)
+
     # Add this method for a more detailed progress visualization
     async def monitor_queue_progress(self, redis_client, target_size: int):
         """Monitor and display queue progress with percentage and progress bar"""
@@ -196,17 +213,31 @@ class MetricsCollector:
 
             await asyncio.sleep(1)
 
-    async def collect_metrics_history(self, redis_client, postgres_pool):
+    async def collect_metrics_history(
+        self, redis_client, postgres_events_pool, postgres_pipeline_pool
+    ):
         """Collect and store metrics history with timestamps"""
         while not shutdown_event.is_set():
             try:
-                timestamp = datetime.now().isoformat()
+                # Skip collection if start time hasn't been set
+                if self.start_time is None:
+                    await asyncio.sleep(2)
+                    continue
+
+                time_since_start = time.time() - self.start_time
+
                 metrics = {
-                    "timestamp": timestamp,
+                    "time_since_start": f"{time_since_start:.3f}",
                     "project": self.project_name,
                     "redis_queue_size": await redis_client.llen("dvmdash_events"),
-                    "postgres_events": await postgres_pool.fetchval(
+                    "postgres_events": await postgres_events_pool.fetchval(
                         "SELECT COUNT(*) FROM raw_events"
+                    ),
+                    "postgres_pipeline_entity_activity_count": await postgres_pipeline_pool.fetchval(
+                        "SELECT COUNT(*) FROM entity_activity"
+                    ),
+                    "postgres_pipeline_global_stats_latest_row": await postgres_pipeline_pool.fetchval(
+                        "SELECT * FROM global_stats_rollups ORDER BY timestamp DESC LIMIT 1"
                     ),
                 }
 
@@ -219,9 +250,11 @@ class MetricsCollector:
 
                 # Log current metrics
                 logger.info(
-                    f"Metrics at {timestamp}: "
-                    f"Redis Queue={metrics['redis_queue_size']}, "
-                    f"Postgres Events={metrics['postgres_events']}"
+                    f"Metrics at {time_since_start:,.3f}s: "
+                    f"Redis Queue={metrics['redis_queue_size']:,}, "
+                    f"Postgres Events={metrics['postgres_events']:,},"
+                    f"Postgres Pipeline Entity Activity Count={metrics['postgres_pipeline_entity_activity_count']:,},"
+                    f"Postgres Pipeline Global Stats Latest Row={metrics['postgres_pipeline_global_stats_latest_row']}"
                 )
 
                 await asyncio.sleep(2)  # Collect every 2 seconds
@@ -336,7 +369,7 @@ class EventCollectorAppPlatformRunner:
                             },
                             {
                                 "key": "TEST_DATA_BATCH_SIZE",
-                                "value": "20000",
+                                "value": "50000",
                             },
                             {
                                 "key": "TEST_DATA_BATCH_DELAY",
@@ -729,7 +762,7 @@ class RedisRunner:
             "name": f"{self.project_name}-redis",
             "engine": "redis",
             "version": "7",
-            "size": "db-s-4vcpu-8gb",  # this is expensive, make sure it gets teared down ($120 a month)
+            "size": "apps-d-4vcpu-16gb",  # this is expensive, make sure it gets torn down
             "region": "nyc1",
             "num_nodes": 1,
         }
@@ -879,6 +912,9 @@ async def main():
 
         monitoring_tasks = [
             asyncio.create_task(
+                metrics_collector.check_redis_empty(redis_runner.redis_client)
+            ),
+            asyncio.create_task(
                 metrics_collector.monitor_redis_items(redis_runner.redis_client)
             ),
             asyncio.create_task(
@@ -886,7 +922,7 @@ async def main():
             ),
             asyncio.create_task(
                 metrics_collector.collect_metrics_history(
-                    redis_runner.redis_client, events_db.pool
+                    redis_runner.redis_client, events_db.pool, metrics_db.pool
                 )
             ),
         ]
@@ -913,7 +949,7 @@ async def main():
         )
 
         # Wait for queue to fill up
-        REDIS_EVENTS_MINIMUM = 1_700_000
+        REDIS_EVENTS_MINIMUM = 2_000_000
         logger.info(
             f"Waiting for Redis queue to accumulate {REDIS_EVENTS_MINIMUM} events..."
         )
@@ -928,6 +964,9 @@ async def main():
             logger.warning(
                 "Queue didn't reach target size within timeout, proceeding anyway"
             )
+
+        metrics_collector.start_time = time.time()
+        logger.info(f"Setting start time for metrics collection")
 
         # if shutdown was triggered, exit early
         if shutdown_event.is_set():
