@@ -33,6 +33,9 @@ for key, value in os.environ.items():
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
+# Limit on event size, currently because of limits with REDIS on digital ocean
+MAX_EVENT_SIZE_MB = 200  # Maximum event size in MB
+
 # Get log level from environment variable, default to INFO
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
@@ -377,7 +380,17 @@ class TestDataLoader:
             # Pipeline the Redis write operations
             with self.redis.pipeline() as pipe:
                 for event in relevant_events:
-                    pipe.rpush("dvmdash_events", json.dumps(event))
+                    event_json = json.dumps(event)
+                    size_mb = len(event_json.encode("utf-8")) / (1024 * 1024)
+
+                    if size_mb > 200:  # 200MB limit
+                        logger.warning(
+                            f"Event (id {event['id'] if 'id' in event else '<no-id-found>'})"
+                            f" size exceeds limit: {size_mb:.2f}MB, skipping"
+                        )
+                        continue
+
+                    pipe.rpush("dvmdash_events", event_json)
                 pipe.execute()
 
             self.events_processed += len(relevant_events)
@@ -761,7 +774,7 @@ async def main(args):
                     f"Created test data loader, now about to run process events parallel"
                 )
                 # Use parallel processing instead of sequential
-                await loader.process_events_parallel(max_concurrent=5)
+                await loader.process_events_parallel(max_concurrent=3)
             except Exception as e:
                 logger.error(f"Error loading test data: {e}")
                 return
