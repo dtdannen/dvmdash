@@ -27,9 +27,10 @@ load_dotenv()
 class MetricsCollector:
     """Collects and stores metrics from various components"""
 
-    def __init__(self, redis_client):
+    def __init__(self, redis_client, project_name: str):
         self.metrics_history = []
         self.redis_db_info = redis_client
+        self.project_name = project_name
 
         # Create metrics directory if it doesn't exist
         self.metrics_dir = "metrics"
@@ -887,7 +888,7 @@ async def main():
         )
 
         # Initialize metrics collector
-        metrics_collector = MetricsCollector(redis_runner.redis_client)
+        metrics_collector = MetricsCollector(redis_runner.redis_client, project_name)
 
         monitoring_tasks = [
             asyncio.create_task(
