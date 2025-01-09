@@ -280,11 +280,11 @@ class MetricsCollector:
                     f"Redis Queue={metrics['redis_queue_size']:,}, "
                     f"Postgres Events={metrics['postgres_events']:,},"
                     f"Postgres Pipeline Entity Activity Count={metrics['postgres_pipeline_entity_activity_count']:,},"
-                    f"Running Total Requests={global_stats_dict.get('running_total_requests', 'MISSING'):,},"
-                    f"Running Total Responses={global_stats_dict.get('running_total_responses', 'MISSING'):,},"
-                    f"Running Total Unique DVMS={global_stats_dict.get('running_total_unique_dvms', 'MISSING'):,},"
-                    f"Running Total Unique Kinds={global_stats_dict.get('running_total_unique_kinds', 'MISSING'):,},"
-                    f"Running Total Unique Users={global_stats_dict.get('running_total_unique_users', 'MISSING'):,}"
+                    f"Running Total Requests={global_stats_dict.get('running_total_requests', -1):,},"
+                    f"Running Total Responses={global_stats_dict.get('running_total_responses', -1):,},"
+                    f"Running Total Unique DVMS={global_stats_dict.get('running_total_unique_dvms', -1):,},"
+                    f"Running Total Unique Kinds={global_stats_dict.get('running_total_unique_kinds', -1):,},"
+                    f"Running Total Unique Users={global_stats_dict.get('running_total_unique_users', -1):,}"
                 )
 
                 await asyncio.sleep(2)  # Collect every 2 seconds

@@ -210,7 +210,7 @@ Questions:
 8. Have any DVMs failed to deliver after accepting payment? 
    - Did they refund that payment?
 9. How long, on average, does it take this DVM to respond? (NEO4J)
-	- 
+	- ...
 10. For Task X, what's the average amount of time it takes for a DVM to complete a task?
 11. Which DVMs are competing with my DVM?
 
@@ -349,11 +349,12 @@ CREATE TABLE users (
 ### Description of how we will generate each metric
 
 1. **period job requests**
-   - the batch processor will count the number of kind 5000-5999 events in the batch
+   - we will query the entity activity table for the related events for the given period (max period is 30 days), for events in 5000-5999 range
+   - this can work as is, with dates, if redis is sorted by timestamp...
 2. **running total requests**
-  - the batch processor will add the period_requests to the most recent global rollup
+  - the batch processor will add the period_requests to the most recent global rollup, this will be a global, cumulative stat, not dependent on entity activity table. it will be subject to bloom filter (eventually) deduplication check, for now a simple window of recent events will be checked, which happens in the event collector
 3. **period job results**
-   - the batch processor will count the number of kind 6000-6999 events in the batch
+   - we will query the entity activity table for the related events for the given period (max period is 30 days), for events in 6000-6999 range
 4. **running total results**
 	- the batch processor will add the period_results to the most recent global rollup
 5. **running_total_unique_dvms**

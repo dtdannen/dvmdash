@@ -1,3 +1,6 @@
+
+-- TODO - plan to drop dvms that have last_seen past a cuttoff date in the past, make sure to cascade other data
+--        including dvm_stats_rollups and kind_dvm_support
 CREATE TABLE dvms (
     id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
     first_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (first_seen <= CURRENT_TIMESTAMP),
@@ -10,6 +13,8 @@ CREATE TABLE dvms (
     CHECK (first_seen <= last_seen)
 );
 
+
+-- TODO - this table will get trimmed when old dvms are dropped; need to make sure cascade works
 CREATE TABLE dvm_stats_rollups (
     dvm_id TEXT REFERENCES dvms(id),
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -28,6 +33,7 @@ CREATE TABLE dvm_stats_rollups (
     CHECK (running_total_feedback >= period_feedback),
     CHECK (running_total_responses >= period_responses)
 );
+
 
 CREATE TABLE kind_stats_rollups (
     kind INTEGER CHECK (kind BETWEEN 5000 AND 5999),
@@ -48,6 +54,8 @@ CREATE TABLE kind_stats_rollups (
     CHECK (running_total_responses >= period_responses)
 );
 
+
+-- TODO - plan to drop users that have last_seen past a cuttoff date in the past, make sure to cascade other data
 CREATE TABLE users (
     id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
     first_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -73,7 +81,7 @@ CREATE TABLE kind_dvm_support (
 
 CREATE TABLE time_window_stats (
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,    -- When this stat was computed
-    window_size TEXT NOT NULL CHECK (window_size IN ('1 hour', '24 hours', '7 days', '30 days', 'all time')),
+    window_size TEXT NOT NULL CHECK (window_size IN ('1 hour', '24 hours', '7 days', '30 days')),
     period_start TIMESTAMP WITH TIME ZONE NOT NULL, -- Start of the period these stats cover
     period_end TIMESTAMP WITH TIME ZONE NOT NULL,   -- End of the period these stats cover
     total_requests INTEGER NOT NULL CHECK (total_requests >= 0),
@@ -98,9 +106,6 @@ CREATE TABLE global_stats_rollups (
     period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
     running_total_requests BIGINT NOT NULL,
     running_total_responses BIGINT NOT NULL,
-    running_total_unique_dvms BIGINT NOT NULL,
-    running_total_unique_kinds BIGINT NOT NULL,
-    running_total_unique_users BIGINT NOT NULL,
     PRIMARY KEY (timestamp),
 
     CHECK (period_start <= timestamp),
@@ -118,6 +123,18 @@ CREATE TABLE entity_activity (
     event_id TEXT NOT NULL,
     UNIQUE (entity_id, observed_at, event_id)
 );
+
+CREATE TABLE monthly_activity (
+    month TIMESTAMP WITH TIME ZONE PRIMARY KEY,
+    total_requests INTEGER NOT NULL CHECK (total_requests >= 0),
+    total_responses INTEGER NOT NULL CHECK (total_responses >= 0),
+    unique_dvms INTEGER NOT NULL CHECK (unique_dvms >= 0),
+    unique_kinds INTEGER NOT NULL CHECK (unique_kinds >= 0),
+    unique_users INTEGER NOT NULL CHECK (unique_users >= 0),
+    popular_dvm TEXT REFERENCES dvms(id),
+    popular_kind INTEGER CHECK (popular_kind BETWEEN 5000 AND 5999),
+    competitive_kind INTEGER CHECK (competitive_kind BETWEEN 5000 AND 5999),
+)
 
 -- Entity Activity Table Indices
 CREATE INDEX idx_entity_activity_timestamp ON entity_activity (observed_at DESC);
