@@ -87,8 +87,6 @@ A: The 30-day window was chosen for several reasons:
 - `monthly_activity`: Long-term storage of monthly aggregated metrics
 - `cleanup_log`: Historical record of deactivated entities
 
-### Q: How do tables relate to each other?
-[Insert relationship diagram or description]
 
 ## Data Management
 
@@ -103,11 +101,10 @@ A: Each table has specific growth control mechanisms:
      * Maximum lifespan of any record is 60 days unless there's new activity
 
 2. **Activity and Stats Tables**
-   - `entity_activity`: Bounded by 30-day retention window
-   - `time_window_stats`: Bounded by 30-day retention window
-   - `global_stats_rollups`: Bounded by 30-day retention window
-   - `dvm_stats_rollups`: Bounded by 30-day retention window
-   - `kind_stats_rollups`: Bounded by 30-day retention window
+   - `entity_activity`: Bounded by 35-day retention window
+   - `time_window_stats`: Bounded by 35-day retention window
+   - `dvm_stats_rollups`: Bounded by 35-day retention window
+   - `kind_stats_rollups`: Bounded by 35-day retention window
    - `kind_dvm_support`: Automatically cleaned up when DVMs are deleted
 
 3. **Historical Tables**
@@ -146,49 +143,13 @@ A: The system maintains a precise rolling window through multiple processes:
 ### Q: How do I calculate all-time totals?
 A: All-time totals are calculated by combining historical monthly data with current rolling window data:
 
-```sql
-WITH historical_totals AS (
-    SELECT 
-        SUM(total_requests) as historical_requests,
-        SUM(total_responses) as historical_responses
-    FROM monthly_activity
-),
-current_window_totals AS (
-    SELECT 
-        COUNT(*) FILTER (WHERE entity_type = 'request') as current_requests,
-        COUNT(*) FILTER (WHERE entity_type = 'response') as current_responses 
-    FROM entity_activity
-)
-SELECT 
-    (historical_totals.historical_requests + COALESCE(current_window_totals.current_requests, 0)) as all_time_requests,
-    (historical_totals.historical_responses + COALESCE(current_window_totals.current_responses, 0)) as all_time_responses
-FROM historical_totals, current_window_totals;
-```
 
 ### Q: How do I get accurate unique counts for the last 30 days?
 A: Use the `entity_activity` table with a 30-day window:
-```sql
-SELECT 
-    COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'dvm') as unique_dvms,
-    COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'user') as unique_users,
-    COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'kind') as unique_kinds
-FROM entity_activity 
-WHERE observed_at > CURRENT_TIMESTAMP - INTERVAL '30 days';
-```
 
 ### Q: How do I get historical trends beyond 30 days?
 A: Use the `monthly_activity` table:
-```sql
-SELECT 
-    month,
-    total_requests,
-    total_responses,
-    unique_dvms,
-    unique_kinds,
-    unique_users
-FROM monthly_activity
-ORDER BY month DESC;
-```
+
 
 ### Q: What happens if a DVM returns after being marked inactive?
 A: The system will:
@@ -208,34 +169,6 @@ A: Best practices for implementing the cleanup processes:
 4. Log all cleanup activities for auditing
 5. Include error handling and retry mechanisms
 
-Example batch cleanup:
-```sql
-DO $$
-DECLARE
-    batch_size INTEGER := 1000;
-    deleted INTEGER;
-BEGIN
-    LOOP
-        -- Delete in small batches
-        WITH batch AS (
-            SELECT id FROM dvms 
-            WHERE last_seen < CURRENT_TIMESTAMP - INTERVAL '60 days'
-            AND is_active = FALSE
-            LIMIT batch_size
-            FOR UPDATE SKIP LOCKED
-        )
-        DELETE FROM dvms d
-        USING batch b
-        WHERE d.id = b.id
-        RETURNING 1;
-        
-        GET DIAGNOSTICS deleted = ROW_COUNT;
-        
-        EXIT WHEN deleted < batch_size;
-        COMMIT;
-    END LOOP;
-END $$;
-```
 
 ### Q: What monitoring should I add?
 Monitor these key metrics:
@@ -250,3 +183,5 @@ Best practices for this schema:
 2. Special attention to `monthly_activity` as it contains irreplaceable historical data
 3. Keep multiple backup points for the cleanup process
 4. Consider point-in-time recovery for the 30-day window
+
+

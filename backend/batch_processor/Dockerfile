@@ -12,7 +12,8 @@ COPY ./backend/batch_processor/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the backend directory
-COPY ./backend /app/backend
+COPY ./backend/batch_processor /app/backend/batch_processor
+COPY ./backend/shared /app/backend/shared
 
 # Create logs directory
 RUN mkdir -p /app/logs

@@ -3,6 +3,7 @@ import sys
 import time
 import asyncio
 from datetime import datetime, timezone, timedelta
+from dateutil.relativedelta import relativedelta
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 from collections import defaultdict
@@ -63,6 +64,10 @@ class BatchStats:
     kind_requests: Dict[int, int] = None  # kind -> count of requests
     kind_responses: Dict[int, int] = None  # kind -> count of responses
 
+    # List of events that could not be processed
+    # because they are in a different month
+    overflow_events: List[dict] = None
+
     def __post_init__(self):
         self.dvm_responses = defaultdict(int)
         self.dvm_feedback = defaultdict(int)
@@ -82,25 +87,28 @@ class BatchStats:
         self.kind_requests = defaultdict(int)
         self.kind_responses = defaultdict(int)
 
+        self.overflow_events = []
+
 
 class BatchProcessor:
     def __init__(
         self,
         redis_url: str,
         metrics_pool: asyncpg.Pool,  # Pool for metrics database
-        events_pool: asyncpg.Pool,  # Pool for events database
         queue_name: str = "dvmdash_events",
         batch_size: int = 100,
         max_wait_seconds: int = 5,
+        backtest_mode: bool = False,
     ):
         self.redis = redis.from_url(redis_url)
         self.metrics_pool = metrics_pool
-        self.events_pool = events_pool
         self.queue_name = queue_name
         self.batch_size = batch_size
         self.max_wait_seconds = max_wait_seconds
         self.event_count = 0
         self.error_count = 0
+        self.backtest_mode = backtest_mode
+        self.previous_month = None
 
     async def process_events(self, events: List[dict]) -> None:
         """Process a batch of events and update all necessary tables atomically."""
@@ -119,11 +127,24 @@ class BatchProcessor:
                 # Update rollup tables
                 await self._update_dvm_stats_rollup(conn, stats)
                 await self._update_kind_stats_rollup(conn, stats)
-                await self._update_global_stats_rollup(conn, stats)
 
-        # Step 3: Save all events to events db for backup and future reference
-        async with self.events_pool.acquire() as conn:
+            # this does not need to be a transaction, it's only adding new data
             await self._save_events(conn, events)
+
+            # process overflow events that are in a different month
+            if stats.overflow_events:
+                await self.process_events(stats.overflow_events)
+
+            # perform cleanup every month, if we are entering a new month
+            # I expect this won't trigger often
+            if (
+                self.previous_month
+                and self.previous_month.month != stats.period_end.month
+            ):
+                logger.warning(
+                    f"!!!NEW MONTH DETECTED!!! Previous month: {self.previous_month} and new month is {stats.period_end.month}"
+                )
+                await self._monthly_cleanup(conn)
 
     def _analyze_events(self, events: List[dict]) -> BatchStats:
         """Analyze events and collect all necessary stats in memory."""
@@ -131,9 +152,21 @@ class BatchProcessor:
             period_start=datetime.max.replace(tzinfo=timezone.utc),
             period_end=datetime.min.replace(tzinfo=timezone.utc),
         )
+        batch_month = datetime.fromtimestamp(
+            events[0]["created_at"], tz=timezone.utc
+        ).replace(day=1)
 
         for event in events:
             try:
+                # check that we don't cross any month boundaries
+                event_month = datetime.fromtimestamp(
+                    event["created_at"], tz=timezone.utc
+                ).replace(day=1)
+
+                if event_month != batch_month:
+                    stats.overflow_events.append(event)
+                    continue
+
                 # Ensure we always have a timezone-aware datetime
                 created_at = event["created_at"]
                 if isinstance(created_at, str):
@@ -755,18 +788,7 @@ class BatchProcessor:
         # Prepare bulk insert for all windows
         values = []
         for window_size, metrics in zip(window_sizes, window_metrics):
-            if window_size == "all time":
-                # For "all time", we need to get the earliest timestamp from our data
-                # This could come from various tables, but let's use the global_stats_rollups
-                earliest_timestamp = (
-                    await conn.fetchval(
-                        "SELECT MIN(period_start) FROM global_stats_rollups"
-                    )
-                    or NOSTR_EPOCH
-                )
-                period_start = earliest_timestamp
-            else:
-                period_start = stats.period_end - window_to_delta[window_size]
+            period_start = stats.period_end - window_to_delta[window_size]
 
             values.append(
                 (
@@ -798,61 +820,6 @@ class BatchProcessor:
             """,
             values,
         )
-
-    async def _update_global_stats_rollup(
-        self, conn: asyncpg.Connection, stats: BatchStats
-    ) -> None:
-        """Update global_stats_rollups and time_window_stats tables with new stats."""
-        try:
-            # First do the existing global stats rollup update
-            metrics = await self.get_metrics(conn, interval="24 hours")
-            last_totals = (
-                await conn.fetchrow(
-                    """
-                        SELECT 
-                            COALESCE(MAX(running_total_requests), 0)::integer as last_requests,
-                            COALESCE(MAX(running_total_responses), 0)::integer as last_responses
-                        FROM global_stats_rollups
-                        """
-                )
-                or {"last_requests": 0, "last_responses": 0}
-            )
-
-            new_total_requests = last_totals["last_requests"] + stats.period_requests
-            new_total_responses = last_totals["last_responses"] + stats.period_responses
-            current_timestamp = datetime.now(timezone.utc)
-
-            # Insert new global stats rollup
-            await conn.execute(
-                """
-                INSERT INTO global_stats_rollups (
-                    timestamp, period_start, period_end, period_requests, period_responses,
-                    running_total_requests, running_total_responses,
-                    running_total_unique_dvms, running_total_unique_kinds,
-                    running_total_unique_users
-                )
-                VALUES ($1, $2, $3, $4::integer, $5::integer, $6::integer, $7::integer, 
-                        $8::integer, $9::integer, $10::integer)
-                """,
-                current_timestamp,
-                stats.period_start,
-                stats.period_end,
-                int(stats.period_requests),
-                int(stats.period_responses),
-                new_total_requests,
-                new_total_responses,
-                metrics["total_dvms"],
-                metrics["total_kinds"],
-                metrics["total_users"],
-            )
-
-            # Update all time window stats efficiently
-            await self._update_window_stats(conn, stats)
-
-        except Exception as e:
-            logger.error(f"Error updating stats rollups: {e}")
-            logger.error(traceback.format_exc())
-            raise
 
     async def _save_events(self, conn: asyncpg.Connection, events: List[dict]) -> None:
         """Save raw events to the events database."""
@@ -899,6 +866,181 @@ class BatchProcessor:
         except Exception as e:
             logger.error(f"Error saving events to backup database: {e}")
             logger.error(traceback.format_exc())
+
+    async def _daily_cleanup(
+        self, conn: asyncpg.Connection, reference_timestamp: Optional[datetime] = None
+    ) -> None:
+        """
+        Performs daily cleanup tasks:
+        1. Two-phase entity cleanup (mark inactive, delete old inactive)
+        2. Maintain 35-day rolling window for entity_activity
+        """
+        try:
+            batch_size = 1000
+            logger.info("Starting daily cleanup process...")
+
+            while True:
+                updated_count = await conn.fetchval(
+                    """
+                        WITH inactive_entities AS (
+                            SELECT id 
+                            FROM dvms
+                            WHERE last_seen < COALESCE($2, CURRENT_TIMESTAMP) - INTERVAL '35 days'
+                            AND is_active = TRUE
+                            LIMIT $1
+                            FOR UPDATE SKIP LOCKED
+                        )
+                        UPDATE dvms d
+                        SET 
+                            is_active = FALSE,
+                            deactivated_at = COALESCE($2, CURRENT_TIMESTAMP)
+                        FROM inactive_entities i
+                        WHERE d.id = i.id
+                        RETURNING COUNT(*)
+                    """,
+                    batch_size,
+                    reference_timestamp,
+                )
+
+                if not updated_count or updated_count < batch_size:
+                    break
+
+                await asyncio.sleep(0.0001)  # prevent a tight loop
+
+            # Phase 2: Delete entities inactive for 60+ days
+            deleted_count = await conn.fetchval(
+                """
+                        WITH deleted AS (
+                            DELETE FROM dvms
+                            WHERE last_seen < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '60 days'
+                            AND is_active = FALSE
+                            RETURNING id, first_seen, last_seen, deactivated_at
+                        )
+                        INSERT INTO cleanup_log (entity_id,
+                                                 entity_type,
+                                                 first_seen,
+                                                 last_seen,
+                                                 deactivated_at,
+                                                 deleted_at)
+                        SELECT 
+                            id,
+                            'dvm',
+                            first_seen,
+                            last_seen,
+                            deactivated_at,
+                            COALESCE($1, CURRENT_TIMESTAMP)
+                        FROM deleted
+                        RETURNING COUNT(*)
+                    """,
+                reference_timestamp,
+            )
+
+            logger.info(f"Deleted {deleted_count} inactive DVMs")
+
+            # Clean up old activity data (keep exactly 30 days)
+            deleted_activities = await conn.fetchval(
+                """
+                        DELETE FROM entity_activity
+                        WHERE observed_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '35 days'
+                        RETURNING COUNT(*)
+                    """,
+                reference_timestamp,
+            )
+
+            logger.info(f"Removed {deleted_activities} old activity records")
+
+        except Exception as e:
+            logger.error(f"Error during daily cleanup: {e}")
+            logger.error(traceback.format_exc())
+            raise
+
+    async def _monthly_cleanup(
+        self, conn: asyncpg.Connection, reference_timestamp: Optional[datetime] = None
+    ) -> None:
+        """Performs monthly cleanup tasks with accurate month boundary handling."""
+        try:
+            logger.info("Starting monthly cleanup process...")
+
+            current_time = reference_timestamp or datetime.now(timezone.utc)
+            month_start = current_time.replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ) - relativedelta(months=1)
+            month_end = month_start + relativedelta(months=1)
+
+            await conn.execute(
+                """
+                INSERT INTO monthly_activity (
+                    month,
+                    total_requests,
+                    total_responses,
+                    unique_dvms,
+                    unique_kinds,
+                    unique_users,
+                    dvm_activity,
+                    kind_activity
+                )
+                WITH period_metrics AS (
+                    SELECT
+                        COUNT(*) FILTER (WHERE entity_type = 'request') as total_requests,
+                        COUNT(*) FILTER (WHERE entity_type = 'response') as total_responses,
+                        COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'dvm') as unique_dvms,
+                        COUNT(DISTINCT entity_id) FILTER (
+                            WHERE entity_type = 'kind' AND 
+                            CAST(entity_id AS INTEGER) BETWEEN 5000 AND 5999
+                        ) as unique_kinds,
+                        COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'user') as unique_users
+                    FROM entity_activity
+                    WHERE observed_at >= $1 AND observed_at < $2
+                ),
+                monthly_dvm_stats AS (
+                    SELECT 
+                        dvm_id,
+                        SUM(period_feedback) as feedback_count,
+                        SUM(period_responses) as response_count
+                    FROM dvm_stats_rollups
+                    WHERE period_start >= $1 AND period_end < $2
+                    GROUP BY dvm_id
+                ),
+                monthly_kind_stats AS (
+                    SELECT 
+                        kind,
+                        SUM(period_requests) as request_count,
+                        SUM(period_responses) as response_count
+                    FROM kind_stats_rollups
+                    WHERE period_start >= $1 AND period_end < $2
+                    GROUP BY kind
+                )
+                SELECT
+                    $1::timestamp with time zone,
+                    pm.total_requests,
+                    pm.total_responses,
+                    pm.unique_dvms,
+                    pm.unique_kinds,
+                    pm.unique_users,
+                    (SELECT jsonb_agg(row_to_json(d)) FROM monthly_dvm_stats d) as dvm_activity,
+                    (SELECT jsonb_agg(row_to_json(k)) FROM monthly_kind_stats k) as kind_activity
+                FROM period_metrics pm
+            """,
+                month_start,
+                month_end,
+            )
+
+            deleted_logs = await conn.fetchval(
+                """
+                DELETE FROM cleanup_log
+                WHERE deleted_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '1 year'
+                RETURNING COUNT(*)
+            """,
+                reference_timestamp,
+            )
+
+            logger.info(f"Removed {deleted_logs} old cleanup logs")
+            logger.info("Monthly cleanup process completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error during monthly cleanup: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
     @staticmethod
     def format_metrics_row(timestamp, stats: BatchStats, queue_length: int) -> str:
@@ -989,25 +1131,12 @@ async def main():
             max_size=20,
         )
 
-        # Initialize events database connection pool
-        logger.info("Connecting to events database...")
-        events_pool = await asyncpg.create_pool(
-            user=os.getenv("EVENTS_POSTGRES_USER", "postgres"),
-            password=os.getenv("EVENTS_POSTGRES_PASSWORD", "postgres"),
-            database=os.getenv("EVENTS_POSTGRES_DB", "dvmdash_events"),
-            host=os.getenv("EVENTS_POSTGRES_HOST", "localhost"),
-            port=os.getenv("EVENTS_POSTGRES_PORT", 5432),
-            min_size=5,
-            max_size=20,
-        )
-
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         logger.info(f"Connecting to Redis at {redis_url}")
 
         processor = BatchProcessor(
             redis_url=redis_url,
             metrics_pool=metrics_pool,
-            events_pool=events_pool,
             batch_size=int(os.getenv("BATCH_SIZE", "100")),
             max_wait_seconds=int(os.getenv("MAX_WAIT_SECONDS", "5")),
         )
@@ -1023,8 +1152,6 @@ async def main():
         logger.info("Closing database connections...")
         if "metrics_pool" in locals():
             await metrics_pool.close()
-        if "events_pool" in locals():
-            await events_pool.close()
         logger.info("Shutdown complete")
 
 

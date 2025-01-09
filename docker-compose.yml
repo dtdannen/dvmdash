@@ -19,24 +19,6 @@ services:
       - ./infrastructure/postgres/pipeline_init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_pipeline_data:/var/lib/postgresql/data
 
-  postgres_events:
-    image: postgres:16
-    profiles: ["core", "all"]
-    ports:
-      - "5433:5432"  # Note: Different host port to avoid conflicts
-    environment:
-      POSTGRES_USER: devuser
-      POSTGRES_PASSWORD: devpass
-      POSTGRES_DB: dvmdash_events
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U devuser -d dvmdash_events" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - ./infrastructure/postgres/events_init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres_events_data:/var/lib/postgresql/data
-
   redis:
     image: redis:7-alpine
     profiles: ["core", "all"]
@@ -100,14 +82,11 @@ services:
       - POSTGRES_PASSWORD=devpass
       - POSTGRES_DB=dvmdash_pipeline
       - POSTGRES_HOST=postgres_pipeline
-      - EVENTS_POSTGRES_USER=devuser
-      - EVENTS_POSTGRES_PASSWORD=devpass
-      - EVENTS_POSTGRES_DB=dvmdash_events
-      - EVENTS_POSTGRES_HOST=postgres_events
       - MAX_WAIT_SECONDS=3
       - BATCH_SIZE=10000
     volumes:
-      - ./backend:/app/backend
+      - ./backend/batch_processor:/app/backend/batch_processor
+      - ./backend/shared:/app/backend/shared
       - batch_processor_logs:/app/logs
     deploy:
       restart_policy:
@@ -117,8 +96,6 @@ services:
         window: 120s
     depends_on:
       postgres_pipeline:
-        condition: service_healthy
-      postgres_events:
         condition: service_healthy
       event_collector:
         condition: service_healthy
@@ -191,7 +168,6 @@ services:
 
 volumes:
   postgres_pipeline_data:
-  postgres_events_data:
   redis_data:
   event_collector_logs:
   batch_processor_logs:

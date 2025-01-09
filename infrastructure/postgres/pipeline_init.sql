@@ -98,23 +98,6 @@ CREATE TABLE time_window_stats (
     CHECK (period_end <= CURRENT_TIMESTAMP)
 );
 
-CREATE TABLE global_stats_rollups (
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-    period_start TIMESTAMP WITH TIME ZONE NOT NULL,
-    period_end TIMESTAMP WITH TIME ZONE NOT NULL,
-    period_requests INTEGER NOT NULL CHECK (period_requests >= 0),
-    period_responses INTEGER NOT NULL CHECK (period_responses >= 0),
-    running_total_requests BIGINT NOT NULL,
-    running_total_responses BIGINT NOT NULL,
-    PRIMARY KEY (timestamp),
-
-    CHECK (period_start <= timestamp),
-    CHECK (period_end <= CURRENT_TIMESTAMP),
-    CHECK (period_start <= period_end),
-    CHECK (running_total_requests >= period_requests),
-    CHECK (running_total_responses >= period_responses)
-);
-
 CREATE TABLE entity_activity (
     id SERIAL PRIMARY KEY, -- Auto-generated unique identifier
     entity_id TEXT NOT NULL, -- either a user npub, dvm npub, or kind integer as text
@@ -131,10 +114,32 @@ CREATE TABLE monthly_activity (
     unique_dvms INTEGER NOT NULL CHECK (unique_dvms >= 0),
     unique_kinds INTEGER NOT NULL CHECK (unique_kinds >= 0),
     unique_users INTEGER NOT NULL CHECK (unique_users >= 0),
-    popular_dvm TEXT REFERENCES dvms(id),
-    popular_kind INTEGER CHECK (popular_kind BETWEEN 5000 AND 5999),
-    competitive_kind INTEGER CHECK (competitive_kind BETWEEN 5000 AND 5999),
-)
+    dvm_activity JSONB NOT NULL, -- Array of {dvm_id, feedback_count, response_count}
+    kind_activity JSONB NOT NULL  -- Array of {kind, request_count, response_count}
+);
+
+-- Create an events table to store raw Nostr events
+CREATE TABLE raw_events (
+    id TEXT PRIMARY KEY,                    -- Nostr event id
+    pubkey TEXT NOT NULL,                   -- Event creator's public key
+    created_at TIMESTAMP NOT NULL,          -- Event creation timestamp
+    kind INTEGER NOT NULL,                  -- Nostr event kind
+    content TEXT,                           -- Event content
+    sig TEXT,                               -- Event signature
+    tags JSONB,                             -- Event tags as JSONB
+    raw_data JSONB NOT NULL,                -- Complete raw event data
+    inserted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- Record insertion timestamp
+    -- Indexes for common query patterns
+    CONSTRAINT valid_kind CHECK (kind >= 0)
+);
+
+-- Create indexes for raw event query patterns
+CREATE INDEX IF NOT EXISTS idx_events_kind ON raw_events(kind);
+CREATE INDEX IF NOT EXISTS idx_events_pubkey ON raw_events(pubkey);
+CREATE INDEX IF NOT EXISTS idx_events_created_at ON raw_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_kind_created_at ON raw_events(kind, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_pubkey_created_at ON raw_events(pubkey, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_inserted_at ON raw_events(inserted_at DESC);
 
 -- Entity Activity Table Indices
 CREATE INDEX idx_entity_activity_timestamp ON entity_activity (observed_at DESC);

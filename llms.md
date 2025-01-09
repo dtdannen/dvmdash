@@ -656,3 +656,9 @@ Each step builds on the previous ones, and steps 2-4 happen in a single transact
 ## Problems to be solved later
 
 1. Old, duplicate events being submitted. Someone could fudge the numbers of a DVM by submitted old events. The events would have to be older than the redis cache. By default, I think I'm just going to make it so the database queries fail if this happens, and when we get these failures, we can build a process that filters out the bad events and puts the new ones back on the stack. So worst case, if someone tries this, it will just cause errors, rather than bad data and bad stats.
+
+## Query for december 2024 data:
+
+```
+{ "created_at": { "$gte": 1733011200, "$lte": 1735689600 } }
+```

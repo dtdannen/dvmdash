@@ -157,52 +157,30 @@ class TestDataLoader:
     async def download_file(
         self, url: str, max_retries: int = 3, timeout: int = 600
     ) -> Path:
-        """Download file from URL to temporary location with retries."""
         logger.info(f"Downloading file from {url}")
-
-        # Create temp file
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
         temp_path = Path(temp_file.name)
 
         for attempt in range(max_retries):
             try:
                 timeout_client = aiohttp.ClientTimeout(
-                    total=timeout,
-                    connect=60,  # 60 seconds to establish connection
-                    sock_read=300,  # 5 minutes to read data chunks
-                )  # 5 minute timeout
+                    total=timeout, connect=60, sock_read=300
+                )
                 async with aiohttp.ClientSession(timeout=timeout_client) as session:
                     async with session.get(url) as response:
                         response.raise_for_status()
-
-                        # Stream the download to avoid memory issues
                         with open(temp_path, "wb") as f:
                             async for chunk in response.content.iter_chunked(8192):
                                 f.write(chunk)
-
                 return temp_path
-
-            except asyncio.TimeoutError:
-                logger.warning(
-                    f"Timeout downloading {url}, attempt {attempt + 1} of {max_retries}"
-                )
-                if attempt == max_retries - 1:
-                    raise
-                await asyncio.sleep(5 * (attempt + 1))  # Exponential backoff
-
             except Exception as e:
-                # Clean up temp file if download fails
                 temp_file.close()
                 if temp_path.exists():
                     os.unlink(temp_path)
                 if attempt == max_retries - 1:
-                    raise Exception(
-                        f"Failed to download file from {url} after {max_retries} attempts: {str(e)}"
-                    )
-                logger.warning(
-                    f"Error downloading {url}, attempt {attempt + 1} of {max_retries}: {e}"
-                )
-                await asyncio.sleep(5 * (attempt + 1))  # Exponential backoff
+                    raise Exception(f"Failed to download file from {url}: {str(e)}")
+                logger.warning(f"Error downloading {url}, attempt {attempt + 1}: {e}")
+                await asyncio.sleep(5 * (attempt + 1))
 
         raise Exception(
             f"Failed to download file from {url} after {max_retries} attempts"
@@ -269,14 +247,14 @@ class TestDataLoader:
                     except Exception as e:
                         logger.error(f"Error cleaning up temp file {temp_path}: {e}")
 
-    async def process_events_parallel(self, max_concurrent: int = 3) -> None:
+    async def process_events_parallel(self, max_concurrent: int = 1) -> None:
         """Process multiple files concurrently with bounded concurrency."""
         semaphore = asyncio.Semaphore(max_concurrent)
         tasks = []
 
         async def process_url(url: str, max_retries: int = 3):
             async with semaphore:
-                logger.info(f"Starting to process events from {url}")
+                logger.warning(f"Starting to process events from {url}")
                 temp_path = None
 
                 for attempt in range(max_retries):
@@ -305,14 +283,18 @@ class TestDataLoader:
                                     f"Error cleaning up temp file {temp_path}: {e}"
                                 )
 
-        # Create tasks for all URLs
-        for url in self.urls:
-            tasks.append(asyncio.create_task(process_url(url)))
+        # Create tasks for all URLs and process in parallel
+        # for url in self.urls:
+        #     tasks.append(asyncio.create_task(process_url(url)))
 
-        # Wait for all tasks to complete
-        await asyncio.gather(
-            *tasks, return_exceptions=True
-        )  # Allow some URLs to fail without stopping everything
+        # sequential processing for testing that monthly cleanups are working
+        for url in self.urls:
+            await process_url(url)
+
+        # # Wait for all tasks to complete
+        # await asyncio.gather(
+        #     *tasks, return_exceptions=True
+        # )  # Allow some URLs to fail without stopping everything
 
     async def _process_batch(self, batch: list[Dict]) -> None:
         """Process a batch of events more efficiently."""
@@ -714,7 +696,8 @@ def parse_args():
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_sep.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_oct.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_nov.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_dec.json"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_dec.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2025_jan_1_to_9.json"
                 ),
             )
         ),
@@ -776,7 +759,7 @@ async def main(args):
                     f"Created test data loader, now about to run process events parallel"
                 )
                 # Use parallel processing instead of sequential
-                await loader.process_events_parallel(max_concurrent=3)
+                await loader.process_events_parallel(max_concurrent=1)
             except Exception as e:
                 logger.error(f"Error loading test data: {e}")
                 return
