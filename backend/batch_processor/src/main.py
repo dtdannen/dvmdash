@@ -108,18 +108,27 @@ class BatchProcessor:
         self.event_count = 0
         self.error_count = 0
         self.backtest_mode = backtest_mode
-        self.previous_month = None
+        self.current_year_month = None
+        self.last_daily_cleanup = None
+
+        logger.info(
+            f"Creating Batch Processor with settings:\n"
+            f" batch_size={batch_size},"
+            f" max_wait_seconds={max_wait_seconds},"
+            f" backtest_mode={backtest_mode}"
+        )
 
     async def process_events(self, events: List[dict]) -> None:
         """Process a batch of events and update all necessary tables atomically."""
         if not events:
             return
 
+        logger.info(f"Processing {len(events)} events")
         # Step 1: Analyze all events in memory first
         stats = self._analyze_events(events)
 
         # Step 2: Update all tables in a single transaction
-        async with self.metrics_pool.acquire() as conn:
+        async with (self.metrics_pool.acquire() as conn):
             async with conn.transaction():
                 # Update base tables first
                 await self._update_base_tables(conn, stats)
@@ -133,18 +142,35 @@ class BatchProcessor:
 
             # process overflow events that are in a different month
             if stats.overflow_events:
+                logger.warning(
+                    f"[RECURSION] Processing {len(stats.overflow_events)} overflow events"
+                )
                 await self.process_events(stats.overflow_events)
 
-            # perform cleanup every month, if we are entering a new month
-            # I expect this won't trigger often
-            if (
-                self.previous_month
-                and self.previous_month.month != stats.period_end.month
-            ):
-                logger.warning(
-                    f"!!!NEW MONTH DETECTED!!! Previous month: {self.previous_month} and new month is {stats.period_end.month}"
-                )
-                await self._monthly_cleanup(conn)
+            # Check if day boundary crossed
+            stats_day = stats.period_end.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            logger.info(
+                f"Stats day: {stats_day}, last stats day = {self.last_daily_cleanup}"
+            )
+            if not self.last_daily_cleanup or stats_day > self.last_daily_cleanup:
+                await self._daily_cleanup(conn, reference_timestamp=stats.period_end)
+                self.last_daily_cleanup = stats_day
+
+            # Monthly cleanup check
+            logger.info(
+                f"Current month is {self.current_year_month} and stats month is {stats.period_end.replace(day=1)}"
+            )
+            current_period_year_month = (stats.period_end.year, stats.period_end.month)
+
+            if not self.current_year_month:
+                self.current_year_month = current_period_year_month
+            elif (
+                current_period_year_month > self.current_year_month
+            ):  # Tuple comparison works for year-month pairs
+                await self._monthly_cleanup(conn, reference_timestamp=stats.period_end)
+                self.current_year_month = current_period_year_month
 
     def _analyze_events(self, events: List[dict]) -> BatchStats:
         """Analyze events and collect all necessary stats in memory."""
@@ -152,18 +178,21 @@ class BatchProcessor:
             period_start=datetime.max.replace(tzinfo=timezone.utc),
             period_end=datetime.min.replace(tzinfo=timezone.utc),
         )
-        batch_month = datetime.fromtimestamp(
-            events[0]["created_at"], tz=timezone.utc
-        ).replace(day=1)
+        batch_year_month = (
+            datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).year,
+            datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).month,
+        )
+
+        logger.debug(f"Batch_year_month is {batch_year_month}")
 
         for event in events:
             try:
-                # check that we don't cross any month boundaries
-                event_month = datetime.fromtimestamp(
-                    event["created_at"], tz=timezone.utc
-                ).replace(day=1)
+                event_year_month = (
+                    datetime.fromtimestamp(event["created_at"], tz=timezone.utc).year,
+                    datetime.fromtimestamp(event["created_at"], tz=timezone.utc).month,
+                )
 
-                if event_month != batch_month:
+                if event_year_month != batch_year_month:
                     stats.overflow_events.append(event)
                     continue
 
@@ -259,7 +288,7 @@ class BatchProcessor:
     async def get_batch_of_events(self) -> List[Dict]:
         """
         Get a batch of events from Redis queue.
-        Uses BRPOP with timeout for the first event, then gets more if available.
+        Uses BLPOP with timeout for the first event, then gets more if available.
         """
         events = []
         start_time = time.time()
@@ -269,10 +298,10 @@ class BatchProcessor:
             wait_start = time.time()
 
             # Wait for first event with timeout
-            result = self.redis.brpop(self.queue_name, timeout=self.max_wait_seconds)
+            result = self.redis.blpop(self.queue_name, timeout=self.max_wait_seconds)
 
             wait_duration = time.time() - wait_start
-            logger.debug(f"BRPOP wait duration: {wait_duration:.2f}s")
+            logger.debug(f"BLPOP wait duration: {wait_duration:.2f}s")
 
             if result:
                 _, message = result
@@ -643,7 +672,7 @@ class BatchProcessor:
         Get metrics for a specified time interval using entity_activity table for unique counts.
         """
         # Validate interval
-        valid_intervals = {"1 hour", "24 hours", "7 days", "30 days", "all time"}
+        valid_intervals = {"1 hour", "24 hours", "7 days", "30 days"}
         if interval not in valid_intervals:
             raise ValueError(f"Interval must be one of {valid_intervals}")
 
@@ -768,7 +797,7 @@ class BatchProcessor:
         Update all time window stats in a single efficient operation.
         """
 
-        window_sizes = ["1 hour", "24 hours", "7 days", "30 days", "all time"]
+        window_sizes = ["1 hour", "24 hours", "7 days", "30 days"]
 
         # Map to convert window size strings to timedelta
         window_to_delta = {
@@ -776,7 +805,6 @@ class BatchProcessor:
             "24 hours": timedelta(days=1),
             "7 days": timedelta(days=7),
             "30 days": timedelta(days=30),
-            "all time": None,  # Special case, will handle separately
         }
 
         # Get metrics for each window size sequentially instead of using gather
@@ -880,70 +908,82 @@ class BatchProcessor:
             logger.info("Starting daily cleanup process...")
 
             while True:
-                updated_count = await conn.fetchval(
+                # First get the IDs of DVMs to update
+                inactive_ids = await conn.fetch(
                     """
-                        WITH inactive_entities AS (
-                            SELECT id 
-                            FROM dvms
-                            WHERE last_seen < COALESCE($2, CURRENT_TIMESTAMP) - INTERVAL '35 days'
-                            AND is_active = TRUE
-                            LIMIT $1
-                            FOR UPDATE SKIP LOCKED
-                        )
-                        UPDATE dvms d
-                        SET 
-                            is_active = FALSE,
-                            deactivated_at = COALESCE($2, CURRENT_TIMESTAMP)
-                        FROM inactive_entities i
-                        WHERE d.id = i.id
-                        RETURNING COUNT(*)
+                    SELECT id 
+                    FROM dvms
+                    WHERE last_seen < COALESCE($2, CURRENT_TIMESTAMP) - INTERVAL '35 days'
+                    AND is_active = TRUE
+                    LIMIT $1
+                    FOR UPDATE SKIP LOCKED
                     """,
                     batch_size,
                     reference_timestamp,
                 )
 
-                if not updated_count or updated_count < batch_size:
+                if not inactive_ids:
                     break
 
-                await asyncio.sleep(0.0001)  # prevent a tight loop
-
-            # Phase 2: Delete entities inactive for 60+ days
-            deleted_count = await conn.fetchval(
-                """
-                        WITH deleted AS (
-                            DELETE FROM dvms
-                            WHERE last_seen < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '60 days'
-                            AND is_active = FALSE
-                            RETURNING id, first_seen, last_seen, deactivated_at
-                        )
-                        INSERT INTO cleanup_log (entity_id,
-                                                 entity_type,
-                                                 first_seen,
-                                                 last_seen,
-                                                 deactivated_at,
-                                                 deleted_at)
-                        SELECT 
-                            id,
-                            'dvm',
-                            first_seen,
-                            last_seen,
-                            deactivated_at,
-                            COALESCE($1, CURRENT_TIMESTAMP)
-                        FROM deleted
-                        RETURNING COUNT(*)
+                # Then update those specific DVMs
+                updated_count = await conn.execute(
+                    """
+                    UPDATE dvms 
+                    SET is_active = FALSE,
+                        deactivated_at = COALESCE($2, CURRENT_TIMESTAMP)
+                    WHERE id = ANY($1)
                     """,
+                    [row["id"] for row in inactive_ids],
+                    reference_timestamp,
+                )
+
+                if not updated_count or updated_count == "0":
+                    break
+
+                await asyncio.sleep(0.0001)  # prevent tight loop
+
+            # Phase 2: Delete entities inactive for 60+ days and log them
+            deleted_dvms = await conn.fetch(
+                """
+                WITH deleted AS (
+                    DELETE FROM dvms
+                    WHERE last_seen < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '60 days'
+                    AND is_active = FALSE
+                    RETURNING id, first_seen, last_seen, deactivated_at
+                )
+                INSERT INTO cleanup_log (
+                    entity_id,
+                    entity_type,
+                    first_seen,
+                    last_seen,
+                    deactivated_at,
+                    deleted_at
+                )
+                SELECT 
+                    id,
+                    'dvm',
+                    first_seen,
+                    last_seen,
+                    deactivated_at,
+                    COALESCE($1, CURRENT_TIMESTAMP)
+                FROM deleted
+                RETURNING entity_id
+                """,
                 reference_timestamp,
             )
 
-            logger.info(f"Deleted {deleted_count} inactive DVMs")
+            logger.info(f"Deleted {len(deleted_dvms)} inactive DVMs")
 
-            # Clean up old activity data (keep exactly 30 days)
+            # Clean up old activity data (keep exactly 35 days)
             deleted_activities = await conn.fetchval(
                 """
-                        DELETE FROM entity_activity
-                        WHERE observed_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '35 days'
-                        RETURNING COUNT(*)
-                    """,
+                WITH deleted AS (
+                    DELETE FROM entity_activity
+                    WHERE observed_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '35 days'
+                    RETURNING id
+                )
+                SELECT COUNT(*) FROM deleted
+                """,
                 reference_timestamp,
             )
 
@@ -1011,26 +1051,38 @@ class BatchProcessor:
                     GROUP BY kind
                 )
                 SELECT
-                    $1::timestamp with time zone,
-                    pm.total_requests,
-                    pm.total_responses,
-                    pm.unique_dvms,
-                    pm.unique_kinds,
-                    pm.unique_users,
-                    (SELECT jsonb_agg(row_to_json(d)) FROM monthly_dvm_stats d) as dvm_activity,
-                    (SELECT jsonb_agg(row_to_json(k)) FROM monthly_kind_stats k) as kind_activity
+                    $1::timestamp with time zone as month,
+                    COALESCE(pm.total_requests, 0) as total_requests,
+                    COALESCE(pm.total_responses, 0) as total_responses,
+                    COALESCE(pm.unique_dvms, 0) as unique_dvms,
+                    COALESCE(pm.unique_kinds, 0) as unique_kinds,
+                    COALESCE(pm.unique_users, 0) as unique_users,
+                    COALESCE(
+                        (SELECT jsonb_agg(row_to_json(d)) 
+                         FROM monthly_dvm_stats d),
+                        '[]'::jsonb
+                    ) as dvm_activity,
+                    COALESCE(
+                        (SELECT jsonb_agg(row_to_json(k)) 
+                         FROM monthly_kind_stats k),
+                        '[]'::jsonb
+                    ) as kind_activity
                 FROM period_metrics pm
-            """,
+                """,
                 month_start,
                 month_end,
             )
 
+            # Clean up old logs
             deleted_logs = await conn.fetchval(
                 """
-                DELETE FROM cleanup_log
-                WHERE deleted_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '1 year'
-                RETURNING COUNT(*)
-            """,
+                WITH deleted AS (
+                    DELETE FROM cleanup_log
+                    WHERE deleted_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '1 year'
+                    RETURNING id
+                )
+                SELECT COUNT(*) FROM deleted
+                """,
                 reference_timestamp,
             )
 
@@ -1139,6 +1191,7 @@ async def main():
             metrics_pool=metrics_pool,
             batch_size=int(os.getenv("BATCH_SIZE", "100")),
             max_wait_seconds=int(os.getenv("MAX_WAIT_SECONDS", "5")),
+            backtest_mode=os.getenv("BACKTEST_MODE", "false").lower() == "true",
         )
 
         await processor.process_forever()

@@ -84,6 +84,7 @@ services:
       - POSTGRES_HOST=postgres_pipeline
       - MAX_WAIT_SECONDS=3
       - BATCH_SIZE=10000
+      - BACKTEST_MODE=true
     volumes:
       - ./backend/batch_processor:/app/backend/batch_processor
       - ./backend/shared:/app/backend/shared

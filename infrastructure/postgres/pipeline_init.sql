@@ -1,6 +1,4 @@
 
--- TODO - plan to drop dvms that have last_seen past a cuttoff date in the past, make sure to cascade other data
---        including dvm_stats_rollups and kind_dvm_support
 CREATE TABLE dvms (
     id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
     first_seen TIMESTAMP WITH TIME ZONE NOT NULL CHECK (first_seen <= CURRENT_TIMESTAMP),
@@ -9,14 +7,15 @@ CREATE TABLE dvms (
     last_profile_event_raw_json JSONB DEFAULT NULL,
     last_profile_event_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    deactivated_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
 
     CHECK (first_seen <= last_seen)
 );
 
 
--- TODO - this table will get trimmed when old dvms are dropped; need to make sure cascade works
 CREATE TABLE dvm_stats_rollups (
-    dvm_id TEXT REFERENCES dvms(id),
+    dvm_id TEXT REFERENCES dvms(id) ON DELETE CASCADE,
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     period_start TIMESTAMP WITH TIME ZONE NOT NULL,
     period_end TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -55,7 +54,6 @@ CREATE TABLE kind_stats_rollups (
 );
 
 
--- TODO - plan to drop users that have last_seen past a cuttoff date in the past, make sure to cascade other data
 CREATE TABLE users (
     id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
     first_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -70,7 +68,7 @@ CREATE TABLE users (
 
 CREATE TABLE kind_dvm_support (
     kind INTEGER CHECK (kind BETWEEN 5000 AND 5999),
-    dvm TEXT REFERENCES dvms(id),
+    dvm TEXT REFERENCES dvms(id) ON DELETE CASCADE,
     first_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     interaction_type TEXT NOT NULL CHECK (interaction_type IN ('both', 'request_only', 'response_only')),
@@ -133,6 +131,22 @@ CREATE TABLE raw_events (
     CONSTRAINT valid_kind CHECK (kind >= 0)
 );
 
+CREATE TABLE cleanup_log (
+    id SERIAL PRIMARY KEY,
+    entity_id TEXT NOT NULL,
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('dvm', 'user')),
+    first_seen TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_seen TIMESTAMP WITH TIME ZONE NOT NULL,
+    deactivated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    metadata JSONB -- For storing any additional context about the cleanup
+);
+
+-- Add indexes for cleanup operations
+CREATE INDEX idx_dvms_cleanup ON dvms (last_seen, is_active);
+CREATE INDEX idx_cleanup_log_entity ON cleanup_log (entity_type, entity_id);
+CREATE INDEX idx_cleanup_log_deleted ON cleanup_log (deleted_at);
+
 -- Create indexes for raw event query patterns
 CREATE INDEX IF NOT EXISTS idx_events_kind ON raw_events(kind);
 CREATE INDEX IF NOT EXISTS idx_events_pubkey ON raw_events(pubkey);
@@ -144,11 +158,6 @@ CREATE INDEX IF NOT EXISTS idx_events_inserted_at ON raw_events(inserted_at DESC
 -- Entity Activity Table Indices
 CREATE INDEX idx_entity_activity_timestamp ON entity_activity (observed_at DESC);
 CREATE INDEX idx_entity_activity_type_timestamp ON entity_activity (entity_type, observed_at DESC);
-
--- Global Stats Rollups Indices
-CREATE INDEX idx_global_stats_timestamp ON global_stats_rollups (timestamp DESC);
-CREATE INDEX idx_global_stats_period ON global_stats_rollups (period_start DESC);
-CREATE INDEX idx_global_stats_period_end ON global_stats_rollups (period_end DESC);
 
 -- DVMs Table Indices
 CREATE INDEX idx_dvms_last_seen ON dvms (last_seen DESC);
