@@ -990,6 +990,20 @@ class BatchProcessor:
 
             logger.info(f"Removed {deleted_activities} old activity records")
 
+            deleted_raw_events = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM raw_events
+                    WHERE created_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '35 days'
+                    RETURNING id
+                )
+                SELECT COUNT(*) FROM deleted
+                """,
+                reference_timestamp,
+            )
+
+            logger.info(f"Removed {deleted_raw_events} old raw events")
+
         except Exception as e:
             logger.error(f"Error during daily cleanup: {e}")
             logger.error(traceback.format_exc())
@@ -1026,8 +1040,14 @@ class BatchProcessor:
                 )
                 WITH period_metrics AS (
                     SELECT
-                        COUNT(*) FILTER (WHERE entity_type = 'request') as total_requests,
-                        COUNT(*) FILTER (WHERE entity_type = 'response') as total_responses,
+                        COUNT(*) FILTER (
+                            WHERE entity_type = 'kind' 
+                            AND CAST(entity_id AS INTEGER) BETWEEN 5000 AND 5999
+                        ) as total_requests,
+                        COUNT(*) FILTER (
+                            WHERE entity_type = 'kind' 
+                            AND CAST(entity_id AS INTEGER) BETWEEN 6000 AND 6999
+                        ) as total_responses,
                         COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'dvm') as unique_dvms,
                         COUNT(DISTINCT entity_id) FILTER (
                             WHERE entity_type = 'kind' AND 
