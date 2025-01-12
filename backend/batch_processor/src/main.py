@@ -906,7 +906,12 @@ class BatchProcessor:
         """
         try:
             batch_size = 1000
-            logger.info("Starting daily cleanup process...")
+            current_time = reference_timestamp or datetime.now(timezone.utc)
+            cutoff_date = current_time - timedelta(days=35)
+            logger.info(
+                f"Starting daily cleanup process at {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')} - "
+                f"removing events older than {cutoff_date.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            )
 
             while True:
                 # First get the IDs of DVMs to update
