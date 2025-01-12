@@ -140,13 +140,6 @@ class BatchProcessor:
             # this does not need to be a transaction, it's only adding new data
             await self._save_events(conn, events)
 
-            # process overflow events that are in a different month
-            if stats.overflow_events:
-                logger.warning(
-                    f"[RECURSION] Processing {len(stats.overflow_events)} overflow events"
-                )
-                await self.process_events(stats.overflow_events)
-
             # Check if day boundary crossed
             stats_day = stats.period_end.replace(
                 hour=0, minute=0, second=0, microsecond=0
@@ -171,6 +164,14 @@ class BatchProcessor:
             ):  # Tuple comparison works for year-month pairs
                 await self._monthly_cleanup(conn, reference_timestamp=stats.period_end)
                 self.current_year_month = current_period_year_month
+
+            # IMPORTANT - THIS MUST HAPPEN AFTER CLEANUPS ARE RUN
+            # process overflow events that are in a different month
+            if stats.overflow_events:
+                logger.warning(
+                    f"[RECURSION] Processing {len(stats.overflow_events)} overflow events"
+                )
+                await self.process_events(stats.overflow_events)
 
     def _analyze_events(self, events: List[dict]) -> BatchStats:
         """Analyze events and collect all necessary stats in memory."""
@@ -1002,15 +1003,19 @@ class BatchProcessor:
             logger.info("Starting monthly cleanup process...")
 
             current_time = reference_timestamp or datetime.now(timezone.utc)
+            # Get the previous month's start and end
             month_start = current_time.replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0
             ) - relativedelta(months=1)
             month_end = month_start + relativedelta(months=1)
 
+            # Format year_month string in YYYY-MM format
+            year_month = month_start.strftime("%Y-%m")
+
             await conn.execute(
                 """
                 INSERT INTO monthly_activity (
-                    month,
+                    year_month,
                     total_requests,
                     total_responses,
                     unique_dvms,
@@ -1051,7 +1056,7 @@ class BatchProcessor:
                     GROUP BY kind
                 )
                 SELECT
-                    $1::timestamp with time zone as month,
+                    $3::text as year_month,
                     COALESCE(pm.total_requests, 0) as total_requests,
                     COALESCE(pm.total_responses, 0) as total_responses,
                     COALESCE(pm.unique_dvms, 0) as unique_dvms,
@@ -1071,6 +1076,7 @@ class BatchProcessor:
                 """,
                 month_start,
                 month_end,
+                year_month,
             )
 
             # Clean up old logs

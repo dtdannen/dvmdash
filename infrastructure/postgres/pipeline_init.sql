@@ -106,14 +106,18 @@ CREATE TABLE entity_activity (
 );
 
 CREATE TABLE monthly_activity (
-    month TIMESTAMP WITH TIME ZONE PRIMARY KEY,
+    year_month TEXT PRIMARY KEY,
     total_requests INTEGER NOT NULL CHECK (total_requests >= 0),
     total_responses INTEGER NOT NULL CHECK (total_responses >= 0),
     unique_dvms INTEGER NOT NULL CHECK (unique_dvms >= 0),
     unique_kinds INTEGER NOT NULL CHECK (unique_kinds >= 0),
     unique_users INTEGER NOT NULL CHECK (unique_users >= 0),
-    dvm_activity JSONB NOT NULL, -- Array of {dvm_id, feedback_count, response_count}
-    kind_activity JSONB NOT NULL  -- Array of {kind, request_count, response_count}
+    dvm_activity JSONB NOT NULL DEFAULT '[]'::jsonb, -- Array of {dvm_id, feedback_count, response_count}
+    kind_activity JSONB NOT NULL DEFAULT '[]'::jsonb, -- Array of {kind, request_count, response_count}
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT check_year_month_format CHECK (year_month ~ '^\d{4}-\d{2}$')
+
 );
 
 -- Create an events table to store raw Nostr events
@@ -141,6 +145,8 @@ CREATE TABLE cleanup_log (
     deleted_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     metadata JSONB -- For storing any additional context about the cleanup
 );
+
+CREATE INDEX idx_monthly_activity_year_month ON monthly_activity(year_month DESC);
 
 -- Add indexes for cleanup operations
 CREATE INDEX idx_dvms_cleanup ON dvms (last_seen, is_active);
