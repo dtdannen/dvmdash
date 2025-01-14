@@ -184,4 +184,5 @@ Best practices for this schema:
 3. Keep multiple backup points for the cleanup process
 4. Consider point-in-time recovery for the 30-day window
 
-
+### Q: How do we deal with old events?
+We perform daily and monthly backups an hour after we get an event with a timestamp for a new day or month, respectively. The event collector prevents getting events too far in the future (more than 15 minutes). Events older than one hour are kept except when we do a backup. Once we backup a day or month, we ignore any events from before then. Since there is an hour buffer, that means events that are broadcast to the relays within an hour of being created will always be accepted. If this 1 hour buffer becomes a problem, we may increase it later.

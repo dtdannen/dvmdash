@@ -1,14 +1,16 @@
+import pandas as pd
+import matplotlib.pyplot as plt
 import asyncio
 import docker
 import psycopg2
 import redis
 import time
-import json
 from datetime import datetime
 import csv
 import os
 from loguru import logger
 import sys
+
 
 # Configure loguru logger
 logger.remove()  # Remove default handler
@@ -16,7 +18,7 @@ logger.add(
     sys.stdout,
     colorize=True,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="DEBUG",
+    level="INFO",
 )
 logger.add("local_perf_test.log", rotation="100 MB", level="DEBUG")
 
@@ -88,7 +90,7 @@ class LocalPerformanceTest:
         """Start the batch processor service"""
         logger.info("Starting batch processor...")
         process = await asyncio.create_subprocess_shell(
-            "docker compose up -d batch_processor",
+            "docker compose up -d batch_processor-leader",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -140,7 +142,28 @@ class LocalPerformanceTest:
             containers = self.docker_client.containers.list()
             logger.debug(f"Found {len(containers)} running containers")
 
-            # Find our container
+            # SPECIAL CASE because we want to aggregate stats for all batch processors
+            if container_name == "dvmdash-batch_processor":
+                # Look for both leader and follower processors
+                ram_total = 0
+                processor_count = 0
+                for c in containers:
+                    if "batch-processor" in c.name:  # This will match both types
+                        stats = c.stats(stream=False)
+                        memory_stats = stats["memory_stats"]
+                        usage = memory_stats.get("usage", 0) - memory_stats.get(
+                            "stats", {}
+                        ).get("cache", 0)
+                        ram_total += usage
+                        processor_count += 1
+
+                ram_mb = ram_total / (1024 * 1024)  # Convert to MB
+                logger.debug(
+                    f"Total RAM usage for {processor_count} batch processors: {ram_mb:.1f}MB"
+                )
+                return {"ram_usage": ram_mb}
+
+            # for all other containers
             container = None
             for c in containers:
                 # Check if the container name contains our search string
@@ -148,9 +171,6 @@ class LocalPerformanceTest:
                     container = c
                     logger.debug(f"Found matching container: {c.name}")
                     break
-                else:
-                    # logger.debug(f"Skipping container: {c.name}")
-                    pass
 
             if not container:
                 logger.warning(
@@ -187,6 +207,38 @@ class LocalPerformanceTest:
 
     def format_metrics_output(self, metrics: dict) -> str:
         """Format metrics for pretty console output"""
+
+        # Get cleanup timestamps from Redis
+        try:
+            redis_client = redis.Redis(
+                host="localhost", port=6379, decode_responses=True
+            )
+            daily_ts = redis_client.get("dvmdash_daily_cleanup_timestamp")
+            monthly_ts = redis_client.get("dvmdash_monthly_cleanup_timestamp")
+
+            if daily_ts:
+                daily_cleanup = datetime.fromtimestamp(float(daily_ts)).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            else:
+                daily_cleanup = "Not set"
+
+            if monthly_ts:
+                monthly_cleanup = datetime.fromtimestamp(float(monthly_ts)).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            else:
+                monthly_cleanup = "Not set"
+
+            cleanup_metrics = (
+                f"Cleanup Times | "
+                f"Daily: {daily_cleanup} | "
+                f"Monthly: {monthly_cleanup}"
+            )
+        except Exception as e:
+            logger.error(f"Error getting cleanup timestamps: {e}")
+            cleanup_metrics = "Cleanup Times | Error retrieving timestamps"
+
         ram_metrics = (
             f"RAM Usage (MB) | "
             f"Event Collector: {metrics['event_collector_ram']:.1f} | "
@@ -283,24 +335,51 @@ class LocalPerformanceTest:
             logger.error(f"Error getting Postgres count: {e}")
             return 0
 
-    async def flush_redis_queue(self):
-        """Flush the Redis queue before starting the test"""
+    def create_performance_plots(self):
+        """Create and save performance visualization plots"""
+        logger.info("Creating performance visualization...")
         try:
-            redis_client = redis.Redis(
-                host="localhost", port=6379, decode_responses=True
-            )
-            queue_size = redis_client.llen("dvmdash_events")
-            if queue_size > 0:
-                logger.info(
-                    f"Flushing Redis queue (current size: {queue_size:,} items)..."
-                )
-                redis_client.delete("dvmdash_events")
-                redis_client.delete("dvmdash_processed_events")
-                logger.success("Redis queue flushed successfully")
-            else:
-                logger.info("Redis queue is already empty")
-        except redis.RedisError as e:
-            logger.error(f"Error flushing Redis queue: {e}")
+            # Read the CSV file
+            df = pd.read_csv(self.csv_filename)
+
+            # Convert timestamp to datetime and calculate seconds from start
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df["seconds"] = (df["timestamp"] - df["timestamp"].min()).dt.total_seconds()
+
+            # Create the plot
+            plt.figure(figsize=(12, 6))
+
+            # Plot queue size
+            plt.subplot(2, 1, 1)
+            plt.plot(df["seconds"], df["redis_items"], "b-", label="Redis Queue Size")
+            plt.xlabel("Time (seconds)")
+            plt.ylabel("Number of Items")
+            plt.title("Redis Queue Size Over Time")
+            plt.grid(True)
+
+            # Plot processing rate
+            plt.subplot(2, 1, 2)
+            processing_rate = -df["redis_items"].diff() / df["seconds"].diff()
+            smoothed_rate = processing_rate.rolling(window=5).mean()  # Smooth the rate
+            plt.plot(df["seconds"], smoothed_rate, "r-", label="Processing Rate")
+            plt.xlabel("Time (seconds)")
+            plt.ylabel("Items/Second")
+            plt.title("Processing Rate Over Time")
+            plt.grid(True)
+
+            plt.tight_layout()
+
+            # Save the plot alongside the CSV file
+            plot_filename = self.csv_filename.replace(".csv", "_graph.png")
+            plt.savefig(plot_filename)
+            logger.info(f"Performance graph saved to: {plot_filename}")
+
+            # Show the plot
+            plt.show()
+
+        except Exception as e:
+            logger.error(f"Error creating performance plots: {e}")
+            logger.exception("Full traceback:")
 
     async def run_test(self, target_redis_items: int = 800_000):
         """Run the complete performance test"""
@@ -310,9 +389,6 @@ class LocalPerformanceTest:
         try:
             # Start core services
             await self.start_core_services()
-
-            # Flush Redis queue
-            # await self.flush_redis_queue()
 
             # Start event collector
             await self.start_event_collector()
@@ -342,16 +418,29 @@ class LocalPerformanceTest:
             logger.info("Cancelling metrics collection")
             metrics_task.cancel()
 
+            # Create and save performance plots
+            self.create_performance_plots()
+
         except Exception as e:
             logger.error(f"Error during test: {e}")
         finally:
             # Cleanup
             logger.info("Cleaning up Docker containers...")
-            await asyncio.create_subprocess_shell(
-                "docker compose --profile all down -v"
+            logger.info("Cleaning up containers and volumes...")
+            process = await asyncio.create_subprocess_shell(
+                "docker compose --profile all down -v",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            await asyncio.sleep(15)  # Wait for cleanup
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0:
+                logger.success("Cleanup completed successfully")
+            else:
+                logger.error(f"Cleanup failed: {stderr.decode()}")
             logger.success(f"Test complete! Metrics saved to: {self.csv_filename}")
+
+            # Create and save performance plots
+            self.create_performance_plots()
 
 
 async def main():

@@ -680,7 +680,6 @@ def parse_args():
             os.getenv(
                 "TEST_DATA_URLS",
                 (
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_aug.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_sep.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_oct.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_nov.json,"
@@ -688,6 +687,7 @@ def parse_args():
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jan.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_feb.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_mar.json,"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_aug.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_apr.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_may.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jun.json,"

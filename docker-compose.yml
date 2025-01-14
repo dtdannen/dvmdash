@@ -70,7 +70,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  batch_processor:
+  batch-processor-leader:
     build:
       context: .
       dockerfile: ./backend/batch_processor/Dockerfile
@@ -85,6 +85,52 @@ services:
       - MAX_WAIT_SECONDS=3
       - BATCH_SIZE=10000
       - BACKTEST_MODE=true
+      - LEADER=true
+    volumes:
+      - ./backend/batch_processor:/app/backend/batch_processor
+      - ./backend/shared:/app/backend/shared
+      - batch_processor_logs:/app/logs
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    depends_on:
+      postgres_pipeline:
+        condition: service_healthy
+      event_collector:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  batch-processor:
+    build:
+      context: .
+      dockerfile: ./backend/batch_processor/Dockerfile
+    profiles: [ "processor", "all" ]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=dvmdash_pipeline
+      - POSTGRES_HOST=postgres_pipeline
+      - MAX_WAIT_SECONDS=3
+      - BATCH_SIZE=10000
+      - BACKTEST_MODE=true
+      - LEADER=false  # only difference from batch-processor-leader above
     volumes:
       - ./backend/batch_processor:/app/backend/batch_processor
       - ./backend/shared:/app/backend/shared
