@@ -146,6 +146,16 @@ CREATE TABLE cleanup_log (
     metadata JSONB -- For storing any additional context about the cleanup
 );
 
+CREATE TABLE monthly_archives (
+    id SERIAL PRIMARY KEY,
+    year_month TEXT NOT NULL,
+    manifest_path TEXT NOT NULL,
+    chunk_count INTEGER NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year_month)
+);
+
 CREATE INDEX idx_monthly_activity_year_month ON monthly_activity(year_month DESC);
 
 -- Add indexes for cleanup operations
