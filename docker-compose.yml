@@ -70,7 +70,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  batch-processor-leader:
+  batch_processor_leader:
     build:
       context: .
       dockerfile: ./backend/batch_processor/Dockerfile
@@ -115,7 +115,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  batch-processor:
+  batch_processor:
     build:
       context: .
       dockerfile: ./backend/batch_processor/Dockerfile

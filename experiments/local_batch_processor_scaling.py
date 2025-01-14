@@ -90,7 +90,7 @@ class LocalPerformanceTest:
         """Start the batch processor service"""
         logger.info("Starting batch processor...")
         process = await asyncio.create_subprocess_shell(
-            "docker compose up -d batch_processor-leader",
+            "docker compose up -d batch_processor_leader",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -143,7 +143,7 @@ class LocalPerformanceTest:
             logger.debug(f"Found {len(containers)} running containers")
 
             # SPECIAL CASE because we want to aggregate stats for all batch processors
-            if container_name == "dvmdash-batch_processor":
+            if container_name == "dvmdash_batch_processor":
                 # Look for both leader and follower processors
                 ram_total = 0
                 processor_count = 0
