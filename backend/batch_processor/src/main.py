@@ -108,14 +108,30 @@ class BatchProcessor:
         self.event_count = 0
         self.error_count = 0
         self.backtest_mode = backtest_mode
-        self.current_year_month = None
+        self.current_year = None
+        self.current_month = None
+        self.current_day = None # only the leader uses this, so we dont save to redis
+        self.first_day_seen = None  # this is the date of the first event we get
         self.last_daily_cleanup = None
         self.is_leader = os.getenv("LEADER", "false").lower() == "true"
 
-        self.cleanup_buffer_hours = 1
-        # Redis keys for cleanup timestamps
-        self.daily_cleanup_key = "dvmdash_daily_cleanup_timestamp"
-        self.monthly_cleanup_key = "dvmdash_monthly_cleanup_timestamp"
+        self.monthly_cleanup_buffer_days = 3
+
+        # As soon as we see an event that is more than <BUFFER> days in the next month, we do a monthly cleanup
+        # at the next opportunity
+        self.monthly_cleanup_time_buffer_has_passed = False
+
+        # Redis key for the current month
+        self.redis_current_year_key = "dvmdash_current_year"
+        self.redis_current_month_key = "dvmdash_current_month"
+
+        if not self.backtest_mode and self.is_leader:
+            # production, so use the current year and month
+            now_timestamp = datetime.now(tz=timezone.utc)
+            self.current_year = now_timestamp.year
+            self.current_month = now_timestamp.month
+            self.current_day = now_timestamp.day
+            self._set_redis_current_year_month(self.current_year, self.current_month)
 
         logger.info(
             f"Creating Batch Processor (Leader {self.is_leader} with settings:\n"
@@ -124,32 +140,24 @@ class BatchProcessor:
             f" backtest_mode={backtest_mode}"
         )
 
-    async def _get_cleanup_timestamps(
+    async def _get_redis_current_year_month(
         self,
-    ) -> Tuple[Optional[datetime], Optional[datetime]]:
-        """Get the last cleanup timestamps from Redis."""
+    ) -> Tuple[Optional[int], Optional[int]]:
         try:
-            daily = self.redis.get(self.daily_cleanup_key)
-            monthly = self.redis.get(self.monthly_cleanup_key)
+            year = self.redis.get(self.redis_current_year_key)
+            month = self.redis.get(self.redis_current_month_key)
 
-            daily_ts = (
-                datetime.fromtimestamp(float(daily), timezone.utc) if daily else None
-            )
-            monthly_ts = (
-                datetime.fromtimestamp(float(monthly), timezone.utc)
-                if monthly
-                else None
-            )
-
-            return daily_ts, monthly_ts
-        except (TypeError, ValueError) as e:
+            return year, month
+        except Exception as e:
             logger.error(f"Error getting cleanup timestamps from Redis: {e}")
             return None, None
 
-    async def _set_cleanup_timestamp(self, key: str, timestamp: datetime) -> None:
-        """Set a cleanup timestamp in Redis."""
+    async def _set_redis_current_year_month(self, year: int, month: int) -> None:
         try:
-            self.redis.set(key, timestamp.timestamp())
+            assert 2023 <= year <= 9999
+            assert 1 <= month <= 12
+            self.redis.set(self.redis_current_year_key, year)
+            self.redis.set(self.redis_current_month_key, month)
         except Exception as e:
             logger.error(f"Error setting cleanup timestamp in Redis: {e}")
 
@@ -159,9 +167,18 @@ class BatchProcessor:
             return
 
         logger.info(f"Processing {len(events)} events")
+
+        # First, get the current year and month from redis. This will change when the leader does a monthly backup
+        # If the year and month are None, the leader will set them soon.
+        self.current_year, self.current_month = self._get_redis_current_year_month()
+        while not self.is_leader and self.current_year is None and self.current_month is None:
+            # wait for the leader to set the current year and month
+            await asyncio.sleep(2)
+            logger.info(f"Waiting for leader to set current day and month")
+            self.current_year, self.current_month = self._get_redis_current_year_month()
+
         # Step 1: Analyze all events in memory first
         stats = self._analyze_events(events)
-        last_event_timestamp = stats.period_end
 
         # Step 2: Update all tables in a single transaction
         async with (self.metrics_pool.acquire() as conn):
@@ -173,12 +190,13 @@ class BatchProcessor:
                 await self._update_dvm_stats_rollup(conn, stats)
                 await self._update_kind_stats_rollup(conn, stats)
 
-            # this does not need to be a transaction, it's only adding new data
+            # this does not need to be an atomic transaction, it's only adding new data
             await self._save_events(conn, events)
 
             # ONLY PERFORM CLEANUPS IF YOU ARE THE LEADER
             if self.is_leader:
                 logger.warning("Leader instance performing cleanup checks...")
+
                 # Check if day boundary crossed
                 stats_day = stats.period_end.replace(
                     hour=0, minute=0, second=0, microsecond=0
@@ -186,54 +204,117 @@ class BatchProcessor:
                 logger.info(
                     f"Stats day: {stats_day}, last stats day = {self.last_daily_cleanup}"
                 )
+
                 if not self.last_daily_cleanup or stats_day > self.last_daily_cleanup:
-                    await self._daily_cleanup(
+                    await self._daily_cleanup_of_month_old_data(
                         conn, reference_timestamp=stats.period_end
                     )
                     self.last_daily_cleanup = stats_day
-                    # Save daily cleanup timestamp to Redis
-                    try:
-                        self.redis.set(
-                            self.daily_cleanup_key, stats.period_end.timestamp()
-                        )
-                        logger.info(
-                            f"Updated daily cleanup timestamp in Redis to {stats.period_end}"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to update daily cleanup timestamp in Redis: {e}"
-                        )
 
                 # Monthly cleanup check
                 logger.info(
-                    f"Current month is {self.current_year_month} and stats month is {stats.period_end.replace(day=1)}"
-                )
-                current_period_year_month = (
-                    stats.period_end.year,
-                    stats.period_end.month,
+                    f"Current year_month is {self.current_year},{self.current_month} and "
+                    f"stats month is {stats.period_end.year},{stats.period_end.month}"
                 )
 
-                if not self.current_year_month:
-                    self.current_year_month = current_period_year_month
-                elif (
-                    current_period_year_month > self.current_year_month
-                ):  # Tuple comparison works for year-month pairs
-                    await self._monthly_cleanup(
-                        conn, reference_timestamp=stats.period_end
-                    )
-                    self.current_year_month = current_period_year_month
-                    # Save monthly cleanup timestamp to Redis
-                    try:
-                        self.redis.set(
-                            self.monthly_cleanup_key, stats.period_end.timestamp()
-                        )
-                        logger.info(
-                            f"Updated monthly cleanup timestamp in Redis to {stats.period_end}"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to update monthly cleanup timestamp in Redis: {e}"
-                        )
+                if self.current_month != 12 and self.current_year == stats.period_end.year:
+                    if self.current_month == stats.period_end.month:
+                        # same month, do nothing
+                        pass
+                    elif stats.period_end.month == self.current_month + 1:
+                        # 1. we have a valid transition to the next month
+                        # 2. check if the buffer window is reached so we don't cleanup too soon
+                        # 3. the events have already been processed, this is simply whether we trigger cleanup
+                        monthly_cleanup_timestamp_threshold = datetime(stats.period_end.year,
+                                                                       stats.period_end.month,
+                                                                       1, # since buffer is less than 24 hours this is 1
+                                                                        self.monthly_cleanup_buffer_hours,
+                                                                       0, 0, 0,
+                                                                       tzinfo=timezone.utc)
+                        if stats.period_end > monthly_cleanup_timestamp_threshold:
+                            hours_ahead_of_threshold = (stats.period_end - monthly_cleanup_timestamp_threshold).total_seconds() / 3600
+                            logger.info(f"We have received an event with timestamp {stats.period_end} that"
+                                        f" is {hours_ahead_of_threshold} hours past the"
+                                        f" threshold of {monthly_cleanup_timestamp_threshold}")
+
+                            await self._monthly_cleanup(conn, reference_timestamp=stats.period_end)
+                            self.current_month = stats.period_end.month
+                            logger.info(f"Updated current month to {self.current_month} after"
+                                        f" performing monthly cleanup")
+                            # now update redis with this new value for all batch processors to follow
+                            try:
+                                self.redis.set(
+                                    self.redis_current_month_key, self.current_month
+                                )
+                                logger.info(
+                                    f"Updated monthly cleanup timestamp in Redis to {stats.period_end}"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to update monthly cleanup timestamp in Redis: {e}"
+                                )
+
+                    else:
+                        logger.warning(f"We have received a stats.period_end event that is not within the current"
+                                       f" month or next month")
+                        logger.warning(f"The current month is {self.current_month},{self.current_year} and stats.period_end is"
+                                       f" {stats.period_end.month},{stats.period_end.year}")
+
+                else:
+                    # we are in December and need to check for year transition
+
+            else:
+                # This is the situation where we are not a leader
+                if self.monthly_cleanup_time_buffer_has_passed:
+                    # however we have see events from the future month, but we aren't in that month yet.
+                    # so options are:
+                    # 1. we wait until current month changes, which will happen inevitably as leader processes next
+                    # month events
+                    # 2. we put those future events back on the queue in front and just wait until month changes,
+                    # basically just handing them back over to the leader
+                    # 3. what if we scrapped the leader and follower role, and instead just had all of them do monthly
+                    # cleanups
+
+                    # push all overflow events back onto queue and wait until current month changes
+                    logger.warning(f"follower has found an event past the next months' cleanup buffer of"
+                                   f" {self.monthly_cleanup_buffer_days}, so we are putting"
+                                   f" all {len(stats.overflow_events)} overflow events back on the front"
+                                   f" of redis queue for leader to deal with")
+                    successfully_pushed_overflow_back_to_redis = False
+                    attempts = 0
+                    while not successfully_pushed_overflow_back_to_redis or attempts > 3:
+                        try:
+                            attempts += 1
+                            with self.redis.pipeline() as pipe:
+                                for event in stats.overflow_events:
+                                    event_json = json.dumps(event)
+                                    size_mb = len(event_json.encode("utf-8")) / (1024 * 1024)
+
+                                    if size_mb > 10:  # 10MB limit
+                                        logger.warning(
+                                            f"Event (id {event['id'] if 'id' in event else '<no-id-found>'})"
+                                            f" size exceeds limit: {size_mb:.2f}MB, skipping"
+                                        )
+                                        continue
+
+                                    pipe.lpush("dvmdash_events", event_json)
+                                pipe.execute()
+                            successfully_pushed_overflow_back_to_redis = True
+                        except Exception as e:
+                            logger.error(f"Exception when trying to put events back onto redis for leader")
+                            logger.error(f"{e}")
+                            await asyncio.sleep(1)
+
+                    if attempts > 3:
+                        raise Exception(f"Failed to pushed events back to redis, gonna go die right now;"
+                                        f" events have been lost")
+
+                    # now poll until current month changes
+                    redis_year, redis_month = self._get_redis_current_year_month()
+                    while self.current_month != redis_month and self.current_year != redis_year:
+                        logger.warning(f"Follower is waiting for leader to update current month before resuming")
+                        await asyncio.sleep(3)
+                        redis_year, redis_month = self._get_redis_current_year_month()
 
             # IMPORTANT - THIS MUST HAPPEN AFTER CLEANUPS ARE RUN
             # process overflow events that are in a different month
@@ -249,39 +330,57 @@ class BatchProcessor:
             period_start=datetime.max.replace(tzinfo=timezone.utc),
             period_end=datetime.min.replace(tzinfo=timezone.utc),
         )
-        batch_year_month = (
-            datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).year,
-            datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).month,
-        )
 
-        # Get cleanup timestamps once at the start
-        daily_cleanup_ts = None
-        monthly_cleanup_ts = None
-        try:
-            daily = self.redis.get(self.daily_cleanup_key)
-            monthly = self.redis.get(self.monthly_cleanup_key)
-            if daily:
-                daily_cleanup_ts = datetime.fromtimestamp(float(daily), timezone.utc)
-            if monthly:
-                monthly_cleanup_ts = datetime.fromtimestamp(
-                    float(monthly), timezone.utc
-                )
-        except (TypeError, ValueError) as e:
-            logger.error(f"Error getting cleanup timestamps from Redis: {e}")
+        if self.current_year is None and self.current_month is None:
+            if not self.is_leader:
+                logger.error(f"Non leader has reached _analyze_events() before getting current year and current month")
 
-        logger.debug(f"Batch_year_month is {batch_year_month}")
+            # use the first event to set these
+            self.current_year = datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).year
+            self.current_month = datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).month
+
+            # and immediately set the redis queue
+            self._set_redis_current_year_month(self.current_year, self.current_month)
+
+        logger.debug(f"Year={self.current_year}, Month={self.current_month}")
 
         filtered_events = []
         for event in events:
             try:
-                event_year_month = (
-                    datetime.fromtimestamp(event["created_at"], tz=timezone.utc).year,
-                    datetime.fromtimestamp(event["created_at"], tz=timezone.utc).month,
-                )
+                event_year = datetime.fromtimestamp(event["created_at"], tz=timezone.utc).year
+                event_month = datetime.fromtimestamp(event["created_at"], tz=timezone.utc).month
+                event_day = datetime.fromtimestamp(event["created_at"], tz=timezone.utc).day
 
-                if event_year_month != batch_year_month:
+                # Situations
+                # 1. event is in current month; everything is good
+                # 2. event is in the next month; process it anyway
+                # 3. event is in an older month; ignore it
+                # 4. event is far in the future, more than one month ahead; technically should be impossible; log an error
+                #    BUT this happens when we are backtesting... a batch can span a long time... but just put it in overflow,
+                #    it will look like a future batch
+                # TODO the one edge case that isn't supported is if there is an entire month with no DVM event
+
+                if event_year == self.current_year and event_month > self.current_month: # check if month is in future
+                    if event_day > self.monthly_cleanup_buffer_days:
+                        self.monthly_cleanup_time_buffer_has_passed = True # This will trigger a monthly cleanup
                     stats.overflow_events.append(event)
+                    logger.info(f"Event with same year but {event_month-self.current_month} months ahead, added to overflow")
                     continue
+                elif event_year == self.current_year+1 and self.current_month == 12 and event_month >= 1:  # too far into future, so put into overflow
+                    self.monthly_cleanup_time_buffer_has_passed = True
+                    stats.overflow_events.append(event)
+                    logger.info(f"Event with year {event_year}, added to overflow")
+                    continue
+                elif event_year < self.current_year:
+                    logger.warning(f"Ignoring event with year={event_year} while current_year is {self.current_year}")
+                    filtered_events.append(event)
+                    continue
+                elif event_year == self.current_year and event_month < self.current_month:
+                    logger.warning(f"Ignoring event with same year but {self.current_month-event_month} months old")
+                    filtered_events.append(event)
+                    continue
+
+                # if we reach here, we know the event is in our current month or next month
 
                 # Ensure we always have a timezone-aware datetime
                 created_at = event["created_at"]
@@ -300,21 +399,6 @@ class BatchProcessor:
                         if created_at.tzinfo is None
                         else created_at
                     )
-
-                # Check if event is too old
-                if daily_cleanup_ts and timestamp < daily_cleanup_ts:
-                    logger.warning(
-                        f"Dropping event from {timestamp} as it's before daily cleanup at {daily_cleanup_ts}"
-                    )
-                    filtered_events.append(event)
-                    continue
-
-                if monthly_cleanup_ts and timestamp < monthly_cleanup_ts:
-                    logger.warning(
-                        f"Dropping event from {timestamp} as it's before monthly cleanup at {monthly_cleanup_ts}"
-                    )
-                    filtered_events.append(event)
-                    continue
 
                 stats.period_start = min(stats.period_start, timestamp)
                 stats.period_end = max(stats.period_end, timestamp)
@@ -1002,10 +1086,12 @@ class BatchProcessor:
             logger.error(f"Error saving events to backup database: {e}")
             logger.error(traceback.format_exc())
 
-    async def _daily_cleanup(
+    async def _daily_cleanup_of_month_old_data(
         self, conn: asyncpg.Connection, reference_timestamp: Optional[datetime] = None
     ) -> None:
         """
+        IMPORTANT: While this is run daily, it only affects entities older than 35 days
+
         Performs daily cleanup tasks:
         1. Two-phase entity cleanup (mark inactive, delete old inactive)
         2. Maintain 35-day rolling window for entity_activity

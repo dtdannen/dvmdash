@@ -185,4 +185,25 @@ Best practices for this schema:
 4. Consider point-in-time recovery for the 30-day window
 
 ### Q: How do we deal with old events?
-We perform daily and monthly backups an hour after we get an event with a timestamp for a new day or month, respectively. The event collector prevents getting events too far in the future (more than 15 minutes). Events older than one hour are kept except when we do a backup. Once we backup a day or month, we ignore any events from before then. Since there is an hour buffer, that means events that are broadcast to the relays within an hour of being created will always be accepted. If this 1 hour buffer becomes a problem, we may increase it later.
+We perform monthly backups after we get an event with a timestamp for a new month. 
+- The event collector prevents getting events too far in the future (more than 15 minutes).
+- Events older than the current month are ignored. Otherwise, all events will be collected and processed as long as they are within the current month. 
+- Once we transition to a new month, we ignore any events from prior months. 
+- This does assume we receive at least one DVM event a month
+- When we are backtesting, we will set the current month and year based on events as we get them. In production, we will use the current date for setting the current month and year.
+- Because there could be a lag
+
+- EVENTS IN THE REDIS QUEUE ARE THE GROUND TRUTH
+- To make sure we dont screw up the time window stats, we need finer grained windows in the analyze events, so the period start and end can't cross a day boundary. if it does, put it into the overflow. We process the earliest day. We can track each day's events with a dictionary, anything but the earliest day is put into overflow. If the event is from an earlier month, they can eat crap aka it gets ignored, becuase we will aghve a bigger buffer.
+- it doesn't matter if the buffer is big and we store like 3 days of events for the next month, because the monthly cleanup will take care of all of that, we will do the cleanup for th emonth before and those events will be ignored.
+- also the backtest data processing and moving to next month will be the same in and out of production. we can't use current date and time because if there's back pressure, we could be days behind in processing events if there's a huge influx and we haven't scaled up yet. SO THEREFORE the redis queu is the ground truth for current date and time. Also it makes backtesing easier. 
+
+
+### Situations
+- events in batch are in the next month and we haven't done a monthly update yet
+  - analyze them anyway
+
+- left off wrapping up the new monthly cleanup logic and double checking that analyze events will properly trigger monthly cleanup - i believe that currently monthly cleanup will just need to happen if the boolean flag we made is set (i.e. we ever saw a future month timestamp past the buffer)
+
+- BUT WHAT IF YOU GET A FULL BATCH that is before the buffer deadline? Are you going to process it just fine?  NO YOU WONT BECAUSE WE HAVE A DEADLOCK RIGHT NOW WHEN WE"RE WAITING IN BETWEEN THE BUFFER AND BECUASE WE WANT TO AVOID A MONTHLY OVERLAP IN BATCHES
+- 

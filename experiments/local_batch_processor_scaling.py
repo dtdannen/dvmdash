@@ -143,7 +143,7 @@ class LocalPerformanceTest:
             logger.debug(f"Found {len(containers)} running containers")
 
             # SPECIAL CASE because we want to aggregate stats for all batch processors
-            if container_name == "dvmdash_batch_processor":
+            if container_name == "dvmdash-batch_processor":
                 # Look for both leader and follower processors
                 ram_total = 0
                 processor_count = 0
@@ -381,7 +381,7 @@ class LocalPerformanceTest:
             logger.error(f"Error creating performance plots: {e}")
             logger.exception("Full traceback:")
 
-    async def run_test(self, target_redis_items: int = 800_000):
+    async def run_test(self, target_redis_items: int = 100_000):
         """Run the complete performance test"""
         logger.info(
             f"Starting performance test with target of {target_redis_items:,} items"
