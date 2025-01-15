@@ -632,20 +632,27 @@ class BatchProcessor:
             values = [
                 (
                     user_id,
-                    timestamp,
+                    # If it's a DVM and we have an earlier timestamp, use that as first_seen
+                    min(timestamp, stats.dvm_timestamps.get(user_id))
+                    if stats.user_is_dvm[user_id] and user_id in stats.dvm_timestamps
+                    else timestamp,
                     stats.user_is_dvm[user_id],
-                    timestamp if stats.user_is_dvm[user_id] else None,
+                    # For DVM discovery time, use the same early timestamp if available
+                    stats.dvm_timestamps.get(user_id)
+                    if stats.user_is_dvm[user_id]
+                    else None,
                 )
                 for user_id, timestamp in stats.user_timestamps.items()
             ]
             await conn.executemany(
                 """
                 INSERT INTO users (id, first_seen, last_seen, is_dvm, discovered_as_dvm_at)
-                VALUES ($1, $2, $2, $3, $4)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (id) DO UPDATE 
-                SET last_seen = GREATEST(users.last_seen, $2),
-                    is_dvm = COALESCE(users.is_dvm, $3),
-                    discovered_as_dvm_at = COALESCE(users.discovered_as_dvm_at, $4),
+                SET first_seen = LEAST(users.first_seen, $2), 
+                    last_seen = GREATEST(users.last_seen, $3),
+                    is_dvm = COALESCE(users.is_dvm, $4),
+                    discovered_as_dvm_at = COALESCE(users.discovered_as_dvm_at, $5),
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 values,
