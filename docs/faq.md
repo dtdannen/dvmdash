@@ -206,4 +206,5 @@ We perform monthly backups after we get an event with a timestamp for a new mont
 - left off wrapping up the new monthly cleanup logic and double checking that analyze events will properly trigger monthly cleanup - i believe that currently monthly cleanup will just need to happen if the boolean flag we made is set (i.e. we ever saw a future month timestamp past the buffer)
 
 - BUT WHAT IF YOU GET A FULL BATCH that is before the buffer deadline? Are you going to process it just fine?  NO YOU WONT BECAUSE WE HAVE A DEADLOCK RIGHT NOW WHEN WE"RE WAITING IN BETWEEN THE BUFFER AND BECUASE WE WANT TO AVOID A MONTHLY OVERLAP IN BATCHES
-- 
+
+NEW IDEA: pick the first month I get, that is within the current or next month. Do only that month, anything not in that month gets put into overflow. That way I don't cross month boundaries in a single batch process and I will handle current and next month events just fine. Anything 2 months away, goes into overflow, and will also trigger monthly cleanup
