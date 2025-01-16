@@ -352,7 +352,7 @@ class BatchProcessor:
                             f"We need to clean up multiple months, setting months to clean"
                             f" up to {self.months_to_clean_up}"
                         )
-        elif current_year == event_year + 1:  # this is a new year scenario
+        elif current_year == event_year - 1:  # this is a new year scenario
             if event_day > self.monthly_cleanup_buffer_days:
                 logger.warning(
                     f"Event has year={event_year}, month={event_month} and day={event_day}, which is"
