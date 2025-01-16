@@ -202,6 +202,7 @@ class BatchProcessor:
         except MultipleMonthBatch as e:
             # now we sort the events and call analyze on each month at a time
             events_per_month = {}
+            earliest_year = 9999
             for event in events:
                 event_month = datetime.fromtimestamp(
                     event["created_at"], tz=timezone.utc
@@ -209,8 +210,12 @@ class BatchProcessor:
                 event_year = datetime.fromtimestamp(
                     event["created_at"], tz=timezone.utc
                 ).year
-                logger.debug(f"event_month is {event_month} and year is {event_year}")
+                earliest_year = min(earliest_year, event_year)
+
                 if event_month not in events_per_month:
+                    logger.debug(
+                        f"event_month is {event_month} and year is {event_year}"
+                    )
                     events_per_month[event_month] = [event]
                 else:
                     events_per_month[event_month].append(event)
@@ -226,6 +231,7 @@ class BatchProcessor:
             for i in list(range(self.current_month, 13)) + list(range(1, 13)):
                 if num_months_processed >= len(events_per_month.keys()):
                     break
+
                 if i in events_per_month.keys():
                     logger.warning(
                         f"Processing month {i} with {len(events_per_month[i])} events"
@@ -259,6 +265,9 @@ class BatchProcessor:
 
     async def _check_and_perform_cleanups(self, latest_event_of_batch: datetime):
         # Only leader does cleanups
+        logger.info(
+            f"Calling _check_and_perform_cleanups with year={self.current_year} and month={self.current_month}"
+        )
         if self.is_leader:
             logger.warning(f"Leader is performing cleanups")
 
@@ -276,9 +285,12 @@ class BatchProcessor:
             if self.monthly_cleanup_time_buffer_has_passed:
                 while self.months_to_clean_up > 0:
                     logger.info(
-                        f"Leader is starting monthly cleanup process, there are {self.months_to_clean_up}"
+                        f"Leader is starting monthly cleanup process, current year={self.current_year}, current"
+                        f" month={self.current_month} and there are {self.months_to_clean_up}"
                         f" months to cleanup"
                     )
+                    year_to_cleanup = self.current_year
+                    month_to_cleanup = self.current_month
 
                     new_year = self.current_year
                     new_month = self.current_month + 1
@@ -321,8 +333,11 @@ class BatchProcessor:
 
                     # now we can safely perform the monthly cleanup
                     async with (self.metrics_pool.acquire() as conn):
+                        logger.debug(
+                            f"Calling monthly cleanup with year={year_to_cleanup}, month={month_to_cleanup}"
+                        )
                         await self._monthly_cleanup(
-                            conn, reference_timestamp=latest_event_of_batch
+                            conn, year_to_cleanup, month_to_cleanup
                         )
                     logger.info(f"Successfully performed monthly cleanup")
 
@@ -1322,12 +1337,15 @@ class BatchProcessor:
             # Get the previous month's start and end
             month_start = datetime(
                 year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0
-            ) - relativedelta(months=1)
+            )
             month_end = month_start + relativedelta(months=1)
+
+            logger.debug(f"month_start={month_start}")
+            logger.debug(f"month_end={month_end}")
 
             # Format year_month string in YYYY-MM format
             year_month = month_start.strftime("%Y-%m")
-
+            logger.debug(f"year_month = {year_month}")
             await conn.execute(
                 """
                 INSERT INTO monthly_activity (
@@ -1411,7 +1429,7 @@ class BatchProcessor:
                 )
                 SELECT COUNT(*) FROM deleted
                 """,
-                month_end,
+                month_start,
             )
 
             logger.info(f"Removed {deleted_logs} old cleanup logs")
