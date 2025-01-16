@@ -636,6 +636,7 @@ class BatchProcessor:
                     min(timestamp, stats.dvm_timestamps.get(user_id))
                     if stats.user_is_dvm[user_id] and user_id in stats.dvm_timestamps
                     else timestamp,
+                    timestamp,
                     stats.user_is_dvm[user_id],
                     # For DVM discovery time, use the same early timestamp if available
                     stats.dvm_timestamps.get(user_id)
