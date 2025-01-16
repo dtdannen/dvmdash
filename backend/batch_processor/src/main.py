@@ -206,6 +206,10 @@ class BatchProcessor:
                 event_month = datetime.fromtimestamp(
                     event["created_at"], tz=timezone.utc
                 ).month
+                event_year = datetime.fromtimestamp(
+                    event["created_at"], tz=timezone.utc
+                ).year
+                logger.debug(f"event_month is {event_month} and year is {event_year}")
                 if event_month not in events_per_month:
                     events_per_month[event_month] = [event]
                 else:
@@ -331,6 +335,47 @@ class BatchProcessor:
                 f"Somehow follower is trying to perform a cleanup, doing nothing..."
             )
 
+    def _check_date_passed_monthly_cleanup_threshold(
+        self, current_year, current_month, event_year, event_month, event_day
+    ):
+        if current_year == event_year:
+            if current_month < 12 and event_month > current_month:
+                if event_day > self.monthly_cleanup_buffer_days:
+                    logger.warning(
+                        f"Event has month={event_month} and day={event_day}, which is past the buffer"
+                        f" of {self.monthly_cleanup_buffer_days} of the current_month={current_month}"
+                    )
+                    self.monthly_cleanup_time_buffer_has_passed = True
+                    self.months_to_clean_up = event_month - self.current_month
+                    if self.months_to_clean_up > 1:
+                        logger.warning(
+                            f"We need to clean up multiple months, setting months to clean"
+                            f" up to {self.months_to_clean_up}"
+                        )
+        elif current_year == event_year + 1:  # this is a new year scenario
+            if event_day > self.monthly_cleanup_buffer_days:
+                logger.warning(
+                    f"Event has year={event_year}, month={event_month} and day={event_day}, which is"
+                    f" past the buffer of {self.monthly_cleanup_buffer_days} of the"
+                    f" current_month={current_month}"
+                )
+                self.monthly_cleanup_time_buffer_has_passed = True
+
+                self.months_to_clean_up = (event_month + 12) - current_month
+                if self.months_to_clean_up > 1:
+                    logger.warning(
+                        f"We need to clean up multiple months, setting months to clean"
+                        f" up to {self.months_to_clean_up}"
+                    )
+        elif current_year > event_year + 1:
+            logger.error(
+                f"Event is too far into the future with year={event_year}, month={event_month}, day={event_day}"
+            )
+            raise Exception(
+                f"If this is being raised, there is a flaw earlier in the pipeline, this event "
+                f"should have been ignored"
+            )
+
     async def _analyze_events(self, events: List[dict]) -> BatchStats:
         """Analyze events and collect all necessary stats in memory."""
         stats = BatchStats(
@@ -441,37 +486,14 @@ class BatchProcessor:
 
                 # check if monthly cleanup threshold has been passed
                 if not self.monthly_cleanup_time_buffer_has_passed:
-                    if self.current_month < 12 and event_month > self.current_month:
-                        if event_day > self.monthly_cleanup_buffer_days:
-                            logger.warning(
-                                f"Event has month={event_month} and day={event_day}, which is past the buffer"
-                                f" of {self.monthly_cleanup_buffer_days} of the current_month={self.current_month}"
-                            )
-                            self.monthly_cleanup_time_buffer_has_passed = True
-                            self.months_to_clean_up = event_month - self.current_month
-                            if self.months_to_clean_up > 1:
-                                logger.warning(
-                                    f"We need to clean up multiple months, setting months to clean"
-                                    f" up to {self.months_to_clean_up}"
-                                )
-                    else:  # this is a new year scenario
-                        if self.current_month == 12:
-                            if event_day > self.monthly_cleanup_buffer_days:
-                                logger.warning(
-                                    f"Event has year={event_year}, month={event_month} and day={event_day}, which is"
-                                    f" past the buffer of {self.monthly_cleanup_buffer_days} of the"
-                                    f" current_month={self.current_month}"
-                                )
-                                self.monthly_cleanup_time_buffer_has_passed = True
-
-                                # hacky; this works because we're rotating over to the next calendar year; it's
-                                # just shortening it from a "self.current_month - 0" calculation to "self.current_month"
-                                self.months_to_clean_up = self.current_month
-                                if self.months_to_clean_up > 1:
-                                    logger.warning(
-                                        f"We need to clean up multiple months, setting months to clean"
-                                        f" up to {self.months_to_clean_up}"
-                                    )
+                    # this does the check and sets the flag to do monthly cleanup
+                    self._check_date_passed_monthly_cleanup_threshold(
+                        self.current_year,
+                        self.current_month,
+                        event_year,
+                        event_month,
+                        event_day,
+                    )
 
                 stats.period_start = min(stats.period_start, timestamp)
                 stats.period_end = max(stats.period_end, timestamp)
