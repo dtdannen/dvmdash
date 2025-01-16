@@ -1314,17 +1314,14 @@ class BatchProcessor:
             logger.error(traceback.format_exc())
             raise
 
-    async def _monthly_cleanup(
-        self, conn: asyncpg.Connection, reference_timestamp: Optional[datetime] = None
-    ) -> None:
+    async def _monthly_cleanup(self, conn: asyncpg.Connection, year, month) -> None:
         """Performs monthly cleanup tasks with accurate month boundary handling."""
         try:
             logger.info("Starting monthly cleanup process...")
 
-            current_time = reference_timestamp or datetime.now(timezone.utc)
             # Get the previous month's start and end
-            month_start = current_time.replace(
-                day=1, hour=0, minute=0, second=0, microsecond=0
+            month_start = datetime(
+                year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0
             ) - relativedelta(months=1)
             month_end = month_start + relativedelta(months=1)
 
@@ -1414,11 +1411,13 @@ class BatchProcessor:
                 )
                 SELECT COUNT(*) FROM deleted
                 """,
-                reference_timestamp,
+                month_end,
             )
 
             logger.info(f"Removed {deleted_logs} old cleanup logs")
-            logger.info("Monthly cleanup process completed successfully")
+            logger.info(
+                f"Monthly cleanup process for {year_month} completed successfully"
+            )
 
         except Exception as e:
             logger.error(f"Error during monthly cleanup: {e}")
