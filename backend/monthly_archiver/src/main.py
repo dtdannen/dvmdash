@@ -64,7 +64,6 @@ class MonthlyArchiver:
         self.current_month = None
         self.current_day = None  # only the leader uses this, so we dont save to redis
         self.first_day_seen = None  # this is the date of the first event we get
-        self.is_leader = os.getenv("LEADER", "false").lower() == "true"
 
         self.monthly_cleanup_buffer_days = 3
 
@@ -587,6 +586,17 @@ class MonthlyArchiver:
                             if current_state["cleanup"]["requested"]:
                                 # Set backup started
                                 await self._set_backup_started()
+
+                                logger.info(
+                                    f"Monthly archiver is now waiting 15 seconds for batch processors to finish"
+                                    f"up any processing they are in the middle of running"
+                                )
+                                await asyncio.sleep(
+                                    os.getenv(
+                                        "BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS",
+                                        15,
+                                    )
+                                )
 
                                 # Do the monthly backup
                                 async with self.metrics_pool.acquire() as conn:

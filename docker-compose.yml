@@ -127,6 +127,8 @@ services:
       - MAX_WAIT_SECONDS=3
       - BATCH_SIZE=10000
       - BACKTEST_MODE=true
+      - MONTHLY_CLEANUP_BUFFER_DAYS=3
+      - BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS=15
     volumes:
       - ./backend/batch_processor:/app/backend/batch_processor
       - ./backend/shared:/app/backend/shared

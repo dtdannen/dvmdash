@@ -3,8 +3,6 @@ import sys
 import time
 import asyncio
 from datetime import datetime, timezone, timedelta
-from importlib.resources._legacy import deprecated
-
 from dateutil.relativedelta import relativedelta
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
@@ -117,16 +115,9 @@ class BatchProcessor:
         self.event_count = 0
         self.error_count = 0
         self.backtest_mode = backtest_mode
-        self.current_year = None
-        self.current_month = None
-        self.current_day = None  # only the leader uses this, so we dont save to redis
         self.first_day_seen = None  # this is the date of the first event we get
-        self.is_leader = os.getenv("LEADER", "false").lower() == "true"
 
-        self.monthly_cleanup_buffer_days = 3
-
-        self.daily_cleanup_time_buffer_has_passed = False
-        self.last_daily_cleanup = None
+        self.monthly_cleanup_buffer_days = os.getenv("MONTHLY_CLEANUP_BUFFER_DAYS", 3)
 
         self.redis_state_key = "dvmdash_state"
         self.redis_monthly_cleanup_lock_key = "dvmdash_monthly_cleanup_lock"
@@ -209,112 +200,6 @@ class BatchProcessor:
             logger.error(f"{traceback.format_exc()}")
             return False
 
-    async def _set_backup_started(self) -> bool:
-        """
-        Mark backup as started in Redis state.
-        Returns True if successfully updated state, False otherwise.
-        """
-        try:
-            current_state = await self._get_redis_state()
-            if not current_state:
-                logger.error("Could not get current state from Redis")
-                return False
-
-            current_state["cleanup"]["in_progress"] = True
-            current_state["cleanup"]["started_at"] = datetime.now(
-                timezone.utc
-            ).isoformat()
-
-            success = await self._set_redis_state(current_state)
-            if not success:
-                logger.error("Failed to set backup started state in Redis")
-                return False
-
-            logger.info("Successfully marked backup as started in Redis state")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error setting backup started state: {e}")
-            return False
-
-    async def _set_backup_completed(self) -> bool:
-        """
-        Mark backup as completed in Redis state.
-        Returns True if successfully updated state, False otherwise.
-        """
-        try:
-            # Get current state
-            current_state = await self._get_redis_state()
-            if not current_state:
-                logger.error("Could not get current state from Redis")
-                return False
-
-            # Verify backup was in progress
-            if not current_state["cleanup"]["in_progress"]:
-                logger.warning(
-                    "Attempting to complete backup that wasn't marked as in progress"
-                )
-
-            # Reset all backup-related fields
-            current_state["cleanup"].update(
-                {
-                    "in_progress": False,
-                    "requested": False,
-                    "requested_by": None,
-                    "started_at": None,
-                }
-            )
-
-            # Update the last transition time
-            current_state["last_monthly_cleanup_completed"] = datetime.now(
-                timezone.utc
-            ).isoformat()
-
-            # Save updated state
-            success = await self._set_redis_state(current_state)
-            if not success:
-                logger.error("Failed to set backup completed state in Redis")
-                return False
-
-            logger.info("Successfully marked backup as completed in Redis state")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error setting backup completed state: {e}")
-            return False
-
-    async def _check_backup_status(self) -> Tuple[bool, bool]:
-        """
-        Check if a backup is in progress or has been requested.
-        Returns tuple of (backup_in_progress, backup_requested)
-        """
-        try:
-            current_state = await self._get_redis_state()
-            if not current_state:
-                logger.error("Could not get current state from Redis")
-                return False, False
-
-            backup = current_state["cleanup"]
-            in_progress = backup["in_progress"]
-            requested = backup["requested"]
-
-            if in_progress:
-                logger.info(
-                    "Backup currently in progress, started at: %s", backup["started_at"]
-                )
-
-            if requested:
-                logger.info(
-                    "Backup has been requested by: %s",
-                    backup["requested_by"] or "unknown",
-                )
-
-            return in_progress, requested
-
-        except Exception as e:
-            logger.error(f"Error checking backup status: {e}")
-            return False, False
-
     async def _request_monthly_backup(self):
         try:
             with RedisLock(
@@ -324,10 +209,10 @@ class BatchProcessor:
 
                 # get the current state, if backup is in progress, just exit early, we got what we wanted
                 current_state = await self._get_redis_state()
-                if current_state and current_state["cleanup"]["in_progress"]:
+                if current_state and current_state["cleanup"]["in_progress"] or current_state["cleanup"]["requested"]:
                     logger.info(
                         f"Exiting early from attempting to request monthly backup, monthly backup"
-                        f" already in progress"
+                        f" already in progress or has been requested"
                     )
                     return
 
@@ -344,68 +229,17 @@ class BatchProcessor:
         except TimeoutError:
             print("Could not acquire lock")
 
-    async def _wait_for_cleanup_to_process_month(self, month: int):
-        """
-        This should only be called AFTER requesting a monthly cleanup
-        """
-        if self.is_leader:
-            raise ValueError("This method should only be called by followers")
-
-        while True:
-            # Get current state first
-            current_state = await self._get_redis_state()
-            if not current_state:
-                logger.error(f"Follower {self.unique_id} could not get current state from Redis")
-                await asyncio.sleep(2)
-                continue
-
-            # Check if we can process this month
-            if month in [current_state["month"], current_state["month"] + 1]:
-                break
-
-            logger.info(
-                f"Follower {self.unique_id} month {month} remains outside current processing window "
-                f"(current_month={current_state['month']}, year={current_state['year']})"
-            )
-
-            # Wait before checking again
-            await asyncio.sleep(2)
-
     async def process_events(self, events: List[dict]) -> None:
         """Process a batch of events and update all necessary tables atomically."""
         if not events:
             return
 
-        # Leader checks for backup requests immediately
-        if self.is_leader:
-            try:
-                current_state = await self._get_redis_state()
-                if current_state and current_state["cleanup"]["requested"]:
-                    logger.info(
-                        "Monthly cleanup request detected, leader initiating cleanup process..."
-                    )
-                    await self._check_and_perform_cleanups(None)
-            except Exception as e:
-                logger.error(f"Error checking backup status: {e}")
-                logger.error(traceback.format_exc())
-
         logger.info(f"Processing {len(events)} events")
-
-        current_state = await self._get_redis_state()
-
-        while not self.is_leader and current_state is None:
-            # wait for the leader to set the current year and month
-            logger.info(f"Waiting for leader to set current day and month")
-            await asyncio.sleep(2)
-
-            current_state = await self._get_redis_state()
 
         try:
             stats = await self._analyze_events(events)
             if len(stats.events_processed) > 0:
                 await self._compute_metrics(stats, events)
-                if self.is_leader:
-                    await self._check_and_perform_cleanups(stats.period_end)
             else:
                 logger.warning(
                     f"Analyze events did not process any events from this batch"
@@ -437,9 +271,11 @@ class BatchProcessor:
             for k, v in events_per_month.items():
                 logger.warning(f"\tmonth {k}: {len(v)} events")
 
+            current_state = await self._get_redis_state()
+
             # follow calendar year for determining order, processing a month at a time
             num_months_processed = 0
-            for i in list(range(self.current_month, 13)) + list(range(1, 13)):
+            for i in list(range(current_state['month'], 13)) + list(range(1, 13)):
                 if num_months_processed >= len(events_per_month.keys()):
                     break
 
@@ -447,30 +283,36 @@ class BatchProcessor:
                     logger.warning(
                         f"Processing month {i} with {len(events_per_month[i])} events"
                     )
-                    if not self.is_leader: # ONLY followers will wait to do a backup, leader can go ahead and do it
-                        # get the current month and year
+
+                    current_state = await self._get_redis_state()
+
+                    if i < current_state["month"]:
+                        logger.error(f"OMG HOW DID THIS HAPPEN! A batch processor is handling a multiple month batch "
+                                     f"and somehow the current month became {current_state["month"]} got "
+                                     f"updated before it could process month {i}")
+                        logger.error(f"The grace period delay should be preventing this from happening!")
+
+                    need_to_request_backup = True
+                    if current_state['cleanup']['requested'] or current_state['cleanup']['in_progress']:
+                        need_to_request_backup = False
+
+                    while i not in [current_state["month"], current_state["month"] + 1]:
+                        logger.info(
+                            f"Processing month {i} is outside the current month {current_state['month']} or "
+                            f"next month {current_state['month']+1}, "
+                            f"waiting to process"
+                        )
+
+                        if need_to_request_backup:
+                            await self._request_monthly_backup()
+
+                        # wait for the cleanup to process the month
+                        await asyncio.sleep(0.5)
                         current_state = await self._get_redis_state()
+                        if current_state['cleanup']['requested'] or current_state['cleanup']['in_progress']:
+                            need_to_request_backup = False
 
-                        if i < current_state["month"]:
-                            logger.error(f"OMG HOW DID THIS HAPPEN! A follower is handling a multiple month batch "
-                                         f"and somehow the current month became {current_state["month"]} got "
-                                         f"updated before it could process month {i}")
-
-                        if i in [current_state["month"], current_state["month"] + 1]:
-                            logger.info(f"Processing month {i} is within the current month or next month, "
-                                        f"proceeding as normal")
-                        else:
-                            # i is farther in the future, we need to request a backup and wait until the month advances
-                            logger.info(f"Processing month {i} is outside the current month or next month, "
-                                        f"requesting monthly cleanup and waiting to process")
-
-                            request_backup_success = False
-                            while not request_backup_success:
-                                request_backup_success = await self._request_monthly_backup()
-                                await asyncio.sleep(2)
-
-                            await self._wait_for_cleanup_to_process_month(i)
-
+                    # if we reach here, we are good to proceed
                     stats_i = await self._analyze_events(events_per_month[i])
 
                     if len(stats_i.events_processed) > 0:
@@ -478,8 +320,6 @@ class BatchProcessor:
                             f"Last event of stats batch has timestamp of {stats_i.period_end}"
                         )
                         await self._compute_metrics(stats_i, events_per_month[i])
-                        if self.is_leader:
-                            await self._check_and_perform_cleanups(stats_i.period_end)
                     else:
                         logger.warning(
                             f"Analyze events did not process any events from month {i}"
@@ -500,99 +340,6 @@ class BatchProcessor:
             # this does not need to be an atomic transaction, it's only adding new data
             await self._save_events(conn, events)
 
-    async def _check_and_perform_cleanups(
-        self, latest_event_of_batch: Optional[datetime]
-    ):
-        # Only leader does cleanups
-        logger.info(
-            f"Calling _check_and_perform_cleanups with year={self.current_year} and month={self.current_month}"
-        )
-        if self.is_leader:
-            logger.warning(f"Leader is performing cleanups")
-
-            if latest_event_of_batch and self.daily_cleanup_time_buffer_has_passed:
-                logger.info(
-                    f"Doing daily cleanup, last cleanup was {self.last_daily_cleanup}, "
-                    f"will become {latest_event_of_batch}"
-                )
-                async with (self.metrics_pool.acquire() as conn):
-                    await self._daily_cleanup_of_month_old_data(
-                        conn, reference_timestamp=latest_event_of_batch
-                    )
-                    self.last_daily_cleanup = latest_event_of_batch
-
-            if self.monthly_cleanup_time_buffer_has_passed:
-                async with RedisLock(
-                    self.redis, "monthly_cleanup_lock", expire_seconds=60
-                ) as lock:
-                    while self.months_to_clean_up > 0:
-                        logger.info(
-                            f"Leader is starting monthly cleanup process, current year={self.current_year}, current"
-                            f" month={self.current_month} and there are {self.months_to_clean_up}"
-                            f" months to cleanup"
-                        )
-                        year_to_cleanup = self.current_year
-                        month_to_cleanup = self.current_month
-
-                        new_year = self.current_year
-                        new_month = self.current_month + 1
-                        if new_month >= 13:
-                            new_year = self.current_year + 1
-                            new_month = 1
-
-                        logger.info(
-                            f"Old year={self.current_year}, month={self.current_month}"
-                        )
-                        logger.info(f"New year={new_year}, month={new_month}")
-
-                        # now we need to update redis so all followers get new year and month
-                        # once followers update, they will ignore all events from before the new month
-                        # which means it will be safe to do the monthly backup
-                        await self._set_redis_current_year_month(new_year, new_month)
-
-                        # now we wait to be sure redis was updated
-                        redis_year, redis_month = None, None
-                        while redis_year != new_year and redis_month != new_month:
-                            (
-                                redis_year,
-                                redis_month,
-                            ) = await self._get_redis_current_year_month()
-                            await asyncio.sleep(0.2)
-                        logger.info(
-                            f"Redis successfully updated to use new year ({new_year}) and new month ({new_month})"
-                        )
-
-                        self.current_year = redis_year
-                        self.current_month = redis_month
-
-                        # batch processor followers should always run fast, ideally processing a batch in under 5 seconds
-                        # so therefore if we wait DELAY_FOR_FOLLOWERS_TO_UPDATE_MONTH seconds, all followers should be done
-                        logger.info(
-                            f"Leader is now waiting for followers to finish any current "
-                            f"processing, sleeping {DELAY_FOR_FOLLOWERS_TO_UPDATE_MONTH}s"
-                        )
-                        await asyncio.sleep(DELAY_FOR_FOLLOWERS_TO_UPDATE_MONTH)
-
-                        # now we can safely perform the monthly cleanup
-                        async with (self.metrics_pool.acquire() as conn):
-                            logger.debug(
-                                f"Calling monthly cleanup with year={year_to_cleanup}, month={month_to_cleanup}"
-                            )
-                            await self._monthly_cleanup(
-                                conn, year_to_cleanup, month_to_cleanup
-                            )
-                        logger.info(f"Successfully performed monthly cleanup")
-
-                        self.months_to_clean_up -= 1
-
-                    self.monthly_cleanup_time_buffer_has_passed = False
-
-        else:
-            logger.error(
-                f"Somehow follower {self.unique_id} is trying to perform a cleanup, doing nothing..."
-            )
-
-    @deprecated
     def _check_date_passed_monthly_cleanup_threshold(
         self, current_year, current_month, event_year, event_month, event_day
     ):
@@ -603,16 +350,7 @@ class BatchProcessor:
                         f"Event has month={event_month} and day={event_day}, which is past the buffer"
                         f" of {self.monthly_cleanup_buffer_days} of the current_month={current_month}"
                     )
-                    if self.is_leader:
-                        self.monthly_cleanup_time_buffer_has_passed = True
-                        self.months_to_clean_up = event_month - self.current_month
-                        if self.months_to_clean_up > 1:
-                            logger.warning(
-                                f"We need to clean up multiple months, setting months to clean"
-                                f" up to {self.months_to_clean_up}"
-                            )
-                    else:
-                        self._set_redis_leader_must_do_monthly_cleanup()
+                    return True
 
         elif current_year == event_year - 1:  # this is a new year scenario
             if event_day > self.monthly_cleanup_buffer_days:
@@ -621,17 +359,8 @@ class BatchProcessor:
                     f" past the buffer of {self.monthly_cleanup_buffer_days} of the"
                     f" current_month={current_month}"
                 )
-                if self.is_leader:
-                    self.monthly_cleanup_time_buffer_has_passed = True
+                return True
 
-                    self.months_to_clean_up = (event_month + 12) - current_month
-                    if self.months_to_clean_up > 1:
-                        logger.warning(
-                            f"We need to clean up multiple months, setting months to clean"
-                            f" up to {self.months_to_clean_up}"
-                        )
-                else:
-                    self._set_redis_leader_must_do_monthly_cleanup()
         elif current_year > event_year + 1:
             logger.error(
                 f"Event is too far into the future with year={event_year}, month={event_month}, day={event_day}"
@@ -641,40 +370,7 @@ class BatchProcessor:
                 f"should have been ignored"
             )
 
-    async def _check_if_monthly_cleanup_needed(self, event_year, event_month, event_day):
-        """
-        Both leader and follower use this to check if backup is needed.
-        Leader will request backup from itself, follower will request from leader.
-        """
-        current_state = await self._get_redis_state()
-        while not current_state:
-            logger.error("Could not get current state, sleeping than trying again")
-            await asyncio.sleep(2)
-            current_state = await self._get_redis_state()
-
-        if event_day <= self.monthly_cleanup_buffer_days:
-            return False
-
-        if current_state["cleanup"]["requested"] or current_state["cleanup"]["in_progress"]:
-            logger.info("Backup already requested or in progress")
-            return False
-
-        # Normal month transition
-        if (current_state["year"] == event_year and
-                event_month > current_state["month"]):
-            if self.is_leader:
-                await self._request_backup_from_leader()
-            else:
-                await self._request_monthly_backup_from_follower()
-
-        # Year transition
-        elif (current_state["year"] == event_year - 1 and
-              current_state["month"] == 12 and
-              event_month == 1):
-            if self.is_leader:
-                await self._request_backup_from_leader()
-            else:
-                await self._request_monthly_backup_from_follower()
+        return False
 
     async def _analyze_events(self, events: List[dict]) -> BatchStats:
         """Analyze events and collect all necessary stats in memory."""
@@ -685,34 +381,32 @@ class BatchProcessor:
 
         current_state = await self._get_redis_state()
 
-        while self.is_leader and current_state is None:
-            initial_state = {'year': datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).year,
-                             'month': datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).month,
-                             'last_monthly_cleanup_completed': None,
-                             'cleanup': {'in_progress': False,
-                                         'requested': False,
-                                         'requested_by': None,
-                                         'started_at': None}}
+        while current_state is None:
+            # if we can get the lock, we will set the state
+            with RedisLock(self.redis, self.redis_monthly_cleanup_lock_key, expire_seconds=15) as one_time_attempt_lock:
+                # double check current state is None
+                current_state = await self._get_redis_state()
+                if current_state:
+                    break
 
-            with RedisLock(
-                self.redis, self.redis_monthly_cleanup_lock_key, expire_seconds=15
-            ) as one_time_attempt_lock:
+                initial_state = {'year': datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).year,
+                                 'month': datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).month,
+                                 'last_monthly_cleanup_completed': None,
+                                 'cleanup': {'in_progress': False,
+                                             'requested': False,
+                                             'requested_by': None,
+                                             'started_at': None}}
+
                 success = await self._set_redis_state(initial_state)
-
                 if not success:
                     logger.error(f"Failed to set initial state in redis")
-                    await asyncio.sleep(2)
 
-                current_state = await self._get_redis_state()
-
-        if not self.is_leader:
-            while current_state is None:
-                logger.info(f"Batch processor {self.unique_id} waiting for current state to be set in redis")
-                await asyncio.sleep(2)
-                current_state = await self._get_redis_state()
+            await asyncio.sleep(2)
+            current_state = await self._get_redis_state()
 
         logger.debug(f"Year={current_state['year']}, Month={current_state['month']}")
 
+        # very important, this batch processor only processes batches where all events are in the same month
         first_event_month_seen = datetime.fromtimestamp(
             events[0]["created_at"], tz=timezone.utc
         ).month
@@ -775,42 +469,19 @@ class BatchProcessor:
                 # Now we know the current batch contains events only in the current month or a future month, but
                 # only in a single month. A future month should be rare, so if it happens, lets log as a warning
                 if not warned_this_month_is_in_future and event_month > current_state['month']:
-                    if self.is_leader:
-                        logger.warning(f"Event is in the future month {event_month}, currently"
-                                       f" processed by leader {self.unique_id}")
-                    else:
-                        logger.warning(f"Event is in the future month {event_month}, currently"
-                                       f" processed by follower {self.unique_id}")
-
-                # Check for daily cleanup buffer and trigger if we have moved more than a day into the future
-                # only the leader needs to worry about this
-                if self.is_leader:
-                    if not self.daily_cleanup_time_buffer_has_passed:
-                        if (
-                            event_month > self.last_daily_cleanup.month
-                            or event_year > self.last_daily_cleanup.year
-                        ):
-                            logger.info(f"Setting daily cleanup time buffer passed = true")
-                            self.daily_cleanup_time_buffer_has_passed = True
-                        elif (
-                            event_month == self.last_daily_cleanup.month
-                            and event_year == self.last_daily_cleanup.year
-                            and event_day > self.last_daily_cleanup.day
-                        ):
-                            logger.info(f"Setting daily cleanup time buffer passed = true")
-                            self.daily_cleanup_time_buffer_has_passed = True
+                    logger.warning(f"Event is in the future month {event_month}, currently"
+                                   f" processed by batch processor {self.unique_id}")
 
                 # check if monthly cleanup threshold has been passed
-                # TODO - this is the new place to check for monthly cleanup, but using redis
-                if not self.monthly_cleanup_time_buffer_has_passed:
-                    # this does the check and sets the flag to do monthly cleanup
-                    self._check_date_passed_monthly_cleanup_threshold(
-                        self.current_year,
+                if self._check_date_passed_monthly_cleanup_threshold(
+                        current_state['year'],
                         current_state['month'],
                         event_year,
                         event_month,
                         event_day,
-                    )
+                ):
+
+                    await self._request_monthly_backup()
 
                 stats.period_start = min(stats.period_start, timestamp)
                 stats.period_end = max(stats.period_end, timestamp)
@@ -1510,239 +1181,6 @@ class BatchProcessor:
         except Exception as e:
             logger.error(f"Error saving events to backup database: {e}")
             logger.error(traceback.format_exc())
-
-    async def _daily_cleanup_of_month_old_data(
-        self, conn: asyncpg.Connection, reference_timestamp: Optional[datetime] = None
-    ) -> None:
-        """
-        IMPORTANT: While this is run daily, it only affects entities older than DAYS_TO_KEEP_DATA days
-
-        Performs daily cleanup tasks:
-        1. Two-phase entity cleanup (mark inactive, delete old inactive)
-        2. Maintain 35-day rolling window for entity_activity
-        """
-        try:
-            batch_size = 1000
-            current_time = reference_timestamp or datetime.now(timezone.utc)
-            cutoff_date = current_time - timedelta(days=DAYS_TO_KEEP_DATA)
-            logger.info(
-                f"Starting daily cleanup process at {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')} - "
-                f"removing events older than {cutoff_date.strftime('%Y-%m-%d %H:%M:%S UTC')}"
-            )
-
-            while True:
-                # First get the IDs of DVMs to update
-                inactive_ids = await conn.fetch(
-                    """
-                    SELECT id 
-                    FROM dvms
-                    WHERE last_seen < COALESCE($2, CURRENT_TIMESTAMP) - INTERVAL '64 days'
-                    AND is_active = TRUE
-                    LIMIT $1
-                    FOR UPDATE SKIP LOCKED
-                    """,
-                    batch_size,
-                    reference_timestamp,
-                )
-
-                if not inactive_ids:
-                    break
-
-                # Then update those specific DVMs
-                updated_count = await conn.execute(
-                    """
-                    UPDATE dvms 
-                    SET is_active = FALSE,
-                        deactivated_at = COALESCE($2, CURRENT_TIMESTAMP)
-                    WHERE id = ANY($1)
-                    """,
-                    [row["id"] for row in inactive_ids],
-                    reference_timestamp,
-                )
-
-                if not updated_count or updated_count == "0":
-                    break
-
-                await asyncio.sleep(0.0001)  # prevent tight loop
-
-            # Phase 2: Delete entities inactive for 60+ days and log them
-            deleted_dvms = await conn.fetch(
-                """
-                WITH deleted AS (
-                    DELETE FROM dvms
-                    WHERE last_seen < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '64 days'
-                    AND is_active = FALSE
-                    RETURNING id, first_seen, last_seen, deactivated_at
-                )
-                INSERT INTO cleanup_log (
-                    entity_id,
-                    entity_type,
-                    first_seen,
-                    last_seen,
-                    deactivated_at,
-                    deleted_at
-                )
-                SELECT 
-                    id,
-                    'dvm',
-                    first_seen,
-                    last_seen,
-                    deactivated_at,
-                    COALESCE($1, CURRENT_TIMESTAMP)
-                FROM deleted
-                RETURNING entity_id
-                """,
-                reference_timestamp,
-            )
-
-            logger.info(f"Deleted {len(deleted_dvms)} inactive DVMs")
-
-            # Clean up old activity data (keep exactly DAYS_TO_KEEP_DATA days)
-            deleted_activities = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM entity_activity
-                    WHERE observed_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '64 days'
-                    RETURNING id
-                )
-                SELECT COUNT(*) FROM deleted
-                """,
-                reference_timestamp,
-            )
-
-            logger.info(f"Removed {deleted_activities} old activity records")
-
-            deleted_raw_events = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM raw_events
-                    WHERE created_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '64 days'
-                    RETURNING id
-                )
-                SELECT COUNT(*) FROM deleted
-                """,
-                reference_timestamp,
-            )
-
-            logger.info(f"Removed {deleted_raw_events} old raw events")
-
-        except Exception as e:
-            logger.error(f"Error during daily cleanup: {e}")
-            logger.error(traceback.format_exc())
-            raise
-
-    async def _monthly_cleanup(self, conn: asyncpg.Connection, year, month) -> None:
-        """Performs monthly cleanup tasks with accurate month boundary handling."""
-        try:
-            logger.info("Starting monthly cleanup process...")
-
-            # Get the previous month's start and end
-            month_start = datetime(
-                year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0
-            )
-            month_end = month_start + relativedelta(months=1)
-
-            logger.debug(f"month_start={month_start}")
-            logger.debug(f"month_end={month_end}")
-
-            # Format year_month string in YYYY-MM format
-            year_month = month_start.strftime("%Y-%m")
-            logger.debug(f"year_month = {year_month}")
-            await conn.execute(
-                """
-                INSERT INTO monthly_activity (
-                    year_month,
-                    total_requests,
-                    total_responses,
-                    unique_dvms,
-                    unique_kinds,
-                    unique_users,
-                    dvm_activity,
-                    kind_activity
-                )
-                WITH period_metrics AS (
-                    SELECT
-                        COUNT(*) FILTER (
-                            WHERE entity_type = 'kind' 
-                            AND CAST(entity_id AS INTEGER) BETWEEN 5000 AND 5999
-                        ) as total_requests,
-                        COUNT(*) FILTER (
-                            WHERE entity_type = 'kind' 
-                            AND CAST(entity_id AS INTEGER) BETWEEN 6000 AND 6999
-                        ) as total_responses,
-                        COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'dvm') as unique_dvms,
-                        COUNT(DISTINCT entity_id) FILTER (
-                            WHERE entity_type = 'kind' AND 
-                            CAST(entity_id AS INTEGER) BETWEEN 5000 AND 5999
-                        ) as unique_kinds,
-                        COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'user') as unique_users
-                    FROM entity_activity
-                    WHERE observed_at >= $1 AND observed_at < $2
-                ),
-                monthly_dvm_stats AS (
-                    SELECT 
-                        dvm_id,
-                        SUM(period_feedback) as feedback_count,
-                        SUM(period_responses) as response_count
-                    FROM dvm_stats_rollups
-                    WHERE period_start >= $1 AND period_end < $2
-                    GROUP BY dvm_id
-                ),
-                monthly_kind_stats AS (
-                    SELECT 
-                        kind,
-                        SUM(period_requests) as request_count,
-                        SUM(period_responses) as response_count
-                    FROM kind_stats_rollups
-                    WHERE period_start >= $1 AND period_end < $2
-                    GROUP BY kind
-                )
-                SELECT
-                    $3::text as year_month,
-                    COALESCE(pm.total_requests, 0) as total_requests,
-                    COALESCE(pm.total_responses, 0) as total_responses,
-                    COALESCE(pm.unique_dvms, 0) as unique_dvms,
-                    COALESCE(pm.unique_kinds, 0) as unique_kinds,
-                    COALESCE(pm.unique_users, 0) as unique_users,
-                    COALESCE(
-                        (SELECT jsonb_agg(row_to_json(d)) 
-                         FROM monthly_dvm_stats d),
-                        '[]'::jsonb
-                    ) as dvm_activity,
-                    COALESCE(
-                        (SELECT jsonb_agg(row_to_json(k)) 
-                         FROM monthly_kind_stats k),
-                        '[]'::jsonb
-                    ) as kind_activity
-                FROM period_metrics pm
-                """,
-                month_start,
-                month_end,
-                year_month,
-            )
-
-            # Clean up old logs
-            deleted_logs = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM cleanup_log
-                    WHERE deleted_at < COALESCE($1, CURRENT_TIMESTAMP) - INTERVAL '1 year'
-                    RETURNING id
-                )
-                SELECT COUNT(*) FROM deleted
-                """,
-                month_start,
-            )
-
-            logger.info(f"Removed {deleted_logs} old cleanup logs")
-            logger.info(
-                f"Monthly cleanup process for {year_month} completed successfully"
-            )
-
-        except Exception as e:
-            logger.error(f"Error during monthly cleanup: {e}")
-            logger.error(traceback.format_exc())
-            raise
 
     @staticmethod
     def format_metrics_row(timestamp, stats: BatchStats, queue_length: int) -> str:
