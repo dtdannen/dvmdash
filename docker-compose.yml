@@ -70,11 +70,11 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  batch_processor_leader:
+  monthly_archiver:
     build:
       context: .
-      dockerfile: ./backend/batch_processor/Dockerfile
-    profiles: ["processor", "all"]
+      dockerfile: ./backend/monthly_archiver/Dockerfile
+    profiles: ["all"]
     environment:
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG
@@ -84,8 +84,7 @@ services:
       - POSTGRES_HOST=postgres_pipeline
       - MAX_WAIT_SECONDS=3
       - BATCH_SIZE=10000
-      - BACKTEST_MODE=true
-      - LEADER=true
+      - DAILY_CLEANUP_INTERVAL_SECONDS=15  # use 24*60*60 (24 hours) for production
     volumes:
       - ./backend/batch_processor:/app/backend/batch_processor
       - ./backend/shared:/app/backend/shared
@@ -98,8 +97,6 @@ services:
         window: 120s
     depends_on:
       postgres_pipeline:
-        condition: service_healthy
-      event_collector:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -130,7 +127,6 @@ services:
       - MAX_WAIT_SECONDS=3
       - BATCH_SIZE=10000
       - BACKTEST_MODE=true
-      - LEADER=false  # only difference from batch-processor-leader above
     volumes:
       - ./backend/batch_processor:/app/backend/batch_processor
       - ./backend/shared:/app/backend/shared

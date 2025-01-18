@@ -10,6 +10,7 @@ import csv
 import os
 from loguru import logger
 import sys
+import json
 
 
 # Configure loguru logger
@@ -35,6 +36,7 @@ class LocalPerformanceTest:
         self.csv_filename = f"{self.metrics_dir}/local_perf_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         self.initialize_csv()
         logger.info(f"Initialized CSV file: {self.csv_filename}")
+        self.monthly_update_timestamps = []
 
     def initialize_csv(self):
         with open(self.csv_filename, "w", newline="") as f:
@@ -90,7 +92,7 @@ class LocalPerformanceTest:
         """Start the batch processor service"""
         logger.info("Starting batch processor...")
         process = await asyncio.create_subprocess_shell(
-            "docker compose up -d batch_processor_leader",
+            "docker compose up -d batch_processor_leader batch_processor",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -148,7 +150,7 @@ class LocalPerformanceTest:
                 ram_total = 0
                 processor_count = 0
                 for c in containers:
-                    if "batch-processor" in c.name:  # This will match both types
+                    if "batch_processor" in c.name:  # This will match both types
                         stats = c.stats(stream=False)
                         memory_stats = stats["memory_stats"]
                         usage = memory_stats.get("usage", 0) - memory_stats.get(
@@ -344,28 +346,44 @@ class LocalPerformanceTest:
 
             # Convert timestamp to datetime and calculate seconds from start
             df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df["seconds"] = (df["timestamp"] - df["timestamp"].min()).dt.total_seconds()
+            start_time = df["timestamp"].min()
+            df["seconds"] = (df["timestamp"] - start_time).dt.total_seconds()
 
             # Create the plot
-            plt.figure(figsize=(12, 6))
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
 
             # Plot queue size
-            plt.subplot(2, 1, 1)
-            plt.plot(df["seconds"], df["redis_items"], "b-", label="Redis Queue Size")
-            plt.xlabel("Time (seconds)")
-            plt.ylabel("Number of Items")
-            plt.title("Redis Queue Size Over Time")
-            plt.grid(True)
+            ax1.plot(df["seconds"], df["redis_items"], "b-", label="Redis Queue Size")
+            ax1.set_xlabel("Time (seconds)")
+            ax1.set_ylabel("Number of Items")
+            ax1.set_title("Redis Queue Size Over Time")
+            ax1.grid(True)
 
             # Plot processing rate
-            plt.subplot(2, 1, 2)
             processing_rate = -df["redis_items"].diff() / df["seconds"].diff()
             smoothed_rate = processing_rate.rolling(window=5).mean()  # Smooth the rate
-            plt.plot(df["seconds"], smoothed_rate, "r-", label="Processing Rate")
-            plt.xlabel("Time (seconds)")
-            plt.ylabel("Items/Second")
-            plt.title("Processing Rate Over Time")
-            plt.grid(True)
+            ax2.plot(df["seconds"], smoothed_rate, "r-", label="Processing Rate")
+            ax2.set_xlabel("Time (seconds)")
+            ax2.set_ylabel("Items/Second")
+            ax2.set_title("Processing Rate Over Time")
+            ax2.grid(True)
+
+            # Add vertical lines for monthly updates
+            for cleanup_time in self.monthly_update_timestamps:
+                seconds_from_start = (cleanup_time - start_time).total_seconds()
+                ax1.axvline(x=seconds_from_start, color="g", linestyle="--", alpha=0.5)
+                ax2.axvline(x=seconds_from_start, color="g", linestyle="--", alpha=0.5)
+
+                # Add annotation to top plot only to avoid clutter
+                ax1.annotate(
+                    "Monthly Update",
+                    xy=(seconds_from_start, ax1.get_ylim()[1]),
+                    xytext=(10, 10),
+                    textcoords="offset points",
+                    rotation=90,
+                    color="green",
+                    alpha=0.7,
+                )
 
             plt.tight_layout()
 
@@ -381,6 +399,75 @@ class LocalPerformanceTest:
             logger.error(f"Error creating performance plots: {e}")
             logger.exception("Full traceback:")
 
+    async def start_monthly_archiver(self):
+        """Start the monthly archiver service"""
+        logger.info("Starting monthly archiver...")
+        process = await asyncio.create_subprocess_shell(
+            "docker compose up -d monthly_archiver",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode == 0:
+            logger.success("Monthly archiver started successfully")
+        else:
+            logger.error(f"Error starting monthly archiver: {stderr.decode()}")
+
+    async def monitor_redis_state(self):
+        """Monitor and print Redis state related to backup process"""
+        redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        previous_last_cleanup = None
+
+        while True:
+            try:
+                # Get state from Redis
+                state_json = redis_client.get("dvmdash_state")
+                if not state_json:
+                    logger.warning("No state found in Redis")
+                    await asyncio.sleep(2)
+                    continue
+
+                state = json.loads(state_json)
+
+                # Check for monthly update completion
+                last_cleanup = state.get("last_monthly_cleanup_completed")
+                if last_cleanup and last_cleanup != previous_last_cleanup:
+                    cleanup_time = datetime.fromisoformat(last_cleanup)
+                    self.monthly_update_timestamps.append(cleanup_time)
+                    logger.info(f"Detected monthly update completion at {cleanup_time}")
+                previous_last_cleanup = last_cleanup
+
+                # Get lock info
+                lock_exists = redis_client.exists("dvmdash_monthly_cleanup_lock")
+                lock_value = (
+                    redis_client.get("dvmdash_monthly_cleanup_lock")
+                    if lock_exists
+                    else None
+                )
+
+                # Format state info
+                cleanup_info = state.get("cleanup", {})
+                state_str = (
+                    "\nRedis State:\n"
+                    f"  Year/Month: {state.get('year')}/{state.get('month')}\n"
+                    f"  Last Cleanup: {last_cleanup}\n"
+                    f"  Cleanup Status:\n"
+                    f"    - In Progress: {cleanup_info.get('in_progress', False)}\n"
+                    f"    - Requested: {cleanup_info.get('requested', False)}\n"
+                    f"    - Requested By: {cleanup_info.get('requested_by', 'None')}\n"
+                    f"    - Started At: {cleanup_info.get('started_at', 'None')}\n"
+                    f"  Lock Status:\n"
+                    f"    - Lock Exists: {lock_exists}\n"
+                    f"    - Lock Value: {lock_value}\n"
+                )
+
+                logger.info(state_str)
+
+            except Exception as e:
+                logger.error(f"Error monitoring Redis state: {e}")
+
+            await asyncio.sleep(2)
+
     async def run_test(self, target_redis_items: int = 100_000):
         """Run the complete performance test"""
         logger.info(
@@ -390,8 +477,15 @@ class LocalPerformanceTest:
             # Start core services
             await self.start_core_services()
 
+            # Start monitoring Redis state
+            logger.info("Starting Redis state monitoring")
+            state_monitor_task = asyncio.create_task(self.monitor_redis_state())
+
             # Start event collector
             await self.start_event_collector()
+
+            # Start monthly archiver
+            await self.start_monthly_archiver()
 
             # Start metrics collection
             logger.info("Starting metrics collection task")
@@ -414,9 +508,10 @@ class LocalPerformanceTest:
                     break
                 await asyncio.sleep(10)
 
-            # Cancel metrics collection
-            logger.info("Cancelling metrics collection")
+            # Cancel tasks
+            logger.info("Cancelling monitoring tasks")
             metrics_task.cancel()
+            state_monitor_task.cancel()
 
             # Create and save performance plots
             self.create_performance_plots()

@@ -208,3 +208,23 @@ We perform monthly backups after we get an event with a timestamp for a new mont
 - BUT WHAT IF YOU GET A FULL BATCH that is before the buffer deadline? Are you going to process it just fine?  NO YOU WONT BECAUSE WE HAVE A DEADLOCK RIGHT NOW WHEN WE"RE WAITING IN BETWEEN THE BUFFER AND BECUASE WE WANT TO AVOID A MONTHLY OVERLAP IN BATCHES
 
 NEW IDEA: pick the first month I get, that is within the current or next month. Do only that month, anything not in that month gets put into overflow. That way I don't cross month boundaries in a single batch process and I will handle current and next month events just fine. Anything 2 months away, goes into overflow, and will also trigger monthly cleanup
+
+### (1/17/25) Concurrency between leader and follower batch processors
+
+FREQUENT OPERATIONS (No Lock):
+- Reading current month/year from state
+- Regular event processing
+- Leader checking if backup is requested
+
+INFREQUENT OPERATIONS (Using "monthly_backup_lock"):
+1. Follower requesting backup:
+   - Acquires lock
+   - Updates state.cleanup.requested = True
+   - Releases lock
+
+2. Leader performing backup:
+   - Acquires lock
+   - Performs backup
+   - Updates state with new month/year
+   - Resets cleanup flags
+   - Releases lock
