@@ -88,19 +88,21 @@ class LocalPerformanceTest:
         else:
             logger.error(f"Error starting event collector: {stderr.decode()}")
 
-    async def start_batch_processor(self):
-        """Start the batch processor service"""
-        logger.info("Starting batch processor...")
+    async def start_batch_processor(self, count: int = 1):
+        """Start the batch processor service with specified number of instances"""
+        logger.info(f"Starting {count} batch processor{'s' if count > 1 else ''}...")
         process = await asyncio.create_subprocess_shell(
-            "docker compose up -d batch_processor",
+            f"docker compose up -d --scale batch_processor={count} batch_processor",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
         if process.returncode == 0:
-            logger.success("Batch processor started successfully")
+            logger.success(
+                f"{count} batch processor{'s' if count > 1 else ''} started successfully"
+            )
         else:
-            logger.error(f"Error starting batch processor: {stderr.decode()}")
+            logger.error(f"Error starting batch processors: {stderr.decode()}")
 
     async def wait_for_redis_count(self, target_count: int, check_interval: int = 10):
         """Wait until Redis has accumulated the target number of items"""
@@ -348,6 +350,9 @@ class LocalPerformanceTest:
             df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize("UTC")
             experiment_start_time = df["timestamp"].min()
 
+            # Calculate seconds from start
+            df["seconds"] = (df["timestamp"] - experiment_start_time).dt.total_seconds()
+
             # Create the plot
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
 
@@ -357,6 +362,7 @@ class LocalPerformanceTest:
             ax1.set_ylabel("Number of Items")
             ax1.set_title("Redis Queue Size Over Time (UTC)")
             ax1.grid(True)
+            ax1.legend()
 
             # Plot processing rate
             processing_rate = -df["redis_items"].diff() / df["seconds"].diff()
@@ -366,6 +372,7 @@ class LocalPerformanceTest:
             ax2.set_ylabel("Items/Second")
             ax2.set_title("Processing Rate Over Time (UTC)")
             ax2.grid(True)
+            ax2.legend()
 
             # Add vertical lines for monthly updates
             if self.monthly_update_timestamps:
@@ -517,7 +524,7 @@ class LocalPerformanceTest:
             await self.wait_for_redis_count(target_redis_items)
 
             # Start batch processor
-            await self.start_batch_processor()
+            await self.start_batch_processor(1)
 
             # Keep running until Redis is empty
             logger.info("Monitoring Redis queue until empty...")

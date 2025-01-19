@@ -458,7 +458,7 @@ class BatchProcessor:
         ).year
 
         logger.debug(
-            f"Analyzing {len(events)} events with first event is {first_event_year_seen}/{first_event_month_seen} and"
+            f"Analyzing {len(events)} events with first event is {first_event_year_seen}/{first_event_month_seen} and "
             f"redis is {current_state['year']}/{current_state['month']}"
         )
 
