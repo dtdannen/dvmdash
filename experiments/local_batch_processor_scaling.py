@@ -5,7 +5,7 @@ import docker
 import psycopg2
 import redis
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import csv
 import os
 from loguru import logger
@@ -92,7 +92,7 @@ class LocalPerformanceTest:
         """Start the batch processor service"""
         logger.info("Starting batch processor...")
         process = await asyncio.create_subprocess_shell(
-            "docker compose up -d batch_processor_leader batch_processor",
+            "docker compose up -d batch_processor",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -344,10 +344,9 @@ class LocalPerformanceTest:
             # Read the CSV file
             df = pd.read_csv(self.csv_filename)
 
-            # Convert timestamp to datetime and calculate seconds from start
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            start_time = df["timestamp"].min()
-            df["seconds"] = (df["timestamp"] - start_time).dt.total_seconds()
+            # Convert timestamp to datetime in UTC
+            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize("UTC")
+            experiment_start_time = df["timestamp"].min()
 
             # Create the plot
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
@@ -356,7 +355,7 @@ class LocalPerformanceTest:
             ax1.plot(df["seconds"], df["redis_items"], "b-", label="Redis Queue Size")
             ax1.set_xlabel("Time (seconds)")
             ax1.set_ylabel("Number of Items")
-            ax1.set_title("Redis Queue Size Over Time")
+            ax1.set_title("Redis Queue Size Over Time (UTC)")
             ax1.grid(True)
 
             # Plot processing rate
@@ -365,25 +364,49 @@ class LocalPerformanceTest:
             ax2.plot(df["seconds"], smoothed_rate, "r-", label="Processing Rate")
             ax2.set_xlabel("Time (seconds)")
             ax2.set_ylabel("Items/Second")
-            ax2.set_title("Processing Rate Over Time")
+            ax2.set_title("Processing Rate Over Time (UTC)")
             ax2.grid(True)
 
             # Add vertical lines for monthly updates
-            for cleanup_time in self.monthly_update_timestamps:
-                seconds_from_start = (cleanup_time - start_time).total_seconds()
-                ax1.axvline(x=seconds_from_start, color="g", linestyle="--", alpha=0.5)
-                ax2.axvline(x=seconds_from_start, color="g", linestyle="--", alpha=0.5)
-
-                # Add annotation to top plot only to avoid clutter
-                ax1.annotate(
-                    "Monthly Update",
-                    xy=(seconds_from_start, ax1.get_ylim()[1]),
-                    xytext=(10, 10),
-                    textcoords="offset points",
-                    rotation=90,
-                    color="green",
-                    alpha=0.7,
+            if self.monthly_update_timestamps:
+                logger.debug(
+                    f"Monthly update timestamps: {self.monthly_update_timestamps}"
                 )
+                logger.debug(f"Experiment start time: {experiment_start_time}")
+
+                for cleanup_time in self.monthly_update_timestamps:
+                    # Ensure cleanup_time is timezone-aware UTC
+                    if not cleanup_time.tzinfo:
+                        cleanup_time = cleanup_time.replace(tzinfo=timezone.utc)
+
+                    # Calculate relative time in seconds
+                    seconds_from_start = (
+                        cleanup_time - experiment_start_time
+                    ).total_seconds()
+                    logger.debug(
+                        f"Adding vertical line at {seconds_from_start} seconds for cleanup at {cleanup_time}"
+                    )
+
+                    if (
+                        seconds_from_start >= 0
+                    ):  # Only plot if it happened after experiment start
+                        ax1.axvline(
+                            x=seconds_from_start, color="g", linestyle="--", alpha=0.5
+                        )
+                        ax2.axvline(
+                            x=seconds_from_start, color="g", linestyle="--", alpha=0.5
+                        )
+
+                        # Add annotation to top plot only to avoid clutter
+                        ax1.annotate(
+                            f"Monthly Update ({cleanup_time.strftime('%H:%M:%S')})",
+                            xy=(seconds_from_start, ax1.get_ylim()[1]),
+                            xytext=(10, 10),
+                            textcoords="offset points",
+                            rotation=90,
+                            color="green",
+                            alpha=0.7,
+                        )
 
             plt.tight_layout()
 
@@ -433,8 +456,12 @@ class LocalPerformanceTest:
                 last_cleanup = state.get("last_monthly_cleanup_completed")
                 if last_cleanup and last_cleanup != previous_last_cleanup:
                     cleanup_time = datetime.fromisoformat(last_cleanup)
+                    if not cleanup_time.tzinfo:  # Ensure UTC timezone
+                        cleanup_time = cleanup_time.replace(tzinfo=timezone.utc)
                     self.monthly_update_timestamps.append(cleanup_time)
-                    logger.info(f"Detected monthly update completion at {cleanup_time}")
+                    logger.info(
+                        f"Detected monthly update completion at {cleanup_time} UTC"
+                    )
                 previous_last_cleanup = last_cleanup
 
                 # Get lock info
@@ -445,20 +472,15 @@ class LocalPerformanceTest:
                     else None
                 )
 
-                # Format state info
                 cleanup_info = state.get("cleanup", {})
                 state_str = (
-                    "\nRedis State:\n"
-                    f"  Year/Month: {state.get('year')}/{state.get('month')}\n"
-                    f"  Last Cleanup: {last_cleanup}\n"
-                    f"  Cleanup Status:\n"
-                    f"    - In Progress: {cleanup_info.get('in_progress', False)}\n"
-                    f"    - Requested: {cleanup_info.get('requested', False)}\n"
-                    f"    - Requested By: {cleanup_info.get('requested_by', 'None')}\n"
-                    f"    - Started At: {cleanup_info.get('started_at', 'None')}\n"
-                    f"  Lock Status:\n"
-                    f"    - Lock Exists: {lock_exists}\n"
-                    f"    - Lock Value: {lock_value}\n"
+                    f"Redis State: Year/Month: {state.get('year')}/{state.get('month')} "
+                    f"| Last Cleanup: {last_cleanup} "
+                    f"| Cleanup Status: [In Progress: {cleanup_info.get('in_progress', False)}, "
+                    f"Requested: {cleanup_info.get('requested', False)}, "
+                    f"Requested By: {cleanup_info.get('requested_by', 'None')}, "
+                    f"Started At: {cleanup_info.get('started_at', 'None')}] "
+                    f"| Lock Status: [Lock Exists: {lock_exists}, Lock Value: {lock_value}]"
                 )
 
                 logger.info(state_str)

@@ -15,7 +15,7 @@ import traceback
 from loguru import logger
 import redis
 from redis import Redis
-from util import RedisLock
+from util import BatchProcessorRedisLock
 import uuid
 
 
@@ -117,7 +117,9 @@ class BatchProcessor:
         self.backtest_mode = backtest_mode
         self.first_day_seen = None  # this is the date of the first event we get
 
-        self.monthly_cleanup_buffer_days = os.getenv("MONTHLY_CLEANUP_BUFFER_DAYS", 3)
+        self.monthly_cleanup_buffer_days = int(
+            os.getenv("MONTHLY_CLEANUP_BUFFER_DAYS", 3)
+        )
 
         self.redis_state_key = "dvmdash_state"
         self.redis_monthly_cleanup_lock_key = "dvmdash_monthly_cleanup_lock"
@@ -126,7 +128,7 @@ class BatchProcessor:
         self.unique_id = str(uuid.uuid4())
 
         logger.info(
-            f"Creating Batch Processor (Leader {self.is_leader} with settings:\n"
+            f"Creating Batch Processor with settings:\n"
             f" batch_size={batch_size},"
             f" max_wait_seconds={max_wait_seconds},"
             f" backtest_mode={backtest_mode},"
@@ -152,7 +154,7 @@ class BatchProcessor:
 
         """
         try:
-            state_bytes = await self.redis.get(self.redis_state_key)
+            state_bytes = self.redis.get(self.redis_state_key)
             if not state_bytes:
                 return None
 
@@ -176,7 +178,7 @@ class BatchProcessor:
         try:
             # Convert dict to JSON string, then encode to bytes
             state_json = json.dumps(state)
-            await self.redis.set(self.redis_state_key, state_json)
+            self.redis.set(self.redis_state_key, state_json)
             return True
 
         except Exception as e:
@@ -190,7 +192,6 @@ class BatchProcessor:
             # Basic structure validation
             assert isinstance(state["year"], int) and 2023 <= state["year"] <= 9999
             assert isinstance(state["month"], int) and 1 <= state["month"] <= 12
-            assert isinstance(state["last_monthly_cleanup_completed"], datetime)
             assert isinstance(state["cleanup"], dict)
             assert isinstance(state["cleanup"]["in_progress"], bool)
             assert isinstance(state["cleanup"]["requested"], bool)
@@ -202,19 +203,23 @@ class BatchProcessor:
 
     async def _request_monthly_backup(self):
         try:
-            with RedisLock(
+            with BatchProcessorRedisLock(
                 self.redis, self.redis_monthly_cleanup_lock_key, expire_seconds=15
             ) as one_time_attempt_lock:
                 logger.info(f"Lock acquired, requesting monthly backup...")
 
                 # get the current state, if backup is in progress, just exit early, we got what we wanted
                 current_state = await self._get_redis_state()
-                if current_state and current_state["cleanup"]["in_progress"] or current_state["cleanup"]["requested"]:
+                if (
+                    current_state
+                    and current_state["cleanup"]["in_progress"]
+                    or current_state["cleanup"]["requested"]
+                ):
                     logger.info(
                         f"Exiting early from attempting to request monthly backup, monthly backup"
                         f" already in progress or has been requested"
                     )
-                    return
+                    return True
 
                 # now request monthly backup
                 current_state["cleanup"]["requested"] = True
@@ -222,12 +227,15 @@ class BatchProcessor:
                 success = await self._set_redis_state(current_state)
                 if not success:
                     logger.error(f"Failed to request monthly backup")
-                    return
+                    return False
                 logger.success(
                     f"Follower {self.unique_id} successfully requested monthly backup"
                 )
+                return True
         except TimeoutError:
-            print("Could not acquire lock")
+            logger.error("Could not acquire lock")
+
+        return False
 
     async def process_events(self, events: List[dict]) -> None:
         """Process a batch of events and update all necessary tables atomically."""
@@ -245,86 +253,112 @@ class BatchProcessor:
                     f"Analyze events did not process any events from this batch"
                 )
         except MultipleMonthBatch as e:
-            # now we sort the events and call analyze on each month at a time
             events_per_month = {}
-            earliest_year = 9999
             for event in events:
-                event_month = datetime.fromtimestamp(
-                    event["created_at"], tz=timezone.utc
-                ).month
-                event_year = datetime.fromtimestamp(
-                    event["created_at"], tz=timezone.utc
-                ).year
-                earliest_year = min(earliest_year, event_year)
+                timestamp = datetime.fromtimestamp(event["created_at"], tz=timezone.utc)
+                year_month_i = (timestamp.year, timestamp.month)
 
-                if event_month not in events_per_month:
+                if year_month_i not in events_per_month:
                     logger.debug(
-                        f"event_month is {event_month} and year is {event_year}"
+                        f"Processing events for year/month {year_month_i[0]}/{year_month_i[1]}"
                     )
-                    events_per_month[event_month] = [event]
+                    events_per_month[year_month_i] = [event]
                 else:
-                    events_per_month[event_month].append(event)
+                    events_per_month[year_month_i].append(event)
 
             logger.warning(
-                f"There are {len(events_per_month.keys())} months in current batch, processing month by month now"
+                f"There are {len(events_per_month)} unique year/months in current batch"
             )
-            for k, v in events_per_month.items():
-                logger.warning(f"\tmonth {k}: {len(v)} events")
+            for (year_i, month_i), events in events_per_month.items():
+                logger.warning(f"\tyear/month {year_i}/{month_i}: {len(events)} events")
 
-            current_state = await self._get_redis_state()
+            redis_state = await self._get_redis_state()
+            redis_year_month = (redis_state["year"], redis_state["month"])
+            redis_year, redis_month = redis_year_month
 
-            # follow calendar year for determining order, processing a month at a time
-            num_months_processed = 0
-            for i in list(range(current_state['month'], 13)) + list(range(1, 13)):
-                if num_months_processed >= len(events_per_month.keys()):
-                    break
+            for year_month_i in sorted(events_per_month.keys()):
+                year_i, month_i = year_month_i
+                logger.warning(
+                    f"Processing {year_i}/{month_i} with {len(events_per_month[year_month_i])} events and "
+                    f"redis current state is {redis_year}/{redis_month}"
+                )
 
-                if i in events_per_month.keys():
-                    logger.warning(
-                        f"Processing month {i} with {len(events_per_month[i])} events"
-                    )
-
-                    current_state = await self._get_redis_state()
-
-                    if i < current_state["month"]:
-                        logger.error(f"OMG HOW DID THIS HAPPEN! A batch processor is handling a multiple month batch "
-                                     f"and somehow the current month became {current_state["month"]} got "
-                                     f"updated before it could process month {i}")
-                        logger.error(f"The grace period delay should be preventing this from happening!")
-
-                    need_to_request_backup = True
-                    if current_state['cleanup']['requested'] or current_state['cleanup']['in_progress']:
-                        need_to_request_backup = False
-
-                    while i not in [current_state["month"], current_state["month"] + 1]:
-                        logger.info(
-                            f"Processing month {i} is outside the current month {current_state['month']} or "
-                            f"next month {current_state['month']+1}, "
-                            f"waiting to process"
+                skip_month = False
+                while True:
+                    if year_month_i == redis_year_month:
+                        # year month matches redis, good to go
+                        logger.success(
+                            f"year/month {year_i}/{month_i} matches redis {redis_year}/{redis_month}, analyzing now..."
                         )
-
-                        if need_to_request_backup:
-                            await self._request_monthly_backup()
-
-                        # wait for the cleanup to process the month
-                        await asyncio.sleep(0.5)
-                        current_state = await self._get_redis_state()
-                        if current_state['cleanup']['requested'] or current_state['cleanup']['in_progress']:
-                            need_to_request_backup = False
-
-                    # if we reach here, we are good to proceed
-                    stats_i = await self._analyze_events(events_per_month[i])
-
-                    if len(stats_i.events_processed) > 0:
-                        logger.warning(
-                            f"Last event of stats batch has timestamp of {stats_i.period_end}"
+                        break
+                    elif redis_year == year_i and redis_month == month_i - 1:
+                        # redis is only 1 month behind year_month_i, good to go
+                        logger.success(
+                            f"year/month {year_i}/{month_i} is 1 month ahead of "
+                            f"redis {redis_year}/{redis_month}, analyzing now..."
                         )
-                        await self._compute_metrics(stats_i, events_per_month[i])
+                        break
+                    elif (
+                        redis_year == year_i - 1 and redis_month == 12 and month_i == 1
+                    ):
+                        # new year scenario when redis is only 1 month behind, good to go
+                        logger.success(
+                            f"year/month {year_i}/{month_i} is a new year, and is exactly 1 month ahead"
+                            f" of redis {redis_year}/{redis_month}, analyzing now..."
+                        )
+                        break
                     else:
-                        logger.warning(
-                            f"Analyze events did not process any events from month {i}"
-                        )
-                    num_months_processed += 1
+                        if year_i < redis_year:
+                            logger.error(
+                                f"year/month {year_i}/{month_i} is in the past compared to "
+                                f"redis {redis_year}]{redis_month}, ignoring this batch unfortunately"
+                            )
+                            skip_month = True
+                            break
+                        elif year_i == redis_year and month_i < redis_month:
+                            logger.error(
+                                f"year/month {year_i}/{month_i} is in the past compared to "
+                                f"redis {redis_year}]{redis_month}, ignoring this batch unfortunately"
+                            )
+                            skip_month = True
+                            break
+                        else:
+                            # all we need to do is wait, because it's farther in the future
+                            logger.info(
+                                f"year/month {year_i}/{month_i} is in the future compared to redis "
+                                f"{redis_year}/{redis_month}, waiting for monthly cleanup to move us forward..."
+                            )
+
+                            need_to_request_backup = True
+                            if (
+                                redis_state["cleanup"]["requested"]
+                                or redis_state["cleanup"]["in_progress"]
+                            ):
+                                need_to_request_backup = False
+
+                            if need_to_request_backup:
+                                await self._request_monthly_backup()
+
+                    await asyncio.sleep(0.5)
+                    redis_state = await self._get_redis_state()
+                    redis_year_month = (redis_state["year"], redis_state["month"])
+                    redis_year, redis_month = redis_year_month
+
+                if skip_month:
+                    continue
+
+                # if we reach here, we are good to proceed
+                stats_i = await self._analyze_events(events_per_month[year_month_i])
+
+                if len(stats_i.events_processed) > 0:
+                    logger.warning(
+                        f"Last event of stats batch has timestamp of {stats_i.period_end}"
+                    )
+                    await self._compute_metrics(stats_i, events_per_month[year_month_i])
+                else:
+                    logger.warning(
+                        f"Analyze events did not process any events from month {year_month_i}"
+                    )
 
     async def _compute_metrics(self, stats, events):
         # Step 2: Update all tables in a single transaction
@@ -383,19 +417,29 @@ class BatchProcessor:
 
         while current_state is None:
             # if we can get the lock, we will set the state
-            with RedisLock(self.redis, self.redis_monthly_cleanup_lock_key, expire_seconds=15) as one_time_attempt_lock:
+            with BatchProcessorRedisLock(
+                self.redis, self.redis_monthly_cleanup_lock_key, expire_seconds=15
+            ) as one_time_attempt_lock:
                 # double check current state is None
                 current_state = await self._get_redis_state()
                 if current_state:
                     break
 
-                initial_state = {'year': datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).year,
-                                 'month': datetime.fromtimestamp(events[0]["created_at"], tz=timezone.utc).month,
-                                 'last_monthly_cleanup_completed': None,
-                                 'cleanup': {'in_progress': False,
-                                             'requested': False,
-                                             'requested_by': None,
-                                             'started_at': None}}
+                initial_state = {
+                    "year": datetime.fromtimestamp(
+                        events[0]["created_at"], tz=timezone.utc
+                    ).year,
+                    "month": datetime.fromtimestamp(
+                        events[0]["created_at"], tz=timezone.utc
+                    ).month,
+                    "last_monthly_cleanup_completed": None,
+                    "cleanup": {
+                        "in_progress": False,
+                        "requested": False,
+                        "requested_by": None,
+                        "started_at": None,
+                    },
+                }
 
                 success = await self._set_redis_state(initial_state)
                 if not success:
@@ -404,15 +448,23 @@ class BatchProcessor:
             await asyncio.sleep(2)
             current_state = await self._get_redis_state()
 
-        logger.debug(f"Year={current_state['year']}, Month={current_state['month']}")
-
         # very important, this batch processor only processes batches where all events are in the same month
         first_event_month_seen = datetime.fromtimestamp(
             events[0]["created_at"], tz=timezone.utc
         ).month
 
+        first_event_year_seen = datetime.fromtimestamp(
+            events[0]["created_at"], tz=timezone.utc
+        ).year
+
+        logger.debug(
+            f"Analyzing {len(events)} events with first event is {first_event_year_seen}/{first_event_month_seen} and"
+            f"redis is {current_state['year']}/{current_state['month']}"
+        )
+
         filtered_events = []
         warned_this_month_is_in_future = False  # simple flag to reduce log spam
+        requested_monthly_cleanup = False
         for event in events:
             try:
                 # Ensure we always have a timezone-aware datetime
@@ -438,19 +490,20 @@ class BatchProcessor:
                 event_day = timestamp.day
 
                 # filter old events
-                if event_year < current_state['year']:
+                if event_year < current_state["year"]:
                     logger.warning(
                         f"Ignoring event with year={event_year}, month={event_month}, event_day={event_day}"
-                        f" while current_year is {current_state['current_year']}"
+                        f" while current_year is {current_state['year']}"
                     )
                     filtered_events.append(event)
                     continue
-                elif event_year > current_state['year'] + 1:
+                elif event_year > current_state["year"] + 1:
                     logger.error(f"Event timestamp is way too far into the future")
                     filtered_events.append(event)
                     continue
                 elif (
-                    event_year == current_state['current_year'] and event_month < current_state['month']
+                    event_year == current_state["year"]
+                    and event_month < current_state["month"]
                 ):
                     logger.warning(
                         f"Ignoring event with same year but {current_state['month']-event_month} months old"
@@ -468,20 +521,33 @@ class BatchProcessor:
 
                 # Now we know the current batch contains events only in the current month or a future month, but
                 # only in a single month. A future month should be rare, so if it happens, lets log as a warning
-                if not warned_this_month_is_in_future and event_month > current_state['month']:
-                    logger.warning(f"Event is in the future month {event_month}, currently"
-                                   f" processed by batch processor {self.unique_id}")
+                if (
+                    not warned_this_month_is_in_future
+                    and event_month > current_state["month"]
+                ):
+                    logger.warning(
+                        f"Event is in the future month {event_month}, currently"
+                        f" processed by batch processor {self.unique_id}"
+                    )
+                    warned_this_month_is_in_future = True
 
                 # check if monthly cleanup threshold has been passed
-                if self._check_date_passed_monthly_cleanup_threshold(
-                        current_state['year'],
-                        current_state['month'],
-                        event_year,
-                        event_month,
-                        event_day,
+                # TODO - is there a race condition here? I think the 3 day buffer and 15s grace period prevent it...
+                if not (
+                    current_state["cleanup"]["requested"]
+                    or current_state["cleanup"]["in_progress"]
                 ):
-
-                    await self._request_monthly_backup()
+                    if (
+                        not requested_monthly_cleanup
+                        and self._check_date_passed_monthly_cleanup_threshold(
+                            current_state["year"],
+                            current_state["month"],
+                            event_year,
+                            event_month,
+                            event_day,
+                        )
+                    ):
+                        requested_monthly_cleanup = await self._request_monthly_backup()
 
                 stats.period_start = min(stats.period_start, timestamp)
                 stats.period_end = max(stats.period_end, timestamp)

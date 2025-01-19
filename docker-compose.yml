@@ -86,9 +86,9 @@ services:
       - BATCH_SIZE=10000
       - DAILY_CLEANUP_INTERVAL_SECONDS=15  # use 24*60*60 (24 hours) for production
     volumes:
-      - ./backend/batch_processor:/app/backend/batch_processor
+      - ./backend/monthly_archiver:/app/backend/monthly_archiver
       - ./backend/shared:/app/backend/shared
-      - batch_processor_logs:/app/logs
+      - monthly_archiver_logs:/app/logs
     deploy:
       restart_policy:
         condition: on-failure
@@ -216,4 +216,5 @@ volumes:
   redis_data:
   event_collector_logs:
   batch_processor_logs:
+  monthly_archiver_logs:
   nostr_relay_data:
