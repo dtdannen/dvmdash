@@ -88,7 +88,26 @@ class LocalPerformanceTest:
         else:
             logger.error(f"Error starting event collector: {stderr.decode()}")
 
-    async def start_batch_processor(self, count: int = 1):
+    async def start_first_batch_processor(self):
+        """Start one batch processor and give it a 15 second head start to prevent problems setting the initial
+        month/year in redis"""
+        head_start = 15  # should be more than enough
+        logger.info(f"Starting first batch processor with a head start of 15s...")
+        process = await asyncio.create_subprocess_shell(
+            f"docker compose up -d batch_processor",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode == 0:
+            logger.success(
+                f"First batch processor started successfully, now waiting {head_start} seconds"
+            )
+            await asyncio.sleep(head_start)
+        else:
+            logger.error(f"Error starting batch processors: {stderr.decode()}")
+
+    async def start_additional_batch_processors(self, count: int = 1):
         """Start the batch processor service with specified number of instances"""
         logger.info(f"Starting {count} batch processor{'s' if count > 1 else ''}...")
         process = await asyncio.create_subprocess_shell(
@@ -523,8 +542,11 @@ class LocalPerformanceTest:
             # Wait for Redis to fill up
             await self.wait_for_redis_count(target_redis_items)
 
-            # Start batch processor
-            await self.start_batch_processor(1)
+            # Start the first batch processor
+            await self.start_first_batch_processor()
+
+            # Start additional batch processors
+            await self.start_additional_batch_processors(2)
 
             # Keep running until Redis is empty
             logger.info("Monitoring Redis queue until empty...")

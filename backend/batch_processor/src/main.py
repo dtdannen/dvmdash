@@ -17,6 +17,7 @@ import redis
 from redis import Redis
 from util import BatchProcessorRedisLock
 import uuid
+from sortedcontainers import SortedDict
 
 
 # custom exception called MultipleMonthBatch
@@ -79,22 +80,38 @@ class BatchStats:
     def __post_init__(self):
         self.dvm_responses = defaultdict(int)
         self.dvm_feedback = defaultdict(int)
-        self.dvm_timestamps = defaultdict(
-            lambda: datetime.min.replace(tzinfo=timezone.utc)
-        )
-        self.dvm_kinds = defaultdict(set)
+
+        # use sorted dicts to help prevent deadlocks in postgres queries like _update_base_tables()
+        self.dvm_timestamps = SortedDict()
+        self.dvm_kinds = SortedDict()
+        self.user_timestamps = SortedDict()
+
+        # Add a default factory behavior similar to defaultdict
+        self._default_timestamp = datetime.min.replace(tzinfo=timezone.utc)
+
         self.entity_activity = {  # Initialize with empty lists for each entity type
             "dvm": [],
             "user": [],
             "kind": [],
         }
-        self.user_timestamps = defaultdict(
-            lambda: datetime.min.replace(tzinfo=timezone.utc)
-        )
         self.user_is_dvm = defaultdict(bool)
         self.kind_requests = defaultdict(int)
         self.kind_responses = defaultdict(int)
         self.events_processed = []
+
+    def get_dvm_timestamp(self, dvm_id: str) -> datetime:
+        """Get timestamp for DVM with defaultdict-like behavior"""
+        return self.dvm_timestamps.get(dvm_id, self._default_timestamp)
+
+    def update_dvm_timestamp(self, dvm_id: str, timestamp: datetime):
+        """Update timestamp with proper max behavior"""
+        current = self.dvm_timestamps.get(dvm_id, self._default_timestamp)
+        self.dvm_timestamps[dvm_id] = max(current, timestamp)
+
+    def update_user_timestamp(self, user_id: str, timestamp: datetime):
+        """Update timestamp with proper max behavior"""
+        current = self.user_timestamps.get(user_id, self._default_timestamp)
+        self.user_timestamps[user_id] = max(current, timestamp)
 
 
 class BatchProcessor:
@@ -559,9 +576,7 @@ class BatchProcessor:
                 if 5000 <= kind <= 5999:  # Request event
                     stats.period_requests += 1
                     stats.kind_requests[kind] += 1
-                    stats.user_timestamps[pubkey] = max(
-                        stats.user_timestamps[pubkey], timestamp
-                    )
+                    stats.update_user_timestamp(pubkey, timestamp)
                     # Track each observation
                     stats.entity_activity["user"].append((pubkey, timestamp, event_id))
                     stats.entity_activity["kind"].append(
@@ -574,9 +589,7 @@ class BatchProcessor:
                     stats.kind_responses[request_kind] += 1
                     stats.user_is_dvm[pubkey] = True
                     stats.dvm_responses[pubkey] += 1
-                    stats.dvm_timestamps[pubkey] = max(
-                        stats.dvm_timestamps[pubkey], timestamp
-                    )
+                    stats.update_dvm_timestamp(pubkey, timestamp)
                     stats.dvm_kinds[pubkey].add(request_kind)
 
                     stats.entity_activity["dvm"].append((pubkey, timestamp, event_id))
@@ -587,9 +600,7 @@ class BatchProcessor:
                 elif kind == 7000:  # Feedback event
                     stats.period_feedback += 1
                     stats.dvm_feedback[pubkey] += 1
-                    stats.dvm_timestamps[pubkey] = max(
-                        stats.dvm_timestamps[pubkey], timestamp
-                    )
+                    stats.update_dvm_timestamp(pubkey, timestamp)
                     stats.user_is_dvm[pubkey] = True
                     # Track each observation
                     stats.entity_activity["dvm"].append((pubkey, timestamp, event_id))
