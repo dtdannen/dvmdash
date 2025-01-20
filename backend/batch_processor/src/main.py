@@ -113,6 +113,12 @@ class BatchStats:
         current = self.user_timestamps.get(user_id, self._default_timestamp)
         self.user_timestamps[user_id] = max(current, timestamp)
 
+    def add_kind_to_dvm_kinds(self, dvm_id: str, kind: int):
+        """Add kind to DVM's supported kinds"""
+        if dvm_id not in self.dvm_kinds:
+            self.dvm_kinds[dvm_id] = set()
+        self.dvm_kinds[dvm_id].add(kind)
+
 
 class BatchProcessor:
     def __init__(
@@ -590,7 +596,7 @@ class BatchProcessor:
                     stats.user_is_dvm[pubkey] = True
                     stats.dvm_responses[pubkey] += 1
                     stats.update_dvm_timestamp(pubkey, timestamp)
-                    stats.dvm_kinds[pubkey].add(request_kind)
+                    stats.add_kind_to_dvm_kinds(pubkey, request_kind)
 
                     stats.entity_activity["dvm"].append((pubkey, timestamp, event_id))
                     stats.entity_activity["kind"].append(

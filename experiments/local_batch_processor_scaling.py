@@ -11,6 +11,7 @@ import os
 from loguru import logger
 import sys
 import json
+import platform
 
 
 # Configure loguru logger
@@ -28,15 +29,165 @@ class LocalPerformanceTest:
     def __init__(self):
         logger.info("Initializing LocalPerformanceTest")
         self.docker_client = docker.from_env()
+
+        # Base metrics directory
         self.metrics_dir = "metrics"
         if not os.path.exists(self.metrics_dir):
             os.makedirs(self.metrics_dir)
-            logger.info(f"Created metrics directory: {self.metrics_dir}")
+            logger.info(f"Created base metrics directory: {self.metrics_dir}")
 
-        self.csv_filename = f"{self.metrics_dir}/local_perf_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        # Create run-specific directory
+        self.run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_dir = os.path.join(self.metrics_dir, f"run_{self.run_timestamp}")
+        os.makedirs(self.run_dir)
+        logger.info(f"Created run directory: {self.run_dir}")
+
+        # Initialize CSV in run directory
+        self.csv_filename = os.path.join(self.run_dir, "metrics.csv")
         self.initialize_csv()
         logger.info(f"Initialized CSV file: {self.csv_filename}")
+
         self.monthly_update_timestamps = []
+
+    def get_monthly_activity_data(self):
+        """Query and return all data from the monthly_activity table"""
+        try:
+            conn = psycopg2.connect(
+                dbname="dvmdash_pipeline",
+                user="devuser",
+                password="devpass",
+                host="localhost",
+                port=5432,
+            )
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT 
+                        year_month,
+                        total_requests,
+                        total_responses,
+                        unique_dvms,
+                        unique_kinds,
+                        unique_users,
+                        dvm_activity,
+                        kind_activity,
+                        created_at
+                    FROM monthly_activity
+                    ORDER BY year_month ASC
+                """
+                )
+
+                columns = [desc[0] for desc in cur.description]
+                rows = cur.fetchall()
+
+                # Convert to list of dicts and handle JSONB fields
+                data = []
+                for row in rows:
+                    row_dict = dict(zip(columns, row))
+                    # Convert datetime objects to ISO format strings
+                    row_dict["created_at"] = row_dict["created_at"].isoformat()
+                    data.append(row_dict)
+
+                return data
+
+        except Exception as e:
+            logger.error(f"Error querying monthly_activity table: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
+    def save_run_info(self):
+        """Save basic information about this test run in both JSON and markdown formats"""
+
+        monthly_data = self.get_monthly_activity_data()
+
+        info = {
+            "start_time": self.run_timestamp,
+            "python_version": sys.version,
+            "platform": sys.platform,
+            "docker_compose_services": [
+                "redis",
+                "postgres_pipeline",
+                "event_collector",
+                "batch_processor",
+                "monthly_archiver",
+            ],
+            "host_info": {
+                "os": os.name,
+                "processor": platform.processor(),
+                "machine": platform.machine(),
+            },
+            "monthly_activity": monthly_data,
+        }
+
+        # Save JSON version
+        info_file = os.path.join(self.run_dir, "run_info.json")
+        with open(info_file, "w") as f:
+            json.dump(info, f, indent=2)
+
+        # Create markdown version
+        md_content = f"""# Performance Test Run Info
+    
+        ## Test Details
+        - **Start Time**: {self.run_timestamp}
+        - **Run Directory**: {self.run_dir}
+    
+        ## Environment
+        - **Python Version**: ```{sys.version.split()[0]}```
+        - **Full Python Build**: ```{sys.version}```
+        - **Platform**: {sys.platform}
+        - **OS**: {os.name}
+        - **Processor**: {platform.processor()}
+        - **Machine Architecture**: {platform.machine()}
+    
+        ## Services
+        The following Docker Compose services are used in this test:
+        """
+        # Add services list
+        for service in info["docker_compose_services"]:
+            md_content += f"- {service}\n"
+
+        md_content += """
+        ## Files
+        The following files are generated during the test:
+        - `metrics.csv`: Raw metrics data collected during the test
+        - `performance.png`: Visualization of Redis queue size and processing rate
+        - `performance.pdf`: High-quality PDF version of the performance plots
+        - `plot_data.json`: Raw plot data for further analysis
+        - `run_info.json`: Machine-readable version of this information
+    
+        ## Notes
+        - All timestamps are in UTC
+        - Performance plots include vertical markers for monthly update events
+        - Processing rate is smoothed using a 5-point rolling average
+        
+        ## Monthly Activity Data
+        Below is the current state of the monthly_activity table:
+        
+        | Month | Requests | Responses | DVMs | Kinds | Users |
+        |-------|----------|-----------|------|-------|-------|
+        """
+
+        # Add monthly activity data to markdown
+        if monthly_data:
+            for row in monthly_data:
+                md_content += f"| {row['year_month']} | {row['total_requests']:,} | {row['total_responses']:,} | {row['unique_dvms']:,} | {row['unique_kinds']:,} | {row['unique_users']:,} |\n"
+        else:
+            md_content += "| N/A |\n"
+
+        md_content += "\n\nDetailed monthly activity data including DVM and kind activity is available in the JSON file."
+
+        md_content += """
+        """
+
+        # Save markdown version
+        md_file = os.path.join(self.run_dir, "run_info.md")
+        with open(md_file, "w") as f:
+            f.write(md_content)
+
+        logger.info(f"Saved run info to: {info_file} and {md_file}")
 
     def initialize_csv(self):
         with open(self.csv_filename, "w", newline="") as f:
@@ -107,18 +258,32 @@ class LocalPerformanceTest:
         else:
             logger.error(f"Error starting batch processors: {stderr.decode()}")
 
-    async def start_additional_batch_processors(self, count: int = 1):
-        """Start the batch processor service with specified number of instances"""
-        logger.info(f"Starting {count} batch processor{'s' if count > 1 else ''}...")
+    async def start_additional_batch_processors(self, count_to_add: int = 1):
+        """Start additional batch processor instances"""
+        # Get current container count
+        logger.info(f"Starting to add {count_to_add} batch processor(s)...")
         process = await asyncio.create_subprocess_shell(
-            f"docker compose up -d --scale batch_processor={count} batch_processor",
+            "docker compose ps -q batch_processor | wc -l",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        current_count = int(stdout.decode().strip())
+        logger.info(f"Current batch processor count: {current_count}")
+        new_count = current_count + count_to_add
+
+        logger.info(
+            f"Adding {count_to_add} batch processor(s) for a total of {new_count}..."
+        )
+        process = await asyncio.create_subprocess_shell(
+            f"docker compose up -d --scale batch_processor={new_count} batch_processor",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
         if process.returncode == 0:
             logger.success(
-                f"{count} batch processor{'s' if count > 1 else ''} started successfully"
+                f"{count_to_add} batch processor{'s' if count_to_add > 1 else ''} started successfully"
             )
         else:
             logger.error(f"Error starting batch processors: {stderr.decode()}")
@@ -385,7 +550,7 @@ class LocalPerformanceTest:
 
             # Plot processing rate
             processing_rate = -df["redis_items"].diff() / df["seconds"].diff()
-            smoothed_rate = processing_rate.rolling(window=5).mean()  # Smooth the rate
+            smoothed_rate = processing_rate.rolling(window=5).mean()
             ax2.plot(df["seconds"], smoothed_rate, "r-", label="Processing Rate")
             ax2.set_xlabel("Time (seconds)")
             ax2.set_ylabel("Items/Second")
@@ -395,35 +560,20 @@ class LocalPerformanceTest:
 
             # Add vertical lines for monthly updates
             if self.monthly_update_timestamps:
-                logger.debug(
-                    f"Monthly update timestamps: {self.monthly_update_timestamps}"
-                )
-                logger.debug(f"Experiment start time: {experiment_start_time}")
-
                 for cleanup_time in self.monthly_update_timestamps:
-                    # Ensure cleanup_time is timezone-aware UTC
                     if not cleanup_time.tzinfo:
                         cleanup_time = cleanup_time.replace(tzinfo=timezone.utc)
-
-                    # Calculate relative time in seconds
                     seconds_from_start = (
                         cleanup_time - experiment_start_time
                     ).total_seconds()
-                    logger.debug(
-                        f"Adding vertical line at {seconds_from_start} seconds for cleanup at {cleanup_time}"
-                    )
 
-                    if (
-                        seconds_from_start >= 0
-                    ):  # Only plot if it happened after experiment start
+                    if seconds_from_start >= 0:
                         ax1.axvline(
                             x=seconds_from_start, color="g", linestyle="--", alpha=0.5
                         )
                         ax2.axvline(
                             x=seconds_from_start, color="g", linestyle="--", alpha=0.5
                         )
-
-                        # Add annotation to top plot only to avoid clutter
                         ax1.annotate(
                             f"Monthly Update ({cleanup_time.strftime('%H:%M:%S')})",
                             xy=(seconds_from_start, ax1.get_ylim()[1]),
@@ -436,10 +586,27 @@ class LocalPerformanceTest:
 
             plt.tight_layout()
 
-            # Save the plot alongside the CSV file
-            plot_filename = self.csv_filename.replace(".csv", "_graph.png")
-            plt.savefig(plot_filename)
-            logger.info(f"Performance graph saved to: {plot_filename}")
+            # Save multiple plot formats
+            base_plot_filename = os.path.join(self.run_dir, "performance")
+            plt.savefig(f"{base_plot_filename}.png")
+            plt.savefig(
+                f"{base_plot_filename}.pdf"
+            )  # Also save as PDF for higher quality
+            logger.info(f"Performance graphs saved to: {base_plot_filename}.png/pdf")
+
+            # Save raw plot data
+            plot_data = {
+                "seconds": df["seconds"].tolist(),
+                "redis_items": df["redis_items"].tolist(),
+                "processing_rate": smoothed_rate.tolist(),
+                "monthly_updates": [
+                    (cleanup_time - experiment_start_time).total_seconds()
+                    for cleanup_time in self.monthly_update_timestamps
+                    if cleanup_time.tzinfo
+                ],
+            }
+            with open(os.path.join(self.run_dir, "plot_data.json"), "w") as f:
+                json.dump(plot_data, f, indent=2)
 
             # Show the plot
             plt.show()
@@ -563,6 +730,8 @@ class LocalPerformanceTest:
             logger.info("Cancelling monitoring tasks")
             metrics_task.cancel()
             state_monitor_task.cancel()
+
+            self.save_run_info()
 
             # Create and save performance plots
             self.create_performance_plots()
