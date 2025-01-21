@@ -50,18 +50,14 @@ class MonthlyArchiver:
         redis_url: str,
         metrics_pool: asyncpg.Pool,  # Pool for metrics database
         queue_name: str = "dvmdash_events",
-        max_wait_seconds: int = 5,
-        backtest_mode: bool = False,
     ):
         logger.info(f"Initializing Redis with URL: {redis_url}")
         self.redis = redis.from_url(redis_url)
         logger.info(f"Redis client initialized: {self.redis}")
         self.metrics_pool = metrics_pool
         self.queue_name = queue_name
-        self.max_wait_seconds = max_wait_seconds
         self.event_count = 0
         self.error_count = 0
-        self.backtest_mode = backtest_mode
         self.current_year = None
         self.current_month = None
         self.current_day = None  # only the leader uses this, so we dont save to redis
@@ -79,9 +75,7 @@ class MonthlyArchiver:
         self.unique_id = str(uuid.uuid4())
 
         logger.info(
-            f"Creating Monthly Cleanup {self.unique_id}:\n"
-            f" max_wait_seconds={max_wait_seconds},"
-            f" backtest_mode={backtest_mode},"
+            f"Creating Monthly Archiver {self.unique_id}:\n"
             f" with unique_id={self.unique_id}"
         )
 

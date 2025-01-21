@@ -191,9 +191,7 @@ class MetricsCollector:
         except redis.RedisError as e:
             logger.error(f"Error monitoring progress: {e}")
 
-    async def collect_metrics_history(
-        self, redis_client, postgres_events_pool, postgres_pipeline_pool
-    ):
+    async def collect_metrics_history(self, redis_client, postgres_pipeline_pool):
         """Collect and store metrics history with timestamps"""
         while not shutdown_event.is_set():
             try:
@@ -208,7 +206,7 @@ class MetricsCollector:
                     "time_since_start": f"{time_since_start:.3f}",
                     "project": self.project_name,
                     "redis_queue_size": await redis_client.llen("dvmdash_events"),
-                    "postgres_events": await postgres_events_pool.fetchval(
+                    "postgres_events": await postgres_pipeline_pool.fetchval(
                         "SELECT COUNT(*) FROM raw_events"
                     ),
                     "postgres_pipeline_entity_activity_count": await postgres_pipeline_pool.fetchval(
@@ -417,6 +415,164 @@ class EventCollectorAppPlatformRunner:
             logger.info("App Platform application cleaned up successfully")
 
 
+class MonthlyArchiverAppPlatformRunner:
+    """Sets up the App Platform for the monthly archiver on Digital Ocean"""
+
+    def __init__(
+        self,
+        do_token: str,
+        project_name: str,
+        redis_db_config,
+        postgres_pipeline_config,
+    ):
+        self.token = do_token
+        self.project_name = project_name
+        self.name_prefix = "monthly-archiver"
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+        }
+        self.app_id = None
+        self.redis_db_config = redis_db_config
+        self.postgres_pipeline_config = postgres_pipeline_config
+
+    async def setup_app_platform(
+        self, branch: str = "main", betterstack_rsyslog_token: str = None
+    ):
+        logger.info("Creating App Platform application...")
+
+        monthly_archiver_app_spec = {
+            "spec": {
+                "name": f"{self.project_name}-{self.name_prefix}",  # Changed underscore to hyphen
+                "region": "nyc",
+                "workers": [
+                    {
+                        "name": "worker",
+                        "github": {
+                            "repo": "dtdannen/dvmdash",
+                            "branch": branch,
+                            "deploy_on_push": False,
+                        },
+                        "source_dir": ".",
+                        "instance_count": 1,
+                        "instance_size_slug": "apps-s-1vcpu-2gb",
+                        "dockerfile_path": "backend/monthly_archiver/Dockerfile",
+                        "log_destinations": [
+                            {
+                                "name": "betterstack",
+                                "logtail": {
+                                    "token": betterstack_rsyslog_token,
+                                },
+                            }
+                        ],
+                        "envs": [
+                            {
+                                "key": "REDIS_URL",
+                                "value": f"rediss://default:{self.redis_db_config['password']}@"
+                                f"{self.redis_db_config['host']}:{self.redis_db_config['port']}",
+                                "type": "SECRET",
+                            },
+                            {
+                                "key": "POSTGRES_USER",
+                                "value": self.postgres_pipeline_config["user"],
+                            },
+                            {
+                                "key": "POSTGRES_PASSWORD",
+                                "value": self.postgres_pipeline_config["password"],
+                                "type": "SECRET",
+                            },
+                            {
+                                "key": "POSTGRES_DB",
+                                "value": self.postgres_pipeline_config["database"],
+                            },
+                            {
+                                "key": "POSTGRES_HOST",
+                                "value": self.postgres_pipeline_config["host"],
+                            },
+                            {
+                                "key": "POSTGRES_PORT",
+                                "value": str(self.postgres_pipeline_config["port"]),
+                            },
+                            {
+                                "key": "DAILY_CLEANUP_INTERVAL_SECONDS",
+                                "value": "15",
+                            },
+                            {
+                                "key": "MONTHLY_CLEANUP_BUFFER_DAYS",
+                                "value": "3",
+                            },
+                            {
+                                "key": "BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS",
+                                "value": "15",
+                            },
+                        ],
+                    }
+                ],
+            },
+            "project_id": os.getenv("DO_PROJECT_ID"),
+        }
+
+        # logger.info(
+        #     f"About to send spec to do for event collector: {json.dumps(event_collector_app_spec, indent=2)}"
+        # )
+
+        response = requests.post(
+            "https://api.digitalocean.com/v2/apps",
+            headers=self.headers,
+            json=monthly_archiver_app_spec,
+        )
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            logger.info(f"Error response: {response.text}")
+            raise
+
+        self.app_id = response.json()["app"]["id"]
+
+        logger.info("Waiting for App Platform application to be ready...")
+        while not shutdown_event.is_set():
+            response = requests.get(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+                headers=self.headers,
+            ).json()
+
+            # Print response to debug
+            # logger.info(f"Status response: {json.dumps(response, indent=2)}")
+
+            # Change this line to match actual response structure
+            app_content = response.get("app")
+            # logger.info(f"App content: {app_content}")
+            if app_content:
+                active_deployment = app_content.get("active_deployment")
+                # logger.info(f"Active deployment: {active_deployment}")
+                if active_deployment:
+                    phase = active_deployment.get("phase")
+                    # logger.info(f"Phase: {phase}")
+                    if phase == "ACTIVE":
+                        logger.info(f"App is active")
+                        break
+                    else:
+                        logger.info(f"Phase is not active")
+                else:
+                    logger.debug(f"Event Collector active deployment is empty")
+            else:
+                logger.error(f"App content is empty")
+
+            await asyncio.sleep(10)
+
+        logger.info("App Platform application is ready!")
+
+    async def cleanup_app_platform(self):
+        if self.app_id:
+            logger.info("Cleaning up App Platform application...")
+            response = requests.delete(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            logger.info("App Platform application cleaned up successfully")
+
+
 class BatchProcessorAppPlatformRunner:
     """Sets up the App Platform for both the event collector and batch processor on Digital Ocean"""
 
@@ -426,7 +582,6 @@ class BatchProcessorAppPlatformRunner:
         project_name: str,
         redis_db_config,
         postgres_pipeline_config,
-        postgres_events_config,
     ):
         self.token = do_token
         self.project_name = project_name
@@ -438,7 +593,6 @@ class BatchProcessorAppPlatformRunner:
         self.app_id = None
         self.redis_db_config = redis_db_config
         self.postgres_pipeline_config = postgres_pipeline_config
-        self.postgres_events_config = postgres_events_config
         self.current_instance_count = 0
 
     async def setup_first_batch_processor(
@@ -579,33 +733,16 @@ class BatchProcessorAppPlatformRunner:
                                 "value": str(self.postgres_pipeline_config["port"]),
                             },
                             {
-                                "key": "EVENTS_POSTGRES_USER",
-                                "value": self.postgres_events_config["user"],
-                            },
-                            {
-                                "key": "EVENTS_POSTGRES_PASSWORD",
-                                "value": self.postgres_events_config["password"],
-                                "type": "SECRET",
-                            },
-                            {
-                                "key": "EVENTS_POSTGRES_DB",
-                                "value": self.postgres_events_config["database"],
-                            },
-                            {
-                                "key": "EVENTS_POSTGRES_HOST",
-                                "value": self.postgres_events_config["host"],
-                            },
-                            {
-                                "key": "EVENTS_POSTGRES_PORT",
-                                "value": str(self.postgres_events_config["port"]),
-                            },
-                            {
                                 "key": "MAX_WAIT_SECONDS",
                                 "value": "3",
                             },
                             {
                                 "key": "BATCH_SIZE",
                                 "value": "10000",
+                            },
+                            {
+                                "key": "BACKTEST_MODE",
+                                "value": "true",
                             },
                         ],
                     }
@@ -878,18 +1015,16 @@ async def setup_infrastructure(
 ):
     """Setup all required infrastructure components"""
     # Initialize runners
-    events_db = PostgresTestRunner(do_token, project_name, "events")
     metrics_db = PostgresTestRunner(do_token, project_name, "pipeline")
     redis_runner = RedisRunner(do_token, project_name)
 
     # Setup components
     await asyncio.gather(
-        events_db.setup_database(project_id),
         metrics_db.setup_database(project_id),
         redis_runner.setup_database(project_id),
     )
 
-    return events_db, metrics_db, redis_runner
+    return metrics_db, redis_runner
 
 
 async def shutdown(runner):
@@ -954,7 +1089,7 @@ async def main():
         logger.info(f"Created betterstack runner with project name is {project_name}")
 
         # Setup managed databases
-        events_db, metrics_db, redis_runner = await setup_infrastructure(
+        metrics_db, redis_runner = await setup_infrastructure(
             do_token, project_name, project_id=os.getenv("DO_PROJECT_ID")
         )
 
@@ -969,11 +1104,11 @@ async def main():
                 metrics_collector.monitor_redis_items(redis_runner.redis_client)
             ),
             asyncio.create_task(
-                metrics_collector.monitor_postgres_events_db(events_db.pool)
+                metrics_collector.monitor_postgres_events_db(metrics_db.pool)
             ),
             asyncio.create_task(
                 metrics_collector.collect_metrics_history(
-                    redis_runner.redis_client, events_db.pool, metrics_db.pool
+                    redis_runner.redis_client, metrics_db.pool
                 )
             ),
         ]
@@ -996,7 +1131,18 @@ async def main():
             project_name=project_name,
             redis_db_config=redis_runner.db_config,
             postgres_pipeline_config=metrics_db.db_config,
-            postgres_events_config=events_db.db_config,
+        )
+
+        archiver_logs_token = betterstack_log_runner.create_source("monthly-archiver")
+        monthly_archiver_app_runner = MonthlyArchiverAppPlatformRunner(
+            do_token,
+            project_name=project_name,
+            redis_db_config=redis_runner.db_config,
+            postgres_pipeline_config=metrics_db.db_config,
+        )
+
+        await monthly_archiver_app_runner.setup_app_platform(
+            branch="full-redesign", betterstack_rsyslog_token=archiver_logs_token
         )
 
         # Wait for queue to fill up
@@ -1039,10 +1185,13 @@ async def main():
 
         # Start batch processor
         bp_logs_token = betterstack_log_runner.create_source("batch-processor")
-        await batch_process_app_runner.setup_app_platform(
+        await batch_process_app_runner.setup_first_batch_processor(
             branch="full-redesign", betterstack_rsyslog_token=bp_logs_token
         )
-        logger.info("Batch processor started")
+        logger.info("First batch processor started")
+
+        # Scale batch processors
+        await batch_process_app_runner.scale_batch_processors(1)
 
         # Keep running until interrupted or error occurs
         while not shutdown_event.is_set():

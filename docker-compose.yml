@@ -82,9 +82,9 @@ services:
       - POSTGRES_PASSWORD=devpass
       - POSTGRES_DB=dvmdash_pipeline
       - POSTGRES_HOST=postgres_pipeline
-      - MAX_WAIT_SECONDS=3
-      - BATCH_SIZE=10000
       - DAILY_CLEANUP_INTERVAL_SECONDS=15  # use 24*60*60 (24 hours) for production
+      - MONTHLY_CLEANUP_BUFFER_DAYS=3
+      - BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS=15
     volumes:
       - ./backend/monthly_archiver:/app/backend/monthly_archiver
       - ./backend/shared:/app/backend/shared
@@ -127,8 +127,6 @@ services:
       - MAX_WAIT_SECONDS=3
       - BATCH_SIZE=10000
       - BACKTEST_MODE=true
-      - MONTHLY_CLEANUP_BUFFER_DAYS=3
-      - BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS=15
     volumes:
       - ./backend/batch_processor:/app/backend/batch_processor
       - ./backend/shared:/app/backend/shared
