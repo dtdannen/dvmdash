@@ -302,7 +302,9 @@ class EventCollectorAppPlatformRunner:
     async def setup_app_platform(
         self, branch: str = "main", betterstack_rsyslog_token: str = None
     ):
-        logger.info("Creating App Platform application...")
+        logger.info(
+            f"Creating {self.project_name}-{self.name_prefix} App Platform application..."
+        )
 
         event_collector_app_spec = {
             "spec": {
@@ -406,7 +408,9 @@ class EventCollectorAppPlatformRunner:
 
     async def cleanup_app_platform(self):
         if self.app_id:
-            logger.info("Cleaning up App Platform application...")
+            logger.info(
+                f"Cleaning up  {self.project_name}-{self.name_prefix} App Platform application..."
+            )
             response = requests.delete(
                 f"https://api.digitalocean.com/v2/apps/{self.app_id}",
                 headers=self.headers,
@@ -439,7 +443,9 @@ class MonthlyArchiverAppPlatformRunner:
     async def setup_app_platform(
         self, branch: str = "main", betterstack_rsyslog_token: str = None
     ):
-        logger.info("Creating App Platform application...")
+        logger.info(
+            f"Creating {self.project_name}-{self.name_prefix} App Platform application..."
+        )
 
         monthly_archiver_app_spec = {
             "spec": {
@@ -564,7 +570,9 @@ class MonthlyArchiverAppPlatformRunner:
 
     async def cleanup_app_platform(self):
         if self.app_id:
-            logger.info("Cleaning up App Platform application...")
+            logger.info(
+                f"Cleaning up  {self.project_name}-{self.name_prefix} App Platform application..."
+            )
             response = requests.delete(
                 f"https://api.digitalocean.com/v2/apps/{self.app_id}",
                 headers=self.headers,
@@ -674,7 +682,9 @@ class BatchProcessorAppPlatformRunner:
         betterstack_rsyslog_token: str = None,
         instance_count=1,
     ):
-        logger.info("Creating App Platform application...")
+        logger.info(
+            f"Creating {self.project_name}-{self.name_prefix} App Platform application..."
+        )
 
         batch_processor_app_spec = {
             "spec": {
@@ -803,7 +813,9 @@ class BatchProcessorAppPlatformRunner:
 
     async def cleanup_app_platform(self):
         if self.app_id:
-            logger.info("Cleaning up App Platform application...")
+            logger.info(
+                f"Cleaning up  {self.project_name}-{self.name_prefix} App Platform application..."
+            )
             response = requests.delete(
                 f"https://api.digitalocean.com/v2/apps/{self.app_id}",
                 headers=self.headers,
@@ -1228,6 +1240,9 @@ async def main():
             else None,
             batch_process_app_runner.cleanup_app_platform()
             if batch_process_app_runner
+            else None,
+            monthly_archiver_app_runner.cleanup_app_platform()
+            if monthly_archiver_app_runner
             else None,
         ]
         cleanup_tasks = [t for t in cleanup_tasks if t is not None]

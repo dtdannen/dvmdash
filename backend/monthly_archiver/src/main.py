@@ -629,8 +629,6 @@ async def main():
         monthly_archiver = MonthlyArchiver(
             redis_url=redis_url,
             metrics_pool=metrics_pool,
-            max_wait_seconds=int(os.getenv("MAX_WAIT_SECONDS", "5")),
-            backtest_mode=os.getenv("BACKTEST_MODE", "false").lower() == "true",
         )
 
         await monthly_archiver.process_forever()
