@@ -32,33 +32,42 @@ class MetricsCollector:
         self.redis_db_info = redis_client
         self.project_name = project_name
         self.start_time = None
+        self.last_redis_count = 0
+        self.last_postgres_count = 0
+        self.collection_interval = 2  # seconds
 
         # Create metrics directory if it doesn't exist
         self.metrics_dir = "experiments/data"
         if not os.path.exists(self.metrics_dir):
             os.makedirs(self.metrics_dir)
 
-        # Initialize CSV file with headers
-        current_date = datetime.now().strftime("%Y-%m-%d_%I-%M%p")
+        # Create run-specific directory
+        self.run_timestamp = datetime.now().strftime("%Y_%b_%d_at_%H_%M_%S")
+        self.run_dir = os.path.join(self.metrics_dir, f"run_{self.run_timestamp}")
+        os.makedirs(self.run_dir)
+        logger.info(f"Created run directory: {self.run_dir}")
 
         self.csv_filename = (
-            f"{self.metrics_dir}/{self.project_name}_{current_date}_metrics.csv"
+            f"{self.metrics_dir}/{self.project_name}_{self.run_timestamp}_metrics.csv"
         )
+        self.initialize_csv()
+        logger.info(f"Initialized CSV file: {self.csv_filename}")
 
-        if not os.path.exists(self.csv_filename):
-            with open(self.csv_filename, "w", newline="") as f:
-                writer = csv.DictWriter(
-                    f,
-                    fieldnames=[
-                        "time_since_start",
-                        "project",
-                        "redis_queue_size",
-                        "postgres_events",
-                        "postgres_pipeline_entity_activity_count",
-                        "postgres_pipeline_global_stats_latest_row",
-                    ],
-                )
-                writer.writeheader()
+    def initialize_csv(self):
+        """Initialize CSV file with updated headers"""
+        with open(self.csv_filename, "w", newline="") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "time_since_start",
+                    "project",
+                    "redis_queue_size",
+                    "postgres_events",
+                    "postgres_pipeline_entity_activity_count",
+                ],
+            )
+            writer.writeheader()
+        logger.debug("CSV file initialized with headers")
 
     async def monitor_redis_items(self, redis_client, delay: int = 1):
         while not shutdown_event.is_set():
@@ -182,39 +191,6 @@ class MetricsCollector:
         except redis.RedisError as e:
             logger.error(f"Error monitoring progress: {e}")
 
-    async def collect_metrics(
-        self,
-        postgres_runners: Dict[str, "PostgresTestRunner"],
-        redis_client: Optional[redis.Redis] = None,
-    ):
-        """Collect metrics from all components every second"""
-        while not shutdown_event.is_set():
-            metrics = {}
-
-            # Collect Postgres metrics
-            for db_name, runner in postgres_runners.items():
-                if runner.pool:
-                    async with runner.pool.acquire() as conn:
-                        count = await conn.fetchval("SELECT COUNT(*) FROM raw_events")
-                        metrics[f"{db_name}_event_count"] = count
-
-            # Collect Redis metrics if available
-            if redis_client:
-                # TODO: Implement Redis metrics collection
-                # - List length for pending events
-                # - Memory usage
-                # - Processed events count
-                pass
-
-            # Add timestamp
-            metrics["timestamp"] = datetime.now().isoformat()
-
-            # Store metrics
-            self.metrics_history.append(metrics)
-            await metrics_queue.put(metrics)
-
-            await asyncio.sleep(1)
-
     async def collect_metrics_history(
         self, redis_client, postgres_events_pool, postgres_pipeline_pool
     ):
@@ -240,33 +216,6 @@ class MetricsCollector:
                     ),
                 }
 
-                global_stats = await postgres_pipeline_pool.fetchrow(
-                    """
-                    SELECT 
-                        timestamp,
-                        period_start,
-                        period_end,
-                        period_requests,
-                        period_responses,
-                        running_total_requests,
-                        running_total_responses,
-                        running_total_unique_dvms,
-                        running_total_unique_kinds,
-                        running_total_unique_users
-                    FROM global_stats_rollups 
-                    ORDER BY timestamp DESC 
-                    LIMIT 1
-                    """
-                )
-                # Convert to dict if not None
-                global_stats_dict = dict(global_stats) if global_stats else {}
-                if not global_stats_dict:
-                    logger.warning("No global stats received from db")
-                else:
-                    metrics[
-                        "postgres_pipeline_global_stats_latest_row"
-                    ] = global_stats_dict
-
                 self.metrics_history.append(metrics)
 
                 # Write to CSV file
@@ -280,14 +229,9 @@ class MetricsCollector:
                     f"Redis Queue={metrics['redis_queue_size']:,}, "
                     f"Postgres Events={metrics['postgres_events']:,},"
                     f"Postgres Pipeline Entity Activity Count={metrics['postgres_pipeline_entity_activity_count']:,},"
-                    f"Running Total Requests={global_stats_dict.get('running_total_requests', -1):,},"
-                    f"Running Total Responses={global_stats_dict.get('running_total_responses', -1):,},"
-                    f"Running Total Unique DVMS={global_stats_dict.get('running_total_unique_dvms', -1):,},"
-                    f"Running Total Unique Kinds={global_stats_dict.get('running_total_unique_kinds', -1):,},"
-                    f"Running Total Unique Users={global_stats_dict.get('running_total_unique_users', -1):,}"
                 )
 
-                await asyncio.sleep(2)  # Collect every 2 seconds
+                await asyncio.sleep(self.collection_interval)  # Collect every 2 seconds
 
             except (redis.RedisError, asyncpg.PostgresError) as e:
                 logger.error(f"Error collecting metrics: {e}")
@@ -495,9 +439,86 @@ class BatchProcessorAppPlatformRunner:
         self.redis_db_config = redis_db_config
         self.postgres_pipeline_config = postgres_pipeline_config
         self.postgres_events_config = postgres_events_config
+        self.current_instance_count = 0
+
+    async def setup_first_batch_processor(
+        self, branch: str = "main", betterstack_rsyslog_token: str = None
+    ):
+        """Start the first batch processor"""
+        logger.info("Starting first batch processor...")
+        await self.setup_app_platform(
+            branch, betterstack_rsyslog_token, instance_count=1
+        )
+        self.current_instance_count = 1
+
+        # Give it a head start
+        head_start = 7
+        logger.info(f"Giving first batch processor a {head_start}s head start...")
+        await asyncio.sleep(head_start)
+
+    async def scale_batch_processors(self, additional_count: int):
+        """Scale up the number of batch processors"""
+        if not self.app_id:
+            raise ValueError("No batch processor app exists yet")
+
+        new_count = self.current_instance_count + additional_count
+        logger.info(
+            f"Scaling batch processors from {self.current_instance_count} to {new_count}..."
+        )
+
+        # Get current app spec
+        response = requests.get(
+            f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+            headers=self.headers,
+        )
+        response.raise_for_status()
+        current_spec = response.json()["app"]["spec"]
+
+        # Update the instance count
+        for component in current_spec["workers"]:
+            if component["name"] == "worker":
+                component["instance_count"] = new_count
+                break
+
+        # Update the app
+        update_response = requests.put(
+            f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+            headers=self.headers,
+            json={"spec": current_spec},
+        )
+        update_response.raise_for_status()
+
+        # Wait for scaling to complete
+        logger.info("Waiting for scaling to complete...")
+        while True:
+            status_response = requests.get(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+                headers=self.headers,
+            ).json()
+
+            app_content = status_response.get("app")
+            if app_content:
+                active_deployment = app_content.get("active_deployment")
+                if active_deployment and active_deployment.get("phase") == "ACTIVE":
+                    # Verify instance count
+                    for component in app_content.get("spec", {}).get("workers", []):
+                        if (
+                            component["name"] == "worker"
+                            and component["instance_count"] == new_count
+                        ):
+                            logger.success(
+                                f"Successfully scaled to {new_count} batch processors"
+                            )
+                            self.current_instance_count = new_count
+                            return
+
+            await asyncio.sleep(10)
 
     async def setup_app_platform(
-        self, branch: str = "main", betterstack_rsyslog_token: str = None
+        self,
+        branch: str = "main",
+        betterstack_rsyslog_token: str = None,
+        instance_count=1,
     ):
         logger.info("Creating App Platform application...")
 
@@ -514,7 +535,7 @@ class BatchProcessorAppPlatformRunner:
                             "deploy_on_push": False,
                         },
                         "source_dir": ".",
-                        "instance_count": 1,
+                        "instance_count": instance_count,
                         "instance_size_slug": "apps-s-1vcpu-2gb",
                         "dockerfile_path": "backend/batch_processor/Dockerfile",
                         "log_destinations": [
@@ -979,7 +1000,7 @@ async def main():
         )
 
         # Wait for queue to fill up
-        REDIS_EVENTS_MINIMUM = 2_000_000
+        REDIS_EVENTS_MINIMUM = 100_000
         logger.info(
             f"Waiting for Redis queue to accumulate {REDIS_EVENTS_MINIMUM} events..."
         )

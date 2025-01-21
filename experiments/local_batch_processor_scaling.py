@@ -132,44 +132,45 @@ class LocalPerformanceTest:
         # Create markdown version
         md_content = f"""# Performance Test Run Info
     
-        ## Test Details
-        - **Start Time**: {self.run_timestamp}
-        - **Run Directory**: {self.run_dir}
-    
-        ## Environment
-        - **Python Version**: ```{sys.version.split()[0]}```
-        - **Full Python Build**: ```{sys.version}```
-        - **Platform**: {sys.platform}
-        - **OS**: {os.name}
-        - **Processor**: {platform.processor()}
-        - **Machine Architecture**: {platform.machine()}
-    
-        ## Services
-        The following Docker Compose services are used in this test:
+## Test Details
+- **Start Time**: {self.run_timestamp}
+- **Run Directory**: {self.run_dir}
+- **Number of Batch Processors**: {self.num_batch_processors}
+
+## Environment
+- **Python Version**: ```{sys.version.split()[0]}```
+- **Full Python Build**: ```{sys.version}```
+- **Platform**: {sys.platform}
+- **OS**: {os.name}
+- **Processor**: {platform.processor()}
+- **Machine Architecture**: {platform.machine()}
+
+## Services
+The following Docker Compose services are used in this test:
         """
         # Add services list
         for service in info["docker_compose_services"]:
             md_content += f"- {service}\n"
 
         md_content += """
-        ## Files
-        The following files are generated during the test:
-        - `metrics.csv`: Raw metrics data collected during the test
-        - `performance.png`: Visualization of Redis queue size and processing rate
-        - `performance.pdf`: High-quality PDF version of the performance plots
-        - `plot_data.json`: Raw plot data for further analysis
-        - `run_info.json`: Machine-readable version of this information
-    
-        ## Notes
-        - All timestamps are in UTC
-        - Performance plots include vertical markers for monthly update events
-        - Processing rate is smoothed using a 5-point rolling average
-        
-        ## Monthly Activity Data
-        Below is the current state of the monthly_activity table:
-        
-        | Month | Requests | Responses | DVMs | Kinds | Users |
-        |-------|----------|-----------|------|-------|-------|
+## Files
+The following files are generated during the test:
+- `metrics.csv`: Raw metrics data collected during the test
+- `performance.png`: Visualization of Redis queue size and processing rate
+- `performance.pdf`: High-quality PDF version of the performance plots
+- `plot_data.json`: Raw plot data for further analysis
+- `run_info.json`: Machine-readable version of this information
+
+## Notes
+- All timestamps are in UTC
+- Performance plots include vertical markers for monthly update events
+- Processing rate is smoothed using a 5-point rolling average
+
+## Monthly Activity Data
+Below is the current state of the monthly_activity table:
+
+| Month | Requests | Responses | DVMs | Kinds | Users |
+|-------|----------|-----------|------|-------|-------|
         """
 
         # Add monthly activity data to markdown
