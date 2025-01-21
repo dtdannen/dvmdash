@@ -186,8 +186,8 @@ class BatchProcessor:
             return json.loads(state_str)
 
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            logger.error(f"Error parsing Redis state: {e}")
-            logger.error(f"{traceback.format_exc()}")
+            logger.error(f"BP-{self.unique_id[:6]}Error parsing Redis state: {e}")
+            logger.error(f"BP-{self.unique_id[:6]}{traceback.format_exc()}")
             return None
 
     async def _set_redis_state(self, state: dict) -> bool:
@@ -195,7 +195,7 @@ class BatchProcessor:
         Returns True if successful, False otherwise.
         """
         if not self.validate_state(state):
-            logger.error(f"Invalid state structure: {state}")
+            logger.error(f"BP-{self.unique_id[:6]}Invalid state structure: {state}")
             return False
 
         try:
@@ -205,8 +205,8 @@ class BatchProcessor:
             return True
 
         except Exception as e:
-            logger.error(f"Error setting Redis state: {e}")
-            logger.error(f"{traceback.format_exc()}")
+            logger.error(f"BP-{self.unique_id[:6]}Error setting Redis state: {e}")
+            logger.error(f"BP-{self.unique_id[:6]}{traceback.format_exc()}")
             return False
 
     def validate_state(self, state: dict) -> bool:
@@ -221,7 +221,7 @@ class BatchProcessor:
             # todo add remaining 2 fields here
             return True
         except (KeyError, AssertionError):
-            logger.error(f"{traceback.format_exc()}")
+            logger.error(f"BP-{self.unique_id[:6]}{traceback.format_exc()}")
             return False
 
     async def _request_monthly_backup(self):
@@ -229,7 +229,9 @@ class BatchProcessor:
             with BatchProcessorRedisLock(
                 self.redis, self.redis_monthly_cleanup_lock_key, expire_seconds=15
             ) as one_time_attempt_lock:
-                logger.info(f"Lock acquired, requesting monthly backup...")
+                logger.info(
+                    f"BP-{self.unique_id[:6]}Lock acquired, requesting monthly backup..."
+                )
 
                 # get the current state, if backup is in progress, just exit early, we got what we wanted
                 current_state = await self._get_redis_state()
@@ -239,7 +241,7 @@ class BatchProcessor:
                     or current_state["cleanup"]["requested"]
                 ):
                     logger.info(
-                        f"Exiting early from attempting to request monthly backup, monthly backup"
+                        f"BP-{self.unique_id[:6]} Exiting early from attempting to request monthly backup, monthly backup"
                         f" already in progress or has been requested"
                     )
                     return True
@@ -249,7 +251,9 @@ class BatchProcessor:
                 current_state["cleanup"]["requested_by"] = self.unique_id
                 success = await self._set_redis_state(current_state)
                 if not success:
-                    logger.error(f"Failed to request monthly backup")
+                    logger.error(
+                        f"BP-{self.unique_id[:6]} Failed to request monthly backup"
+                    )
                     return False
                 logger.success(
                     f"Follower {self.unique_id} successfully requested monthly backup"
@@ -265,7 +269,7 @@ class BatchProcessor:
         if not events:
             return
 
-        logger.info(f"Processing {len(events)} events")
+        logger.info(f"BP-{self.unique_id[:6]}Processing {len(events)} events")
 
         try:
             stats = await self._analyze_events(events)
@@ -273,7 +277,7 @@ class BatchProcessor:
                 await self._compute_metrics(stats, events)
             else:
                 logger.warning(
-                    f"Analyze events did not process any events from this batch"
+                    f"BP-{self.unique_id[:6]} Analyze events did not process any events from this batch"
                 )
         except MultipleMonthBatch as e:
             events_per_month = {}
@@ -283,17 +287,19 @@ class BatchProcessor:
 
                 if year_month_i not in events_per_month:
                     logger.debug(
-                        f"Processing events for year/month {year_month_i[0]}/{year_month_i[1]}"
+                        f"BP-{self.unique_id[:6]} Processing events for year/month {year_month_i[0]}/{year_month_i[1]}"
                     )
                     events_per_month[year_month_i] = [event]
                 else:
                     events_per_month[year_month_i].append(event)
 
             logger.warning(
-                f"There are {len(events_per_month)} unique year/months in current batch"
+                f"BP-{self.unique_id[:6]} There are {len(events_per_month)} unique year/months in current batch"
             )
             for (year_i, month_i), events in events_per_month.items():
-                logger.warning(f"\tyear/month {year_i}/{month_i}: {len(events)} events")
+                logger.warning(
+                    f"BP-{self.unique_id[:6]}\tyear/month {year_i}/{month_i}: {len(events)} events"
+                )
 
             redis_state = await self._get_redis_state()
             redis_year_month = (redis_state["year"], redis_state["month"])
@@ -302,7 +308,7 @@ class BatchProcessor:
             for year_month_i in sorted(events_per_month.keys()):
                 year_i, month_i = year_month_i
                 logger.warning(
-                    f"Processing {year_i}/{month_i} with {len(events_per_month[year_month_i])} events and "
+                    f"BP-{self.unique_id[:6]} Processing {year_i}/{month_i} with {len(events_per_month[year_month_i])} events and "
                     f"redis current state is {redis_year}/{redis_month}"
                 )
 
@@ -311,13 +317,13 @@ class BatchProcessor:
                     if year_month_i == redis_year_month:
                         # year month matches redis, good to go
                         logger.success(
-                            f"year/month {year_i}/{month_i} matches redis {redis_year}/{redis_month}, analyzing now..."
+                            f"BP-{self.unique_id[:6]} year/month {year_i}/{month_i} matches redis {redis_year}/{redis_month}, analyzing now..."
                         )
                         break
                     elif redis_year == year_i and redis_month == month_i - 1:
                         # redis is only 1 month behind year_month_i, good to go
                         logger.success(
-                            f"year/month {year_i}/{month_i} is 1 month ahead of "
+                            f"BP-{self.unique_id[:6]} year/month {year_i}/{month_i} is 1 month ahead of "
                             f"redis {redis_year}/{redis_month}, analyzing now..."
                         )
                         break
@@ -326,21 +332,21 @@ class BatchProcessor:
                     ):
                         # new year scenario when redis is only 1 month behind, good to go
                         logger.success(
-                            f"year/month {year_i}/{month_i} is a new year, and is exactly 1 month ahead"
+                            f"BP-{self.unique_id[:6]} year/month {year_i}/{month_i} is a new year, and is exactly 1 month ahead"
                             f" of redis {redis_year}/{redis_month}, analyzing now..."
                         )
                         break
                     else:
                         if year_i < redis_year:
                             logger.error(
-                                f"year/month {year_i}/{month_i} is in the past compared to "
+                                f"BP-{self.unique_id[:6]} year/month {year_i}/{month_i} is in the past compared to "
                                 f"redis {redis_year}]{redis_month}, ignoring this batch unfortunately"
                             )
                             skip_month = True
                             break
                         elif year_i == redis_year and month_i < redis_month:
                             logger.error(
-                                f"year/month {year_i}/{month_i} is in the past compared to "
+                                f"BP-{self.unique_id[:6]} year/month {year_i}/{month_i} is in the past compared to "
                                 f"redis {redis_year}]{redis_month}, ignoring this batch unfortunately"
                             )
                             skip_month = True
@@ -348,7 +354,7 @@ class BatchProcessor:
                         else:
                             # all we need to do is wait, because it's farther in the future
                             logger.info(
-                                f"year/month {year_i}/{month_i} is in the future compared to redis "
+                                f"BP-{self.unique_id[:6]} year/month {year_i}/{month_i} is in the future compared to redis "
                                 f"{redis_year}/{redis_month}, waiting for monthly cleanup to move us forward..."
                             )
 
@@ -375,12 +381,12 @@ class BatchProcessor:
 
                 if len(stats_i.events_processed) > 0:
                     logger.warning(
-                        f"Last event of stats batch has timestamp of {stats_i.period_end}"
+                        f"BP-{self.unique_id[:6]} Last event of stats batch has timestamp of {stats_i.period_end}"
                     )
                     await self._compute_metrics(stats_i, events_per_month[year_month_i])
                 else:
                     logger.warning(
-                        f"Analyze events did not process any events from month {year_month_i}"
+                        f"BP-{self.unique_id[:6]} Analyze events did not process any events from month {year_month_i}"
                     )
 
     async def _compute_metrics(self, stats, events):
@@ -404,7 +410,7 @@ class BatchProcessor:
             if current_month < 12 and event_month > current_month:
                 if event_day > self.monthly_cleanup_buffer_days:
                     logger.warning(
-                        f"Event has month={event_month} and day={event_day}, which is past the buffer"
+                        f"BP-{self.unique_id[:6]} Event has month={event_month} and day={event_day}, which is past the buffer"
                         f" of {self.monthly_cleanup_buffer_days} of the current_month={current_month}"
                     )
                     return True
@@ -412,7 +418,7 @@ class BatchProcessor:
         elif current_year == event_year - 1:  # this is a new year scenario
             if event_day > self.monthly_cleanup_buffer_days:
                 logger.warning(
-                    f"Event has year={event_year}, month={event_month} and day={event_day}, which is"
+                    f"BP-{self.unique_id[:6]} Event has year={event_year}, month={event_month} and day={event_day}, which is"
                     f" past the buffer of {self.monthly_cleanup_buffer_days} of the"
                     f" current_month={current_month}"
                 )
@@ -420,10 +426,10 @@ class BatchProcessor:
 
         elif current_year > event_year + 1:
             logger.error(
-                f"Event is too far into the future with year={event_year}, month={event_month}, day={event_day}"
+                f"BP-{self.unique_id[:6]} Event is too far into the future with year={event_year}, month={event_month}, day={event_day}"
             )
             raise Exception(
-                f"If this is being raised, there is a flaw earlier in the pipeline, this event "
+                f"BP-{self.unique_id[:6]} If this is being raised, there is a flaw earlier in the pipeline, this event "
                 f"should have been ignored"
             )
 
@@ -466,7 +472,9 @@ class BatchProcessor:
 
                 success = await self._set_redis_state(initial_state)
                 if not success:
-                    logger.error(f"Failed to set initial state in redis")
+                    logger.error(
+                        f"BP-{self.unique_id[:6]} Failed to set initial state in redis"
+                    )
 
             await asyncio.sleep(2)
             current_state = await self._get_redis_state()
@@ -481,7 +489,7 @@ class BatchProcessor:
         ).year
 
         logger.debug(
-            f"Analyzing {len(events)} events with first event is {first_event_year_seen}/{first_event_month_seen} and "
+            f"BP-{self.unique_id[:6]} Analyzing {len(events)} events with first event is {first_event_year_seen}/{first_event_month_seen} and "
             f"redis is {current_state['year']}/{current_state['month']}"
         )
 
@@ -515,13 +523,15 @@ class BatchProcessor:
                 # filter old events
                 if event_year < current_state["year"]:
                     logger.warning(
-                        f"Ignoring event with year={event_year}, month={event_month}, event_day={event_day}"
+                        f"BP-{self.unique_id[:6]} Ignoring event with year={event_year}, month={event_month}, event_day={event_day}"
                         f" while current_year is {current_state['year']}"
                     )
                     filtered_events.append(event)
                     continue
                 elif event_year > current_state["year"] + 1:
-                    logger.error(f"Event timestamp is way too far into the future")
+                    logger.error(
+                        f"BP-{self.unique_id[:6]} Event timestamp is way too far into the future"
+                    )
                     filtered_events.append(event)
                     continue
                 elif (
@@ -529,7 +539,7 @@ class BatchProcessor:
                     and event_month < current_state["month"]
                 ):
                     logger.warning(
-                        f"Ignoring event with same year but {current_state['month']-event_month} months old"
+                        f"BP-{self.unique_id[:6]} Ignoring event with same year but {current_state['month']-event_month} months old"
                     )
                     filtered_events.append(event)
                     continue
@@ -537,7 +547,7 @@ class BatchProcessor:
                 # if we have multiple months in this batch, trigger special logic (see process_events())
                 if first_event_month_seen != event_month:
                     logger.warning(
-                        f"We are in a multiple month batch scenario, running special logic to deal"
+                        f"BP-{self.unique_id[:6]} We are in a multiple month batch scenario, running special logic to deal"
                         f" with multiple months"
                     )
                     raise MultipleMonthBatch()
@@ -549,8 +559,7 @@ class BatchProcessor:
                     and event_month > current_state["month"]
                 ):
                     logger.warning(
-                        f"Event is in the future month {event_month}, currently"
-                        f" processed by batch processor {self.unique_id}"
+                        f"BP-{self.unique_id[:6]} Event is in the future month {event_month}, now being processed"
                     )
                     warned_this_month_is_in_future = True
 
@@ -616,14 +625,14 @@ class BatchProcessor:
                 # we need this to surface up to process_events() to trigger special logic there and re-do analyzing
                 raise e
             except Exception as e:
-                logger.error(f"Error processing event: {event}")
-                logger.error(f"Error details: {str(e)}")
-                logger.error(f"{traceback.format_exc()}")
+                logger.error(f"BP-{self.unique_id[:6]} Error processing event: {event}")
+                logger.error(f"BP-{self.unique_id[:6]} Error details: {str(e)}")
+                logger.error(f"BP-{self.unique_id[:6]} {traceback.format_exc()}")
                 continue
 
         if len(filtered_events) > 0:
             logger.info(
-                f"Dropped {len(filtered_events)} old events out of {len(events)} total events"
+                f"BP-{self.unique_id[:6]} Dropped {len(filtered_events)} old events out of {len(events)} total events"
             )
 
         return stats
@@ -644,7 +653,9 @@ class BatchProcessor:
 
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse message: {str(e)}")
-            logger.debug(f"Raw message: {message[:200]}...")  # First 200 chars
+            logger.debug(
+                f"BP-{self.unique_id[:6]} Raw message: {message[:200]}..."
+            )  # First 200 chars
             raise
 
     async def get_batch_of_events(self) -> List[Dict]:
@@ -663,7 +674,9 @@ class BatchProcessor:
             result = self.redis.blpop(self.queue_name, timeout=self.max_wait_seconds)
 
             wait_duration = time.time() - wait_start
-            logger.debug(f"BLPOP wait duration: {wait_duration:.2f}s")
+            logger.debug(
+                f"BP-{self.unique_id[:6]} BLPOP wait duration: {wait_duration:.2f}s"
+            )
 
             if result:
                 _, message = result
@@ -687,14 +700,14 @@ class BatchProcessor:
 
                 batch_duration = time.time() - batch_start
                 logger.debug(
-                    f"Batch collection duration: {batch_duration:.2f}s, events: {len(events)}"
+                    f"BP-{self.unique_id[:6]} Batch collection duration: {batch_duration:.2f}s, events: {len(events)}"
                 )
 
         except redis.RedisError as e:
-            logger.error(f"Redis error getting batch: {e}")
+            logger.error(f"BP-{self.unique_id[:6]} Redis error getting batch: {e}")
             await asyncio.sleep(1)  # Back off on Redis errors
         except Exception as e:
-            logger.error(f"Error getting batch of events: {e}")
+            logger.error(f"BP-{self.unique_id[:6]} Error getting batch of events: {e}")
             logger.error(traceback.format_exc())
 
         return events
@@ -941,11 +954,13 @@ class BatchProcessor:
             if inserted_count < len(values):
                 skipped = len(values) - inserted_count
                 logger.warning(
-                    f"Some DVM stats rollup records were updated rather than inserted ({skipped} updates)"
+                    f"BP-{self.unique_id[:6]} Some DVM stats rollup records were updated rather than inserted ({skipped} updates)"
                 )
 
         except Exception as e:
-            logger.error(f"Error updating DVM stats rollups: {e}")
+            logger.error(
+                f"BP-{self.unique_id[:6]} Error updating DVM stats rollups: {e}"
+            )
             logger.error(traceback.format_exc())
             raise
 
@@ -1027,11 +1042,13 @@ class BatchProcessor:
             if inserted_count < len(values):
                 skipped = len(values) - inserted_count
                 logger.warning(
-                    f"Some kind stats rollup records were updated rather than inserted ({skipped} updates)"
+                    f"BP-{self.unique_id[:6]} Some kind stats rollup records were updated rather than inserted ({skipped} updates)"
                 )
 
         except Exception as e:
-            logger.error(f"Error updating kind stats rollups: {e}")
+            logger.error(
+                f"BP-{self.unique_id[:6]} Error updating kind stats rollups: {e}"
+            )
             logger.error(traceback.format_exc())
             raise
 
@@ -1044,7 +1061,9 @@ class BatchProcessor:
         # Validate interval
         valid_intervals = {"1 hour", "24 hours", "7 days", "30 days"}
         if interval not in valid_intervals:
-            raise ValueError(f"Interval must be one of {valid_intervals}")
+            raise ValueError(
+                f"BP-{self.unique_id[:6]} Interval must be one of {valid_intervals}"
+            )
 
         metrics = (
             await conn.fetchrow(
@@ -1244,7 +1263,9 @@ class BatchProcessor:
                         )
                     )
                 except Exception as e:
-                    logger.error(f"Error processing event: {event.get('id', 'no-id')}")
+                    logger.error(
+                        f"BP-{self.unique_id[:6]} Error processing event: {event.get('id', 'no-id')}"
+                    )
                     logger.error(f"Created_at value: {event.get('created_at')}")
                     logger.error(f"Error details: {str(e)}")
                     continue
@@ -1262,7 +1283,9 @@ class BatchProcessor:
                 )
 
         except Exception as e:
-            logger.error(f"Error saving events to backup database: {e}")
+            logger.error(
+                f"BP-{self.unique_id[:6]} Error saving events to backup database: {e}"
+            )
             logger.error(traceback.format_exc())
 
     @staticmethod
@@ -1305,21 +1328,21 @@ class BatchProcessor:
 
                 process_duration = time.time() - process_start
                 logger.debug(
-                    f"Batch processing complete - Events: {len(events)}, "
+                    f"BP-{self.unique_id[:6]} Batch processing complete - Events: {len(events)}, "
                     f"Duration: {process_duration:.2f}s"
                 )
 
                 # Health logging every minute
                 if time.time() - last_health_check >= 60:
                     logger.info(
-                        f"Health check - Processed {events_processed} events in last minute, "
+                        f"BP-{self.unique_id[:6]} Health check - Processed {events_processed} events in last minute, "
                         f"Queue length: {queue_length}, Error count: {consecutive_errors}"
                     )
                     events_processed = 0  # Reset counter
                     last_health_check = time.time()
 
             except Exception as e:
-                logger.error(f"Error in processing loop: {e}")
+                logger.error(f"BP-{self.unique_id[:6]} Error in processing loop: {e}")
                 logger.error(traceback.format_exc())
                 consecutive_errors += 1
 
