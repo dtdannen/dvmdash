@@ -1,0 +1,216 @@
+version: '3.8'
+
+services:
+  postgres_pipeline:
+    image: postgres:16
+    profiles: ["core", "all"]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: dvmdash_pipeline
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U devuser -d dvmdash_pipeline" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./infrastructure/postgres/pipeline_init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_pipeline_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["core", "all"]
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  event_collector:
+    build:
+      context: .
+      dockerfile: ./backend/event_collector/Dockerfile
+    profiles: ["collector", "all"]
+    environment:
+      - USE_TEST_DATA=true
+      - START_LISTENING=true
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+      - RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
+      - DAYS_LOOKBACK=7
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import os, redis; r=redis.from_url('redis://redis:6379/0'); r.ping() if os.getenv('START_LISTENING')=='true' else exit(0)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - ./backend:/app/backend
+      - event_collector_logs:/app/logs
+      - ./backend/event_collector/test_data:/test_data
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  monthly_archiver:
+    build:
+      context: .
+      dockerfile: ./backend/monthly_archiver/Dockerfile
+    profiles: ["all"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=dvmdash_pipeline
+      - POSTGRES_HOST=postgres_pipeline
+      - DAILY_CLEANUP_INTERVAL_SECONDS=15  # use 24*60*60 (24 hours) for production
+      - MONTHLY_CLEANUP_BUFFER_DAYS=3
+      - BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS=15
+    volumes:
+      - ./backend/monthly_archiver:/app/backend/monthly_archiver
+      - ./backend/shared:/app/backend/shared
+      - monthly_archiver_logs:/app/logs
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    depends_on:
+      postgres_pipeline:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  batch_processor:
+    build:
+      context: .
+      dockerfile: ./backend/batch_processor/Dockerfile
+    profiles: [ "processor", "all" ]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=dvmdash_pipeline
+      - POSTGRES_HOST=postgres_pipeline
+      - MAX_WAIT_SECONDS=3
+      - BATCH_SIZE=10000
+      - BACKTEST_MODE=true
+    volumes:
+      - ./backend/batch_processor:/app/backend/batch_processor
+      - ./backend/shared:/app/backend/shared
+      - batch_processor_logs:/app/logs
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    depends_on:
+      postgres_pipeline:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+    profiles: [ "all" ]
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=dvmdash_pipeline
+      - POSTGRES_HOST=postgres_pipeline
+    depends_on:
+      postgres_pipeline:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/docs" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  nostr_relay:
+    build:
+      context: ./infrastructure/nostr_rs_relay
+      dockerfile: Dockerfile
+    profiles: ["all"] # todo [ "core", "all" ]
+    ports:
+      - "8081:8080"  # Using 8081 since 8080 might be used by other services
+    volumes:
+      - nostr_relay_data:/usr/src/app/db
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
+
+
+
+volumes:
+  postgres_pipeline_data:
+  redis_data:
+  event_collector_logs:
+  batch_processor_logs:
+  monthly_archiver_logs:
+  nostr_relay_data:

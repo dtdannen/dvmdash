@@ -244,6 +244,7 @@ class BetterStackLogsRunner:
 
     def __init__(self, project_name: str):
         self.project_name = project_name
+        self.sources_created_ids = {}
 
     def create_source(self, service_name: str):
         BETTERSTACK_TOKEN = os.getenv("BETTERSTACK_TOKEN")
@@ -272,6 +273,11 @@ class BetterStackLogsRunner:
                             "logs token is: "
                             + response_json["data"]["attributes"]["token"]
                         )
+                        if "id" in response_json["data"]:
+                            name_i = response_json["data"]["attributes"]["name"]
+                            self.sources_created_ids[name_i] = response_json["data"][
+                                "id"
+                            ]
                         return response_json["data"]["attributes"]["token"]
                     else:
                         logger.info(f"No token in response['attributes']")
@@ -283,6 +289,22 @@ class BetterStackLogsRunner:
         else:
             logger.info("Error creating source")
             logger.info(response.text)
+
+    def delete_sources(self):
+        BETTERSTACK_TOKEN = os.getenv("BETTERSTACK_TOKEN")
+
+        # https://telemetry.betterstack.com/api/v1/sources/{source_id}
+        url = "https://telemetry.betterstack.com/api/v1/sources"
+
+        headers = {"Authorization": f"Bearer {BETTERSTACK_TOKEN}"}
+
+        for name, source_id in self.sources_created_ids.items():
+            response = requests.delete(f"{url}/{source_id}", headers=headers)
+            if response.status_code == 204:
+                logger.info(f"Source {name} with id {source_id} deleted successfully")
+            else:
+                logger.info(f"Error deleting {name} with source id {source_id}")
+                logger.info(response.text)
 
 
 class EventCollectorAppPlatformRunner:
@@ -1244,6 +1266,7 @@ async def main():
             monthly_archiver_app_runner.cleanup_app_platform()
             if monthly_archiver_app_runner
             else None,
+            betterstack_log_runner.delete_sources() if betterstack_log_runner else None,
         ]
         cleanup_tasks = [t for t in cleanup_tasks if t is not None]
 

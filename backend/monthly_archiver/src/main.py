@@ -526,9 +526,11 @@ class MonthlyArchiver:
                                     f"Monthly archiver is now waiting 15 seconds for batch processors to finish"
                                     f"up any processing they are in the middle of running"
                                 )
-                                grace_period = os.getenv(
-                                    "BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS",
-                                    15,
+                                grace_period = int(
+                                    os.getenv(
+                                        "BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS",
+                                        15,
+                                    )
                                 )
 
                                 # Update to next month/year
