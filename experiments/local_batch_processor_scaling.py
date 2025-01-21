@@ -26,7 +26,7 @@ logger.add("local_perf_test.log", rotation="100 MB", level="DEBUG")
 
 
 class LocalPerformanceTest:
-    def __init__(self):
+    def __init__(self, num_batch_processors: int = 1):
         logger.info("Initializing LocalPerformanceTest")
         self.docker_client = docker.from_env()
 
@@ -48,6 +48,8 @@ class LocalPerformanceTest:
         logger.info(f"Initialized CSV file: {self.csv_filename}")
 
         self.monthly_update_timestamps = []
+
+        self.num_batch_processors = num_batch_processors
 
     def get_monthly_activity_data(self):
         """Query and return all data from the monthly_activity table"""
@@ -664,7 +666,7 @@ class LocalPerformanceTest:
                 json.dump(plot_data, f, indent=2)
 
             # Show the plot
-            plt.show()
+            # plt.show()
 
         except Exception as e:
             logger.error(f"Error creating performance plots: {e}")
@@ -738,7 +740,7 @@ class LocalPerformanceTest:
 
             await asyncio.sleep(2)
 
-    async def run_test(self, target_redis_items: int = 1_000_000):
+    async def run_test(self, target_redis_items: int = 2_400_000):
         """Run the complete performance test"""
         logger.info(
             f"Starting performance test with target of {target_redis_items:,} items"
@@ -768,7 +770,7 @@ class LocalPerformanceTest:
             await self.start_first_batch_processor()
 
             # Start additional batch processors
-            await self.start_additional_batch_processors(3)
+            await self.start_additional_batch_processors(self.num_batch_processors - 1)
 
             # Keep running until Redis is empty
             logger.info("Monitoring Redis queue until empty...")
@@ -814,7 +816,11 @@ class LocalPerformanceTest:
 
 
 async def main():
-    test = LocalPerformanceTest()
+    num_batch_processors = 1
+    if len(sys.argv) > 1:
+        num_batch_processors = int(sys.argv[1])
+
+    test = LocalPerformanceTest(num_batch_processors)
     await test.run_test()
 
 
