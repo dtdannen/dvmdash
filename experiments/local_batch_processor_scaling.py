@@ -741,7 +741,7 @@ Below is the current state of the monthly_activity table:
 
             await asyncio.sleep(2)
 
-    async def run_test(self, target_redis_items: int = 2_400_000):
+    async def run_test(self, target_redis_items: int = 50_000):
         """Run the complete performance test"""
         logger.info(
             f"Starting performance test with target of {target_redis_items:,} items"

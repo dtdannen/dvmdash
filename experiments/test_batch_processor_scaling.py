@@ -48,7 +48,7 @@ class MetricsCollector:
         logger.info(f"Created run directory: {self.run_dir}")
 
         self.csv_filename = (
-            f"{self.metrics_dir}/{self.project_name}_{self.run_timestamp}_metrics.csv"
+            f"{self.run_dir}/{self.project_name}_{self.run_timestamp}_metrics.csv"
         )
         self.initialize_csv()
         logger.info(f"Initialized CSV file: {self.csv_filename}")
@@ -872,7 +872,7 @@ class PostgresTestRunner:
             "name": f"{self.project_name}-{self.name_prefix}",
             "engine": "pg",
             "version": "16",
-            "size": "db-s-1vcpu-1gb",
+            "size": "db-s-2vcpu-4gb",
             "region": "nyc1",
             "num_nodes": 1,
         }
@@ -1127,27 +1127,6 @@ async def main():
             do_token, project_name, project_id=os.getenv("DO_PROJECT_ID")
         )
 
-        # Initialize metrics collector
-        metrics_collector = MetricsCollector(redis_runner.redis_client, project_name)
-
-        monitoring_tasks = [
-            asyncio.create_task(
-                metrics_collector.check_redis_empty(redis_runner.redis_client)
-            ),
-            asyncio.create_task(
-                metrics_collector.monitor_redis_items(redis_runner.redis_client)
-            ),
-            asyncio.create_task(
-                metrics_collector.monitor_postgres_events_db(metrics_db.pool)
-            ),
-            asyncio.create_task(
-                metrics_collector.collect_metrics_history(
-                    redis_runner.redis_client, metrics_db.pool
-                )
-            ),
-        ]
-        running_tasks.extend(monitoring_tasks)
-
         logger.info(f"Redis db config is {redis_runner.db_config}")
         # Setup App Platform for event collector
         logs_token = betterstack_log_runner.create_source("event-collector")
@@ -1179,8 +1158,24 @@ async def main():
             branch="full-redesign", betterstack_rsyslog_token=archiver_logs_token
         )
 
+        # Initialize metrics collector
+        metrics_collector = MetricsCollector(redis_runner.redis_client, project_name)
+
+        monitoring_tasks = [
+            asyncio.create_task(
+                metrics_collector.check_redis_empty(redis_runner.redis_client)
+            ),
+            asyncio.create_task(
+                metrics_collector.monitor_redis_items(redis_runner.redis_client)
+            ),
+            asyncio.create_task(
+                metrics_collector.monitor_postgres_events_db(metrics_db.pool)
+            ),
+        ]
+        running_tasks.extend(monitoring_tasks)
+
         # Wait for queue to fill up
-        REDIS_EVENTS_MINIMUM = 100_000
+        REDIS_EVENTS_MINIMUM = 90_000
         logger.info(
             f"Waiting for Redis queue to accumulate {REDIS_EVENTS_MINIMUM} events..."
         )
@@ -1196,7 +1191,6 @@ async def main():
                 "Queue didn't reach target size within timeout, proceeding anyway"
             )
 
-        metrics_collector.start_time = time.time()
         logger.info(f"Setting start time for metrics collection")
 
         # if shutdown was triggered, exit early
@@ -1217,6 +1211,14 @@ async def main():
         )
         running_tasks.append(progress_monitor)
 
+        metrics_collector.start_time = time.time()
+        get_data_for_graph_task = asyncio.create_task(
+            metrics_collector.collect_metrics_history(
+                redis_runner.redis_client, metrics_db.pool
+            )
+        )
+        running_tasks.append(get_data_for_graph_task)
+
         # Start batch processor
         bp_logs_token = betterstack_log_runner.create_source("batch-processor")
         await batch_process_app_runner.setup_first_batch_processor(
@@ -1225,12 +1227,12 @@ async def main():
         logger.info("First batch processor started")
 
         # Scale batch processors
-        await batch_process_app_runner.scale_batch_processors(1)
+        await batch_process_app_runner.scale_batch_processors(7)
 
         # Keep running until interrupted or error occurs
         while not shutdown_event.is_set():
             done, pending = await asyncio.wait(
-                running_tasks, timeout=60, return_when=asyncio.FIRST_EXCEPTION
+                running_tasks, timeout=3600, return_when=asyncio.FIRST_EXCEPTION
             )
 
             # Check for exceptions

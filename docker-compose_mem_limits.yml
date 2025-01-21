@@ -4,12 +4,24 @@ services:
   postgres_pipeline:
     image: postgres:16
     profiles: ["core", "all"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 512M
     ports:
       - "5432:5432"
     environment:
       POSTGRES_USER: devuser
       POSTGRES_PASSWORD: devpass
       POSTGRES_DB: dvmdash_pipeline
+      # Memory configuration for 4GB total memory
+      POSTGRES_SHARED_BUFFERS: 1GB        # 25% of total memory
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 3GB   # 75% of total memory
+      POSTGRES_WORK_MEM: 32MB             # For query workspaces
+      POSTGRES_MAINTENANCE_WORK_MEM: 256MB # For maintenance operations
+      POSTGRES_MAX_CONNECTIONS: 100        # Adjust based on your needs
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U devuser -d dvmdash_pipeline" ]
       interval: 10s

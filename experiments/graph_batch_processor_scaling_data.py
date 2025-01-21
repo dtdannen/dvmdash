@@ -6,7 +6,9 @@ from datetime import datetime
 import re
 
 # List of CSV files to process - EDIT THIS LIST
-csv_files = ["data/yellow-goat_2025-01-07_12-41PM_metrics.csv"]
+csv_files = [
+    "experiments/data/run_2025_Jan_21_at_18_14_18/orange-chicken_2025_Jan_21_at_18_14_18_metrics.csv"
+]
 
 
 def extract_running_total_requests(row_str):
@@ -164,46 +166,6 @@ for i, csv_file in enumerate(csv_files):
         f"entity_activity_with_rate_{timestamp}.png", dpi=300, bbox_inches="tight"
     )
 
-    # Running Total Requests Plot
-    ax1, ax2 = create_plot(
-        "Running Total Requests Over Time",
-        "Total Requests",
-        "Rate of Change (requests/minute)",
-    )
-
-    # Extract and plot running total requests
-    running_total_requests = df["postgres_pipeline_global_stats_latest_row"].apply(
-        extract_running_total_requests
-    )
-    line1 = ax1.plot(
-        df["time_since_start"],
-        running_total_requests,
-        label="Total Requests",
-        color="#1f77b4",
-        marker="^",
-        markersize=4,
-        linewidth=2,
-    )
-
-    # Calculate and plot rate of change
-    rate = calculate_rate_of_change(df["time_since_start"], running_total_requests)
-    line2 = ax2.plot(
-        df["time_since_start"],
-        rate,
-        label="Rate of Change",
-        color="#d62728",
-        linestyle="--",
-        linewidth=2,
-    )
-
-    # Add legends
-    lines = line1 + line2
-    labels = [l.get_label() for l in lines]
-    ax1.legend(lines, labels, loc="upper left")
-    plt.tight_layout()
-    plt.savefig(
-        f"total_requests_with_rate_{timestamp}.png", dpi=300, bbox_inches="tight"
-    )
 
 # Show all plots
 plt.show()
