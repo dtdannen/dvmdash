@@ -240,10 +240,12 @@ class LocalPerformanceTest:
             logger.error(f"Error starting event collector: {stderr.decode()}")
 
     async def start_first_batch_processor(self):
-        """Start one batch processor and give it a 15 second head start to prevent problems setting the initial
+        """Start one batch processor and give it a few second head start to prevent problems setting the initial
         month/year in redis"""
-        head_start = 15  # should be more than enough
-        logger.info(f"Starting first batch processor with a head start of 15s...")
+        head_start = 15
+        logger.info(
+            f"Starting first batch processor with a head start of {head_start}s..."
+        )
         process = await asyncio.create_subprocess_shell(
             f"docker compose up -d batch_processor",
             stdout=asyncio.subprocess.PIPE,
@@ -254,9 +256,15 @@ class LocalPerformanceTest:
             logger.success(
                 f"First batch processor started successfully, now waiting {head_start} seconds"
             )
+            # Log the stdout in case there's useful info
+            if stdout:
+                logger.debug(f"Batch processor stdout: {stdout.decode()}")
             await asyncio.sleep(head_start)
         else:
             logger.error(f"Error starting batch processors: {stderr.decode()}")
+            # Log the stdout as well in case of error
+            if stdout:
+                logger.error(f"Batch processor stdout: {stdout.decode()}")
 
     async def start_additional_batch_processors(self, count_to_add: int = 1):
         """Start additional batch processor instances"""
@@ -683,7 +691,7 @@ class LocalPerformanceTest:
 
             await asyncio.sleep(2)
 
-    async def run_test(self, target_redis_items: int = 100_000):
+    async def run_test(self, target_redis_items: int = 60_000):
         """Run the complete performance test"""
         logger.info(
             f"Starting performance test with target of {target_redis_items:,} items"
@@ -713,7 +721,7 @@ class LocalPerformanceTest:
             await self.start_first_batch_processor()
 
             # Start additional batch processors
-            await self.start_additional_batch_processors(2)
+            await self.start_additional_batch_processors(1)
 
             # Keep running until Redis is empty
             logger.info("Monitoring Redis queue until empty...")

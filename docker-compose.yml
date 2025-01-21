@@ -142,8 +142,6 @@ services:
     depends_on:
       postgres_pipeline:
         condition: service_healthy
-      event_collector:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:

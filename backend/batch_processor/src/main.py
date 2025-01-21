@@ -256,7 +256,7 @@ class BatchProcessor:
                 )
                 return True
         except TimeoutError:
-            logger.error("Could not acquire lock")
+            logger.warning("Could not acquire lock")
 
         return False
 
