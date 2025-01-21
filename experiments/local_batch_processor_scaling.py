@@ -242,7 +242,7 @@ class LocalPerformanceTest:
     async def start_first_batch_processor(self):
         """Start one batch processor and give it a few second head start to prevent problems setting the initial
         month/year in redis"""
-        head_start = 15
+        head_start = 5
         logger.info(
             f"Starting first batch processor with a head start of {head_start}s..."
         )
@@ -566,31 +566,78 @@ class LocalPerformanceTest:
             ax2.grid(True)
             ax2.legend()
 
+            # Debug monthly update timestamps
+            logger.info("\nMonthly Update Timestamp Analysis:")
+            logger.info(f"Experiment start time: {experiment_start_time} UTC")
+            logger.info(
+                f"Number of monthly updates: {len(self.monthly_update_timestamps)}"
+            )
+
             # Add vertical lines for monthly updates
             if self.monthly_update_timestamps:
-                for cleanup_time in self.monthly_update_timestamps:
-                    if not cleanup_time.tzinfo:
-                        cleanup_time = cleanup_time.replace(tzinfo=timezone.utc)
-                    seconds_from_start = (
-                        cleanup_time - experiment_start_time
-                    ).total_seconds()
+                for i, cleanup_time in enumerate(self.monthly_update_timestamps):
+                    # Get the cleanup time relative to experiment start
+                    cleanup_time = cleanup_time.replace(tzinfo=timezone.utc)
+                    cleanup_minute = cleanup_time.minute
+                    cleanup_second = cleanup_time.second
 
-                    if seconds_from_start >= 0:
-                        ax1.axvline(
-                            x=seconds_from_start, color="g", linestyle="--", alpha=0.5
-                        )
-                        ax2.axvline(
-                            x=seconds_from_start, color="g", linestyle="--", alpha=0.5
-                        )
-                        ax1.annotate(
-                            f"Monthly Update ({cleanup_time.strftime('%H:%M:%S')})",
-                            xy=(seconds_from_start, ax1.get_ylim()[1]),
-                            xytext=(10, 10),
-                            textcoords="offset points",
-                            rotation=90,
-                            color="green",
-                            alpha=0.7,
-                        )
+                    # Create a relative time based on minutes/seconds from start
+                    experiment_minute = experiment_start_time.minute
+                    experiment_second = experiment_start_time.second
+
+                    # Calculate relative seconds (ignoring the date/hour difference)
+                    seconds_from_start = (cleanup_minute - experiment_minute) * 60 + (
+                        cleanup_second - experiment_second
+                    )
+
+                    logger.info(f"\nUpdate {i + 1}:")
+                    logger.info(f"  Cleanup time: {cleanup_time} UTC")
+                    logger.info(f"  Seconds from start: {seconds_from_start:.2f}")
+                    logger.info(f"  Current x-axis range: {ax1.get_xlim()}")
+
+                    ax1.axvline(
+                        x=seconds_from_start, color="g", linestyle="--", alpha=0.5
+                    )
+                    ax2.axvline(
+                        x=seconds_from_start, color="g", linestyle="--", alpha=0.5
+                    )
+                    # ax1.annotate(
+                    #     f"Monthly Cleanup @ {cleanup_time.strftime('%S')}s",
+                    #     xy=(seconds_from_start, ax1.get_ylim()[1]),
+                    #     xytext=(10, 10),
+                    #     textcoords="offset points",
+                    #     rotation=90,
+                    #     color="green",
+                    #     alpha=0.7,
+                    # )
+
+            # After creating the plots, before plt.tight_layout()
+            # Set x-axis ticks every 20 seconds
+            from matplotlib.ticker import MultipleLocator
+
+            # For the first plot (queue size)
+            ax1.xaxis.set_major_locator(
+                MultipleLocator(20)
+            )  # Major ticks every 20 seconds
+            ax1.xaxis.set_minor_locator(
+                MultipleLocator(5)
+            )  # Minor ticks every 5 seconds
+            ax1.grid(True, which="major", linestyle="-")
+            ax1.grid(True, which="minor", linestyle=":", alpha=0.5)
+
+            # For the second plot (processing rate)
+            ax2.xaxis.set_major_locator(
+                MultipleLocator(20)
+            )  # Major ticks every 20 seconds
+            ax2.xaxis.set_minor_locator(
+                MultipleLocator(5)
+            )  # Minor ticks every 5 seconds
+            ax2.grid(True, which="major", linestyle="-")
+            ax2.grid(True, which="minor", linestyle=":", alpha=0.5)
+
+            # Rotate x-axis labels for better readability
+            ax1.tick_params(axis="x", rotation=45)
+            ax2.tick_params(axis="x", rotation=45)
 
             plt.tight_layout()
 
@@ -608,7 +655,7 @@ class LocalPerformanceTest:
                 "redis_items": df["redis_items"].tolist(),
                 "processing_rate": smoothed_rate.tolist(),
                 "monthly_updates": [
-                    (cleanup_time - experiment_start_time).total_seconds()
+                    (cleanup_time.timestamp() - experiment_start_time.timestamp())
                     for cleanup_time in self.monthly_update_timestamps
                     if cleanup_time.tzinfo
                 ],
@@ -691,7 +738,7 @@ class LocalPerformanceTest:
 
             await asyncio.sleep(2)
 
-    async def run_test(self, target_redis_items: int = 60_000):
+    async def run_test(self, target_redis_items: int = 1_000_000):
         """Run the complete performance test"""
         logger.info(
             f"Starting performance test with target of {target_redis_items:,} items"
@@ -721,7 +768,7 @@ class LocalPerformanceTest:
             await self.start_first_batch_processor()
 
             # Start additional batch processors
-            await self.start_additional_batch_processors(1)
+            await self.start_additional_batch_processors(3)
 
             # Keep running until Redis is empty
             logger.info("Monitoring Redis queue until empty...")
@@ -763,7 +810,7 @@ class LocalPerformanceTest:
             logger.success(f"Test complete! Metrics saved to: {self.csv_filename}")
 
             # Create and save performance plots
-            self.create_performance_plots()
+            # self.create_performance_plots()
 
 
 async def main():
