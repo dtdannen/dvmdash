@@ -1,52 +1,46 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import ast
 import numpy as np
 from datetime import datetime
-import re
 
-# List of CSV files to process - EDIT THIS LIST
-csv_files = [
-    "experiments/data/run_2025_Jan_21_at_18_14_18/orange-chicken_2025_Jan_21_at_18_14_18_metrics.csv"
-]
+# Dictionary of CSV files with labels
+csv_files = {
+    "n=5": "experiments/data/run_2025_Jan_21_at_18_43_05/brown-sheep_5BP_2025_Jan_21_at_18_43_05_metrics.csv",
+    "n=10": "experiments/data/run_2025_Jan_21_at_18_48_45/green-turkey_10BP_2025_Jan_21_at_18_48_45_metrics.csv",
+    "n=15": "experiments/data/run_2025_Jan_21_at_20_55_14/yellow-fish_15BP_2025_Jan_21_at_20_55_14_metrics.csv",
+}
 
+# Color scheme for different BP configurations
+bp_colors = {
+    "n=5": "#1f77b4",  # Blue
+    "n=10": "#2ca02c",  # Green
+    "n=15": "#ff7f0e",  # Orange
+    "20BP": "#9467bd",  # Purple
+}
 
-def extract_running_total_requests(row_str):
-    """Extract running_total_requests from the complex string format"""
-    if pd.isna(row_str):
-        return 0
-
-    # Use regex to find the running_total_requests value
-    match = re.search(r"'running_total_requests': (\d+)", row_str)
-    if match:
-        return int(match.group(1))
-    return 0
+# Styles for raw values vs rates
+metric_styles = {
+    "raw": {"linestyle": "-", "marker": "o", "markersize": 4},
+    "rate": {"linestyle": "--", "marker": None},
+}
 
 
 def calculate_rate_of_change(times, values):
     """Calculate rate of change between points, ignoring initial zeros"""
-    # Find first non-zero value
     first_nonzero = 0
     for i, v in enumerate(values):
         if v != 0:
             first_nonzero = i
             break
 
-    # Slice arrays to start from first non-zero value
     times = times[first_nonzero:]
     values = values[first_nonzero:]
 
-    # Calculate differences
     time_diff = np.diff(times)
     value_diff = np.diff(values)
-
-    # Calculate rates (handle division by zero) and convert to per minute
     rates = np.where(time_diff != 0, np.abs(value_diff / time_diff) * 60, 0)
-
-    # Apply smoothing using rolling average (increased window size for smoother curve)
     rates = pd.Series(rates).rolling(window=50, min_periods=1).mean()
 
-    # Pad the beginning with None to account for removed zeros
     padding = [None] * first_nonzero
     return np.concatenate((padding, [0], rates))
 
@@ -55,23 +49,42 @@ def create_plot(title, ylabel1, ylabel2):
     """Create a new figure with two y-axes"""
     plt.figure(figsize=(12, 8))
     ax1 = plt.gca()
-    ax2 = ax1.twinx()  # Create second y-axis
+    ax2 = ax1.twinx()
 
-    # Set labels and title
-    ax1.set_xlabel("Time Since Start (minutes)")
-    ax1.set_ylabel(ylabel1, color="#1f77b4")
-    ax2.set_ylabel(ylabel2, color="#d62728")
+    # Increase font size for title
     plt.title(title, size=14, pad=20)
 
-    # Style both axes
+    # Increase font size for x-axis label and add padding
+    ax1.set_xlabel(
+        "Time Since Start (minutes)", size=12, labelpad=10  # Larger font
+    )  # Add space between label and numbers
+
+    # Increase font size for y-axis labels and add padding
+    ax1.set_ylabel(
+        ylabel1, color="black", size=12, labelpad=10  # Larger font
+    )  # Add space between label and numbers
+
+    ax2.set_ylabel(
+        ylabel2, color="black", size=12, labelpad=10  # Larger font
+    )  # Add space between label and numbers
+
+    # Optionally increase tick label sizes
+    ax1.tick_params(axis="both", which="major", labelsize=10)
+    ax2.tick_params(axis="both", which="major", labelsize=10)
+
     for ax in [ax1, ax2]:
         ax.grid(True, linestyle="--", alpha=0.7)
         ax.spines["top"].set_visible(False)
 
-    # Function to format x-axis ticks from seconds to minutes
     def format_func(x, _):
         return f"{x/60:.1f}"
 
+    def format_k(x, _):
+        if x >= 1000000:
+            return f"{x/1000000:.1f}M"
+        return f"{x/1000:.0f}k"  # This will show 100k, 200k, etc.
+
+    ax2.yaxis.set_major_formatter(plt.FuncFormatter(format_k))
     ax1.xaxis.set_major_formatter(plt.FuncFormatter(format_func))
 
     return ax1, ax2
@@ -83,96 +96,176 @@ plt.style.use("seaborn-v0_8-darkgrid")
 # Create timestamp for filenames
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-# Process each metric in a separate figure
-for i, csv_file in enumerate(csv_files):
-    # Read the CSV file
+# Create figure with shared x-axis subplots, but allow top plot to show x-axis
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12), height_ratios=[1, 1])
+
+lines1, lines2 = [], []
+
+# Process data for both plots
+for idx, (label, csv_file) in enumerate(csv_files.items()):
+    print(f"Processing Label {label} with color {bp_colors[label]}")
     df = pd.read_csv(csv_file)
-    project_name = df["project"].iloc[0]
     df["time_since_start"] = pd.to_numeric(df["time_since_start"])
 
-    # Redis Queue Size Plot
-    ax1, ax2 = create_plot(
-        "Redis Queue Size Over Time", "Queue Size", "Rate of Change (items/minute)"
-    )
+    # Calculate alpha value
+    alpha = 1.0 - (idx * 0.15)
 
-    # Plot raw values
+    # Plot queue size (top subplot) - divide by 1e6 for millions
     line1 = ax1.plot(
         df["time_since_start"],
-        df["redis_queue_size"],
-        label="Queue Size",
-        color="#1f77b4",
-        marker="o",
-        markersize=4,
+        df["postgres_events"] / 1e6,  # Convert to millions
+        label=f"Events Processed with {label} ",
+        color=bp_colors[label],
+        **metric_styles["raw"],
         linewidth=2,
+        alpha=alpha,
     )
+    lines1.extend(line1)
 
-    # Calculate and plot rate of change
+    # Calculate and plot rate (bottom subplot)
     rate = calculate_rate_of_change(df["time_since_start"], df["redis_queue_size"])
     line2 = ax2.plot(
         df["time_since_start"],
         rate,
-        label="Rate of Change",
-        color="#d62728",
-        linestyle="--",
+        label=f"Processing Rate with {label}",
+        color=bp_colors[label],
+        **metric_styles["rate"],
         linewidth=2,
+        alpha=alpha,
     )
+    lines2.extend(line2)
 
-    # Add legends
-    lines = line1 + line2
-    labels = [l.get_label() for l in lines]
-    ax1.legend(lines, labels, loc="upper right")
-    plt.tight_layout()
-    plt.savefig(
-        f"redis_queue_size_with_rate_{timestamp}.png", dpi=300, bbox_inches="tight"
-    )
+# Customize plots
+for ax in [ax1, ax2]:
+    ax.tick_params(axis="both", which="major", labelsize=10)
+    ax.grid(True, linestyle="--", alpha=0.7)
+    ax.spines["top"].set_visible(False)
 
-    # Entity Activity Count Plot
-    ax1, ax2 = create_plot(
-        "Entity Activity Count Over Time",
-        "Activity Count",
-        "Rate of Change (items/minute)",
-    )
+
+# Format x-axis (only needed once due to sharex=True)
+def format_func(x, _):
+    return f"{x/60:.1f}"
+
+
+ax1.xaxis.set_major_formatter(plt.FuncFormatter(format_func))
+ax2.xaxis.set_major_formatter(plt.FuncFormatter(format_func))
+
+
+# Format rate y-axis to show 500k intervals
+def format_500k(x, _):
+    return f"{x/1000:.0f}k" if x < 1000000 else f"{x/1000000:.1f}M"
+
+
+ax2.yaxis.set_major_formatter(plt.FuncFormatter(format_500k))
+
+# Set labels and titles
+ax1.set_ylabel("DVM Events (millions)", size=12, labelpad=10)
+ax2.set_ylabel("Rate of Change (items/minute)", size=12, labelpad=10)
+ax1.set_xlabel("Time Since Start (minutes)", size=12, labelpad=10)
+ax2.set_xlabel("Time Since Start (minutes)", size=12, labelpad=10)
+
+ax1.set_title(
+    "DVM Events Queue Size Over Time by Number of Batch Processors", size=14, pad=20
+)
+ax2.set_title("DVM Events Processing Rate Over Time", size=14, pad=20)
+
+# Add legends
+ax1.legend(
+    lines1,
+    [l.get_label() for l in lines1],
+    loc="lower right",
+    bbox_to_anchor=(1, 0),
+    ncol=1,
+    frameon=True,
+    framealpha=0.8,
+)
+
+ax2.legend(
+    lines2,
+    [l.get_label() for l in lines2],
+    loc="upper right",
+    bbox_to_anchor=(1, 1),
+    ncol=1,
+    frameon=True,
+    framealpha=0.8,
+)
+
+# Adjust spacing between subplots
+plt.subplots_adjust(hspace=0.5)  # Increase this value for more space
+
+# Save figure
+plt.savefig(f"redis_queue_analysis_{timestamp}.png", dpi=300, bbox_inches="tight")
+## SECOND GRAPH
+
+# Entity Activity Count Plot
+ax1, ax2 = create_plot(
+    "Entity Activity Count Over Time by Number of Batch Processors",
+    "Activity Count",
+    "Rate of Change (items/minute)",
+)
+
+lines1, lines2 = [], []
+labels = []
+
+for idx, (label, csv_file) in enumerate(csv_files.items()):
+    print(f"Processing Label {label} with color {bp_colors[label]}")
+    df = pd.read_csv(csv_file)
+    df["time_since_start"] = pd.to_numeric(df["time_since_start"])
+
+    # Calculate alpha value
+    alpha = 1.0 - (idx * 0.15)
 
     # Plot raw values
     line1 = ax1.plot(
         df["time_since_start"],
         df["postgres_pipeline_entity_activity_count"],
-        label="Activity Count",
-        color="#1f77b4",
-        marker="s",
-        markersize=4,
+        label=f"{label} Activity Count",
+        color=bp_colors[label],
+        **metric_styles["raw"],
         linewidth=2,
+        alpha=alpha,
     )
 
-    # Calculate and plot rate of change
+    # Plot rate
     rate = calculate_rate_of_change(
         df["time_since_start"], df["postgres_pipeline_entity_activity_count"]
     )
     line2 = ax2.plot(
         df["time_since_start"],
         rate,
-        label="Rate of Change",
-        color="#d62728",
-        linestyle="--",
+        label=f"{label} Rate",
+        color=bp_colors[label],
+        **metric_styles["rate"],
         linewidth=2,
+        alpha=alpha,
     )
 
-    # Add legends
-    lines = line1 + line2
-    labels = [l.get_label() for l in lines]
-    ax1.legend(lines, labels, loc="upper left")
-    plt.tight_layout()
-    plt.savefig(
-        f"entity_activity_with_rate_{timestamp}.png", dpi=300, bbox_inches="tight"
-    )
+    lines1.extend(line1)
+    lines2.extend(line2)
+    labels += [f"{label} (Activity Count)", f"{label} (Rate)"]
 
+# Add combined legend
+all_lines = lines1 + lines2
+all_labels = [l.get_label() for l in all_lines]
+
+# Create single legend using plt.legend instead of ax1.legend
+plt.legend(
+    all_lines,
+    all_labels,
+    loc="upper right",  # or 'upper left' for the second plot
+    bbox_to_anchor=(1, 1),
+    ncol=1,
+    frameon=True,
+    framealpha=0.8,
+)
+plt.tight_layout()
+plt.savefig(f"entity_activity_comparison_{timestamp}.png", dpi=300, bbox_inches="tight")
 
 # Show all plots
 plt.show()
 
 print(
     f"Plots saved with timestamp {timestamp}:"
-    f"\n - redis_queue_size_with_rate_{timestamp}.png"
-    f"\n - entity_activity_with_rate_{timestamp}.png"
-    f"\n - total_requests_with_rate_{timestamp}.png"
+    f"\n - redis_queue_size_comparison_{timestamp}.png"
+    f"\n - entity_activity_comparison_{timestamp}.png"
 )

@@ -27,7 +27,7 @@ load_dotenv()
 class MetricsCollector:
     """Collects and stores metrics from various components"""
 
-    def __init__(self, redis_client, project_name: str):
+    def __init__(self, redis_client, project_name: str, num_batch_processors: int):
         self.metrics_history = []
         self.redis_db_info = redis_client
         self.project_name = project_name
@@ -35,6 +35,7 @@ class MetricsCollector:
         self.last_redis_count = 0
         self.last_postgres_count = 0
         self.collection_interval = 2  # seconds
+        self.num_batch_processors = num_batch_processors
 
         # Create metrics directory if it doesn't exist
         self.metrics_dir = "experiments/data"
@@ -47,9 +48,7 @@ class MetricsCollector:
         os.makedirs(self.run_dir)
         logger.info(f"Created run directory: {self.run_dir}")
 
-        self.csv_filename = (
-            f"{self.run_dir}/{self.project_name}_{self.run_timestamp}_metrics.csv"
-        )
+        self.csv_filename = f"{self.run_dir}/{self.project_name}_{self.num_batch_processors}BP_{self.run_timestamp}_metrics.csv"
         self.initialize_csv()
         logger.info(f"Initialized CSV file: {self.csv_filename}")
 
@@ -1117,6 +1116,7 @@ async def main():
 
     events_db, metrics_db, redis_runner = None, None, None
     running_tasks = []
+    NUM_BATCH_PROCESSORS = 3
     try:
         # create a better stack logs runner
         betterstack_log_runner = BetterStackLogsRunner(project_name)
@@ -1159,7 +1159,9 @@ async def main():
         )
 
         # Initialize metrics collector
-        metrics_collector = MetricsCollector(redis_runner.redis_client, project_name)
+        metrics_collector = MetricsCollector(
+            redis_runner.redis_client, project_name, NUM_BATCH_PROCESSORS
+        )
 
         monitoring_tasks = [
             asyncio.create_task(
@@ -1175,7 +1177,7 @@ async def main():
         running_tasks.extend(monitoring_tasks)
 
         # Wait for queue to fill up
-        REDIS_EVENTS_MINIMUM = 90_000
+        REDIS_EVENTS_MINIMUM = 2_350_000
         logger.info(
             f"Waiting for Redis queue to accumulate {REDIS_EVENTS_MINIMUM} events..."
         )
@@ -1227,12 +1229,12 @@ async def main():
         logger.info("First batch processor started")
 
         # Scale batch processors
-        await batch_process_app_runner.scale_batch_processors(7)
+        await batch_process_app_runner.scale_batch_processors(NUM_BATCH_PROCESSORS - 1)
 
         # Keep running until interrupted or error occurs
         while not shutdown_event.is_set():
             done, pending = await asyncio.wait(
-                running_tasks, timeout=3600, return_when=asyncio.FIRST_EXCEPTION
+                running_tasks, timeout=7200, return_when=asyncio.FIRST_EXCEPTION
             )
 
             # Check for exceptions
