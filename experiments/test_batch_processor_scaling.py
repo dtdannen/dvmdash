@@ -644,6 +644,10 @@ class BatchProcessorAppPlatformRunner:
         if not self.app_id:
             raise ValueError("No batch processor app exists yet")
 
+        if additional_count <= 0:
+            await asyncio.sleep(1)
+            return
+
         new_count = self.current_instance_count + additional_count
         logger.info(
             f"Scaling batch processors from {self.current_instance_count} to {new_count}..."
@@ -871,7 +875,7 @@ class PostgresTestRunner:
             "name": f"{self.project_name}-{self.name_prefix}",
             "engine": "pg",
             "version": "16",
-            "size": "db-s-2vcpu-4gb",
+            "size": "db-s-6vcpu-16gb",
             "region": "nyc1",
             "num_nodes": 1,
         }
@@ -1116,7 +1120,7 @@ async def main():
 
     events_db, metrics_db, redis_runner = None, None, None
     running_tasks = []
-    NUM_BATCH_PROCESSORS = 3
+    NUM_BATCH_PROCESSORS = 5
     try:
         # create a better stack logs runner
         betterstack_log_runner = BetterStackLogsRunner(project_name)

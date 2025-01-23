@@ -5,17 +5,22 @@ from datetime import datetime
 
 # Dictionary of CSV files with labels
 csv_files = {
-    "n=5": "experiments/data/run_2025_Jan_21_at_18_43_05/brown-sheep_5BP_2025_Jan_21_at_18_43_05_metrics.csv",
-    "n=10": "experiments/data/run_2025_Jan_21_at_18_48_45/green-turkey_10BP_2025_Jan_21_at_18_48_45_metrics.csv",
-    "n=15": "experiments/data/run_2025_Jan_21_at_20_55_14/yellow-fish_15BP_2025_Jan_21_at_20_55_14_metrics.csv",
+    "n=1": "experiments/data/run_2025_Jan_21_at_23_58_26/yellow-mouse_1BP_2025_Jan_21_at_23_58_26_metrics.csv",
+    "n=2": "experiments/data/run_2025_Jan_21_at_23_59_31/purple-duck_2BP_2025_Jan_21_at_23_59_31_metrics.csv",
+    "n=3": "experiments/data/run_2025_Jan_21_at_22_34_56/gray-goat_3BP_2025_Jan_21_at_22_34_56_metrics.csv",
+    "n=4": "experiments/data/run_2025_Jan_22_at_00_06_54/pink-sheep_4BP_2025_Jan_22_at_00_06_54_metrics.csv",
+    "n=5": "experiments/data/run_2025_Jan_22_at_00_49_34/brown-sheep_5BP_2025_Jan_22_at_00_49_34_metrics.csv",
+    "n=6": "experiments/data/run_2025_Jan_21_at_23_27_05/purple-bird_6BP_2025_Jan_21_at_23_27_05_metrics.csv",
 }
 
 # Color scheme for different BP configurations
 bp_colors = {
-    "n=5": "#1f77b4",  # Blue
-    "n=10": "#2ca02c",  # Green
-    "n=15": "#ff7f0e",  # Orange
-    "20BP": "#9467bd",  # Purple
+    "n=1": "#1f77b4",  # Blue
+    "n=2": "#9467bd",  # Purple
+    "n=3": "#ff7f0e",  # Orange
+    "n=4": "#e377c2",  # Pink
+    "n=5": "#8c564b",  # Brown
+    "n=6": "#2ca02c",  # Green
 }
 
 # Styles for raw values vs rates
@@ -108,7 +113,7 @@ for idx, (label, csv_file) in enumerate(csv_files.items()):
     df["time_since_start"] = pd.to_numeric(df["time_since_start"])
 
     # Calculate alpha value
-    alpha = 1.0 - (idx * 0.15)
+    alpha = 1.0
 
     # Plot queue size (top subplot) - divide by 1e6 for millions
     line1 = ax1.plot(
@@ -164,10 +169,8 @@ ax2.set_ylabel("Rate of Change (items/minute)", size=12, labelpad=10)
 ax1.set_xlabel("Time Since Start (minutes)", size=12, labelpad=10)
 ax2.set_xlabel("Time Since Start (minutes)", size=12, labelpad=10)
 
-ax1.set_title(
-    "DVM Events Queue Size Over Time by Number of Batch Processors", size=14, pad=20
-)
-ax2.set_title("DVM Events Processing Rate Over Time", size=14, pad=20)
+ax1.set_title("DVM Events Processed Over Time", size=14, pad=20)
+ax2.set_title("Processing Speed (DVM events per minute)", size=14, pad=20)
 
 # Add legends
 ax1.legend(
