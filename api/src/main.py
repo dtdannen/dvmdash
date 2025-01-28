@@ -1,13 +1,46 @@
 # api/src/main.py
-from fastapi import FastAPI, HTTPException
+
+
+from fastapi import FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import os
 import asyncpg
-from typing import Optional, List
+from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
+
+
+class DVMTimeSeriesData(BaseModel):
+    time: str
+    period_feedback: int
+    period_responses: int
+    running_total_feedback: int
+    running_total_responses: int
+
+
+class DVMStatsResponse(BaseModel):
+    dvm_id: str
+    timestamp: datetime
+    period_start: datetime
+    period_end: datetime
+    period_feedback: int
+    period_responses: int
+    running_total_feedback: int
+    running_total_responses: int
+    time_series: List[DVMTimeSeriesData]
+
+
+class DVMListItem(BaseModel):
+    dvm_id: str
+    last_seen: datetime
+    total_responses: int
+    total_feedback: int
+
+
+class DVMListResponse(BaseModel):
+    dvms: List[DVMListItem]
 
 
 class TimeWindow(str, Enum):
@@ -170,6 +203,129 @@ async def get_latest_global_stats(
         #     print(resulting_data["time_series"][i])
 
         return resulting_data
+
+
+@app.get(
+    "/api/stats/dvm/{dvm_id}", response_model=Union[DVMStatsResponse, DVMListResponse]
+)
+async def get_dvm_stats(
+    dvm_id: str = Path(..., description="DVM ID or 'list' for all DVMs"),
+    timeRange: TimeWindow = Query(
+        default=TimeWindow.ONE_MONTH,
+        alias="timeRange",
+        description="Time window for stats",
+    ),
+):
+    async with app.state.pool.acquire() as conn:
+        # List case
+        if dvm_id == "list":
+            list_query = """
+                SELECT DISTINCT ON (dsr.dvm_id)
+                    dsr.dvm_id,
+                    d.last_seen,
+                    dsr.running_total_responses as total_responses,
+                    dsr.running_total_feedback as total_feedback
+                FROM dvm_stats_rollups dsr
+                JOIN dvms d ON d.id = dsr.dvm_id
+                WHERE d.is_active = true
+                ORDER BY dsr.dvm_id, dsr.timestamp DESC
+                LIMIT 100
+            """
+            rows = await conn.fetch(list_query)
+            return {"dvms": [dict(row) for row in rows]}
+
+        # Individual DVM case
+        stats_query = """
+            WITH latest_rollup AS (
+                SELECT 
+                    dvm_id,
+                    timestamp,
+                    period_start,
+                    period_end,
+                    period_feedback,
+                    period_responses,
+                    running_total_feedback,
+                    running_total_responses
+                FROM dvm_stats_rollups 
+                WHERE dvm_id = $1
+                ORDER BY timestamp DESC 
+                LIMIT 1
+            )
+            SELECT r.*, d.is_active
+            FROM latest_rollup r
+            JOIN dvms d ON d.id = r.dvm_id
+        """
+        stats = await conn.fetchrow(stats_query, dvm_id)
+
+        if not stats:
+            # Check if DVM exists but has no stats
+            dvm_check = await conn.fetchrow(
+                "SELECT id, is_active FROM dvms WHERE id = $1", dvm_id
+            )
+            if not dvm_check:
+                raise HTTPException(status_code=404, detail=f"DVM {dvm_id} not found")
+            if not dvm_check["is_active"]:
+                raise HTTPException(
+                    status_code=404, detail=f"DVM {dvm_id} is no longer active"
+                )
+            # Return empty stats if DVM exists but has no data
+            return {
+                "dvm_id": dvm_id,
+                "timestamp": datetime.now(),
+                "period_start": datetime.now(),
+                "period_end": datetime.now(),
+                "period_feedback": 0,
+                "period_responses": 0,
+                "running_total_feedback": 0,
+                "running_total_responses": 0,
+                "time_series": [],
+            }
+
+        # Get time series data (your existing timeseries query remains the same)
+        timeseries_query = """
+            WITH first_timestamp AS (
+                SELECT MIN(timestamp) as first_ts
+                FROM dvm_stats_rollups
+                WHERE dvm_id = $1
+            ),
+            timestamps AS (
+                SELECT generate_series(
+                    CASE 
+                        WHEN $2 = '1 hour' THEN GREATEST(NOW() - INTERVAL '1 hour', (SELECT first_ts FROM first_timestamp))
+                        WHEN $2 = '24 hours' THEN GREATEST(NOW() - INTERVAL '24 hours', (SELECT first_ts FROM first_timestamp))
+                        WHEN $2 = '7 days' THEN GREATEST(NOW() - INTERVAL '7 days', (SELECT first_ts FROM first_timestamp))
+                        WHEN $2 = '30 days' THEN GREATEST(NOW() - INTERVAL '30 days', (SELECT first_ts FROM first_timestamp))
+                        ELSE (SELECT first_ts FROM first_timestamp)
+                    END,
+                    NOW(),
+                    CASE 
+                        WHEN $2 = '1 hour' THEN INTERVAL '5 minutes'
+                        WHEN $2 = '24 hours' THEN INTERVAL '1 hour'
+                        WHEN $2 = '7 days' THEN INTERVAL '6 hours'
+                        WHEN $2 = '30 days' THEN INTERVAL '1 day'
+                        ELSE INTERVAL '1 day'
+                    END
+                ) AS ts
+            )
+            SELECT 
+                to_char(t.ts, 'YYYY-MM-DD HH24:MI:SS') as time,
+                COALESCE(s.period_feedback, 0) as period_feedback,
+                COALESCE(s.period_responses, 0) as period_responses,
+                COALESCE(s.running_total_feedback, 0) as running_total_feedback,
+                COALESCE(s.running_total_responses, 0) as running_total_responses
+            FROM timestamps t
+            LEFT JOIN dvm_stats_rollups s ON 
+                date_trunc('hour', s.timestamp) = date_trunc('hour', t.ts)
+                AND s.dvm_id = $1
+            ORDER BY t.ts ASC
+        """
+
+        timeseries_rows = await conn.fetch(
+            timeseries_query, dvm_id, timeRange.to_db_value()
+        )
+        time_series = [dict(row) for row in timeseries_rows]
+
+        return {**dict(stats), "time_series": time_series}
 
 
 if __name__ == "__main__":

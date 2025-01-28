@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
-import { useTimeWindowStats } from '@/lib/api'
+import { useDVMStats } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock } from 'lucide-react'
+import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock, ThumbsUp } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -29,27 +29,26 @@ const TimeRangeSelector = ({ timeRange, setTimeRange }) => (
   </Tabs>
 )
 
-const JobCountChart = ({ data }) => (
+const ResponseChart = ({ data }) => (
   <ResponsiveContainer width="100%" height={400}>
     <LineChart data={data}>
       <CartesianGrid strokeDasharray="3 3" />
       <XAxis dataKey="time" />
       <YAxis />
       <Tooltip />
-      <Line type="monotone" dataKey="jobCount" stroke="#8884d8" name="Job Count" />
+      <Line type="monotone" dataKey="responses" stroke="#8884d8" name="Responses" />
     </LineChart>
   </ResponsiveContainer>
 )
 
-const ActorCountChart = ({ data }) => (
+const FeedbackChart = ({ data }) => (
   <ResponsiveContainer width="100%" height={400}>
     <LineChart data={data}>
       <CartesianGrid strokeDasharray="3 3" />
       <XAxis dataKey="time" />
       <YAxis />
       <Tooltip />
-      <Line type="monotone" dataKey="users" stroke="#8884d8" name="Users" />
-      <Line type="monotone" dataKey="agents" stroke="#82ca9d" name="DVMs" />
+      <Line type="monotone" dataKey="feedback" stroke="#82ca9d" name="Feedback" />
     </LineChart>
   </ResponsiveContainer>
 )
@@ -68,32 +67,34 @@ const NavIcon = ({ Icon, href, isActive, label }) => (
   </Link>
 )
 
-export function Dashboard() {
+export function DVMStats({ dvmId }: { dvmId: string }) {
   const [timeRange, setTimeRange] = useState('30d')
-  const { stats, isLoading, isError } = useTimeWindowStats(timeRange)
+  const { stats, isLoading, isError } = useDVMStats(dvmId, timeRange)
+
+  console.log('DVMStats render:', { dvmId, timeRange, isLoading, isError, hasStats: !!stats });
+
 
   if (isError) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <p>Error loading stats</p>
+      <p>Error loading DVM stats</p>
     </div>
   )
 
-  if (isLoading) return (
+  if (isLoading || !stats) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <p>Loading...</p>
     </div>
   )
 
   // Transform time series data for charts
-  const jobCountData = stats.time_series.map(point => ({
+  const responseData = stats.time_series.map(point => ({
     time: point.time,
-    jobCount: point.total_requests
+    responses: point.period_responses
   }))
 
-  const actorCountData = stats.time_series.map(point => ({
+  const feedbackData = stats.time_series.map(point => ({
     time: point.time,
-    users: point.unique_users,
-    agents: point.unique_dvms
+    feedback: point.period_feedback
   }))
 
   return (
@@ -114,13 +115,13 @@ export function Dashboard() {
               <NavIcon
                 Icon={BarChart3}
                 href="/stats"
-                isActive={true}
+                isActive={false}
                 label="Summary Stats"
               />
               <NavIcon
                 Icon={Bot}
-                href="/dvm-stats/c3454327566f0d0e41471d2e36024053e59530a7007eddd982b97576ce5573da"
-                isActive={false}
+                href="/dvm-stats"
+                isActive={true}
                 label="Per DVM Stats"
               />
               <NavIcon
@@ -147,115 +148,74 @@ export function Dashboard() {
       </div>
 
       <main className="container mx-auto p-4">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold mb-2">DVM: {stats.dvm_id}</h2>
+          <p className="text-sm text-muted-foreground">
+            Showing data from {stats.period_start.toLocaleString()} to {stats.period_end.toLocaleString()}
+          </p>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Job Requests</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total_requests.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Total requests processed</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Job Responses</CardTitle>
+              <CardTitle className="text-sm font-medium">Period Responses</CardTitle>
               <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total_responses.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                {((stats.total_responses / stats.total_requests) * 100).toFixed(1)}% completion rate
-              </p>
+              <div className="text-2xl font-bold">{stats.period_responses.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Responses in current period</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unique Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Period Feedback</CardTitle>
+              <ThumbsUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.unique_users.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Active users in period</p>
+              <div className="text-2xl font-bold">{stats.period_feedback.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Feedback received in current period</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unique DVMs</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Responses</CardTitle>
               <Server className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.unique_dvms.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Active DVMs in period</p>
+              <div className="text-2xl font-bold">{stats.running_total_responses.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Total responses to date</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unique Kinds</CardTitle>
-              <Hash className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.unique_kinds}</div>
-              <p className="text-xs text-muted-foreground">Different kinds available</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Most Popular DVM</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Feedback</CardTitle>
               <Star className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold truncate" title={stats.popular_dvm || 'None'}>
-                {stats.popular_dvm ? stats.popular_dvm.slice(0, 8) + '...' : 'None'}
-              </div>
-              <p className="text-xs text-muted-foreground">Most used DVM</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Popular Kind</CardTitle>
-              <Zap className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.popular_kind || 'None'}</div>
-              <p className="text-xs text-muted-foreground">Most requested kind</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Competitive Kind</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.competitive_kind || 'None'}</div>
-              <p className="text-xs text-muted-foreground">Most DVMs competing</p>
+              <div className="text-2xl font-bold">{stats.running_total_feedback.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Total feedback received to date</p>
             </CardContent>
           </Card>
         </div>
 
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle>Network Activity</CardTitle>
+            <CardTitle>DVM Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="jobCount">
+            <Tabs defaultValue="responses">
               <TabsList className="mb-4">
-                <TabsTrigger value="jobCount">Job Count</TabsTrigger>
-                <TabsTrigger value="actorCount">Actor Count</TabsTrigger>
+                <TabsTrigger value="responses">Responses</TabsTrigger>
+                <TabsTrigger value="feedback">Feedback</TabsTrigger>
               </TabsList>
-              <TabsContent value="jobCount">
-                <JobCountChart data={jobCountData} />
+              <TabsContent value="responses">
+                <ResponseChart data={responseData} />
               </TabsContent>
-              <TabsContent value="actorCount">
-                <ActorCountChart data={actorCountData} />
+              <TabsContent value="feedback">
+                <FeedbackChart data={feedbackData} />
               </TabsContent>
             </Tabs>
           </CardContent>

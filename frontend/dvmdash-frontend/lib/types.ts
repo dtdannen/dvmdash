@@ -20,3 +20,34 @@ export interface TimeWindowStats {
   competitive_kind: number | null;
   time_series: TimeSeriesData[];
 }
+
+export interface DVMTimeSeriesData {
+  time: string;
+  period_feedback: number;
+  period_responses: number;
+  running_total_feedback: number;
+  running_total_responses: number;
+}
+
+export interface DVMStats {
+  dvm_id: string;
+  timestamp: Date;
+  period_start: Date;
+  period_end: Date;
+  period_feedback: number;
+  period_responses: number;
+  running_total_feedback: number;
+  running_total_responses: number;
+  time_series: DVMTimeSeriesData[];
+}
+
+export interface DVMListItem {
+  dvm_id: string;
+  last_seen: Date;
+  total_responses: number;
+  total_feedback: number;
+}
+
+export interface DVMList {
+  dvms: DVMListItem[];
+}
