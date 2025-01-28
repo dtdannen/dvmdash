@@ -6,8 +6,11 @@ import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useRouter } from 'next/navigation'
-import { BarChart3, Bot, Tags, Home, Search } from 'lucide-react'
+import { BarChart3, Bot, Tags, Home, Search, LayoutGrid, List } from 'lucide-react'
 import { useDVMList } from '@/lib/api'
 
 const NavIcon = ({ Icon, href, isActive, label }) => (
@@ -53,9 +56,35 @@ const DVMCard = ({ dvm }) => {
   )
 }
 
+const DVMTable = ({ dvms }) => {
+  const router = useRouter()
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>ID</TableHead>
+          <TableHead>Supported Kinds</TableHead>
+          <TableHead>Total Events</TableHead>
+          <TableHead>Last Seen</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {dvms.map((dvm) => (
+          <TableRow key={dvm.id} className="cursor-pointer" onClick={() => router.push(`/dvm-stats/${dvm.id}`)}>
+            <TableCell className="font-medium">{dvm.id}</TableCell>
+            <TableCell>{dvm.supported_kinds.length}</TableCell>
+            <TableCell>{dvm.total_events.toLocaleString()}</TableCell>
+            <TableCell>{new Date(dvm.last_seen).toLocaleString()}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
 
 export function DVMList() {
   const [searchTerm, setSearchTerm] = useState('')
+  const [isCardView, setIsCardView] = useState(true)
   const { dvmList, isLoading, isError } = useDVMList(100, 0)
 
   // Filter DVMs based on search term
@@ -102,8 +131,8 @@ export function DVMList() {
       </header>
 
       <main className="container mx-auto p-4">
-        <div className="mb-6">
-          <div className="relative">
+        <div className="mb-6 flex justify-between items-center">
+          <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-500" />
             <Input
               type="search"
@@ -113,6 +142,19 @@ export function DVMList() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="view-toggle" className="sr-only">
+              Toggle view
+            </Label>
+            <Switch
+              id="view-toggle"
+              checked={isCardView}
+              onCheckedChange={setIsCardView}
+            />
+            <span className="text-sm text-gray-500">
+              {isCardView ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+            </span>
+          </div>
         </div>
 
         {isLoading ? (
@@ -120,11 +162,15 @@ export function DVMList() {
         ) : isError ? (
           <div className="text-center text-red-500">Error loading DVMs</div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filteredDVMs.map(dvm => (
-              <DVMCard key={dvm.id} dvm={dvm} />
-            ))}
-          </div>
+          isCardView ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredDVMs.map(dvm => (
+                <DVMCard key={dvm.id} dvm={dvm} />
+              ))}
+            </div>
+          ) : (
+            <DVMTable dvms={filteredDVMs} />
+          )
         )}
       </main>
     </div>
