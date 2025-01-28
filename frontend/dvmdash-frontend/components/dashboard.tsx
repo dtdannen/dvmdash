@@ -119,7 +119,7 @@ export function Dashboard() {
               />
               <NavIcon
                 Icon={Bot}
-                href="/dvm-stats/c3454327566f0d0e41471d2e36024053e59530a7007eddd982b97576ce5573da"
+                href="/dvm-stats"
                 isActive={false}
                 label="Per DVM Stats"
               />

@@ -33,10 +33,12 @@ class DVMStatsResponse(BaseModel):
 
 
 class DVMListItem(BaseModel):
-    dvm_id: str
+    id: str
     last_seen: datetime
     total_responses: int
     total_feedback: int
+    total_events: int  # New field for combined total
+    supported_kinds: List[int]  # New field for supported kinds
 
 
 class DVMListResponse(BaseModel):
@@ -205,6 +207,54 @@ async def get_latest_global_stats(
         return resulting_data
 
 
+@app.get("/api/dvms", response_model=DVMListResponse)
+async def list_dvms(
+    limit: int = Query(
+        default=100, ge=1, le=1000, description="Number of DVMs to return"
+    ),
+    offset: int = Query(default=0, ge=0, description="Number of DVMs to skip"),
+):
+    """
+    Get a list of DVMs with their stats and supported kinds.
+    Returns DVMs ordered by total events (responses + feedback) in descending order.
+    """
+    async with app.state.pool.acquire() as conn:
+        query = """
+            WITH latest_stats AS (
+                SELECT DISTINCT ON (dsr.dvm_id)
+                    dsr.dvm_id,
+                    d.last_seen,
+                    dsr.running_total_responses as total_responses,
+                    dsr.running_total_feedback as total_feedback
+                FROM dvm_stats_rollups dsr
+                JOIN dvms d ON d.id = dsr.dvm_id
+                WHERE d.is_active = true
+                ORDER BY dsr.dvm_id, dsr.timestamp DESC
+            ),
+            dvm_kinds AS (
+                SELECT 
+                    dvm,
+                    array_agg(kind ORDER BY kind) as supported_kinds
+                FROM kind_dvm_support
+                GROUP BY dvm
+            )
+            SELECT 
+                ls.dvm_id as id,
+                ls.last_seen,
+                ls.total_responses,
+                ls.total_feedback,
+                (ls.total_responses + ls.total_feedback) as total_events,
+                COALESCE(dk.supported_kinds, ARRAY[]::integer[]) as supported_kinds
+            FROM latest_stats ls
+            LEFT JOIN dvm_kinds dk ON dk.dvm = ls.dvm_id
+            ORDER BY total_events DESC
+            LIMIT $1
+            OFFSET $2
+        """
+        rows = await conn.fetch(query, limit, offset)
+        return {"dvms": [dict(row) for row in rows]}
+
+
 @app.get(
     "/api/stats/dvm/{dvm_id}", response_model=Union[DVMStatsResponse, DVMListResponse]
 )
@@ -217,23 +267,6 @@ async def get_dvm_stats(
     ),
 ):
     async with app.state.pool.acquire() as conn:
-        # List case
-        if dvm_id == "list":
-            list_query = """
-                SELECT DISTINCT ON (dsr.dvm_id)
-                    dsr.dvm_id,
-                    d.last_seen,
-                    dsr.running_total_responses as total_responses,
-                    dsr.running_total_feedback as total_feedback
-                FROM dvm_stats_rollups dsr
-                JOIN dvms d ON d.id = dsr.dvm_id
-                WHERE d.is_active = true
-                ORDER BY dsr.dvm_id, dsr.timestamp DESC
-                LIMIT 100
-            """
-            rows = await conn.fetch(list_query)
-            return {"dvms": [dict(row) for row in rows]}
-
         # Individual DVM case
         stats_query = """
             WITH latest_rollup AS (

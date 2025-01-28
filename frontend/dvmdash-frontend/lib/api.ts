@@ -48,3 +48,20 @@ export function useTimeWindowStats(timeRange: string) {
     isError: error
   }
 }
+
+export function useDVMList(limit: number = 100, offset: number = 0) {
+  const { data, error, isLoading } = useSWR(
+    `http://localhost:8000/api/dvms?limit=${limit}&offset=${offset}`,
+    fetcher,
+    {
+      refreshInterval: 1000,
+      onError: (err) => console.error('SWR Error:', err)
+    }
+  );
+
+  return {
+    dvmList: data,
+    isLoading,
+    isError: error
+  };
+}

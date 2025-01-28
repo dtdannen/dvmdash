@@ -42,10 +42,12 @@ export interface DVMStats {
 }
 
 export interface DVMListItem {
-  dvm_id: string;
+  id: string;
   last_seen: Date;
   total_responses: number;
   total_feedback: number;
+  total_events: number;
+  supported_kinds: number[];
 }
 
 export interface DVMList {
