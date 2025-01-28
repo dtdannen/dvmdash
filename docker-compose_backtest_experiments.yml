@@ -29,10 +29,9 @@ services:
       - redis_data:/data
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 5
-      start_period: 120s
 
   event_collector:
     build:
@@ -45,7 +44,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG
       - RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
-      - DAYS_LOOKBACK=20
+      - DAYS_LOOKBACK=40
     healthcheck:
       test: [ "CMD", "python", "-c", "import os, redis; r=redis.from_url('redis://redis:6379/0'); r.ping() if os.getenv('START_LISTENING')=='true' else exit(0)" ]
       interval: 30s
@@ -177,62 +176,32 @@ services:
       retries: 3
       start_period: 10s
 
-#  grafana:
-#    image: grafana/grafana:latest
-#    profiles: ["all"]
-#    container_name: grafana
-#    restart: unless-stopped
-#    environment:
-#      - TERM=linux
-#      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-polystat-panel
-#      # Add these environment variables for Postgres connection
-#      - GF_DATABASE_TYPE=postgres
-#      - GF_DATABASE_HOST=postgres_pipeline
-#      - GF_DATABASE_NAME=dvmdash_pipeline
-#      - GF_DATABASE_USER=devuser
-#      - GF_DATABASE_PASSWORD=devpass
-#    ports:
-#      - '3001:3000'
-#    volumes:
-#      - 'grafana_storage:/var/lib/grafana'
-#      # Add a provisioning volume for automatic datasource configuration
-#      - './grafana/provisioning:/etc/grafana/provisioning'
-#    depends_on:
-#      postgres_pipeline:
-#        condition: service_healthy
-#    healthcheck:
-#      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1" ]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 10s
-
-#  nostr_relay:
-#    build:
-#      context: ./infrastructure/nostr_rs_relay
-#      dockerfile: Dockerfile
-#    profiles: ["all"] # todo [ "core", "all" ]
-#    ports:
-#      - "8081:8080"  # Using 8081 since 8080 might be used by other services
-#    volumes:
-#      - nostr_relay_data:/usr/src/app/db
-#    healthcheck:
-#      test: [ "CMD", "curl", "-f", "http://localhost:8080/" ]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 10s
-#    deploy:
-#      restart_policy:
-#        condition: on-failure
-#        delay: 5s
-#        max_attempts: 3
-#        window: 120s
-#    logging:
-#      driver: "json-file"
-#      options:
-#        max-size: "10m"
-#        max-file: "3"
+  nostr_relay:
+    build:
+      context: ./infrastructure/nostr_rs_relay
+      dockerfile: Dockerfile
+    profiles: ["all"] # todo [ "core", "all" ]
+    ports:
+      - "8081:8080"  # Using 8081 since 8080 might be used by other services
+    volumes:
+      - nostr_relay_data:/usr/src/app/db
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 
 
@@ -244,5 +213,4 @@ volumes:
   event_collector_logs:
   batch_processor_logs:
   monthly_archiver_logs:
-  grafana_storage: { }
   nostr_relay_data:

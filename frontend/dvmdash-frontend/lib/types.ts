@@ -6,7 +6,7 @@ export interface TimeSeriesData {
   unique_dvms: number;
 }
 
-export interface GlobalStats {
+export interface TimeWindowStats {
   timestamp: Date;
   period_start: Date;
   period_end: Date;

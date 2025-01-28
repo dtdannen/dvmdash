@@ -400,6 +400,9 @@ class BatchProcessor:
                 await self._update_dvm_stats_rollup(conn, stats)
                 await self._update_kind_stats_rollup(conn, stats)
 
+                # update time window stats
+                await self._update_window_stats(conn, stats)
+
             # this does not need to be an atomic transaction, it's only adding new data
             await self._save_events(conn, events)
 
@@ -1196,7 +1199,7 @@ class BatchProcessor:
             "30 days": timedelta(days=30),
         }
 
-        # Get metrics for each window size sequentially instead of using gather
+        # Get metrics for each window size
         window_metrics = []
         for window_size in window_sizes:
             metrics = await self.get_metrics(conn, interval=window_size)

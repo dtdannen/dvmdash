@@ -15,7 +15,6 @@ class TimeWindow(str, Enum):
     ONE_DAY = "24h"
     ONE_WEEK = "7d"
     ONE_MONTH = "30d"
-    ALL_TIME = "all"
 
     def to_db_value(self) -> str:
         """Convert frontend time window to database value"""
@@ -24,7 +23,6 @@ class TimeWindow(str, Enum):
             "24h": "24 hours",
             "7d": "7 days",
             "30d": "30 days",
-            "all": "all time",
         }
         return mapping[self.value]
 
@@ -86,7 +84,7 @@ async def shutdown():
 @app.get("/api/stats/global/latest", response_model=GlobalStatsResponse)
 async def get_latest_global_stats(
     timeRange: TimeWindow = Query(
-        default=TimeWindow.ALL_TIME,
+        default=TimeWindow.ONE_MONTH,
         alias="timeRange",
         description="Time window for stats",
     )

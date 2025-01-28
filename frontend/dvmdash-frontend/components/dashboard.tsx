@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
-import { useGlobalStats } from '@/lib/api'
+import { useTimeWindowStats } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -25,7 +25,6 @@ const TimeRangeSelector = ({ timeRange, setTimeRange }) => (
       <TabsTrigger value="24h" className="text-xs">24h</TabsTrigger>
       <TabsTrigger value="7d" className="text-xs">7d</TabsTrigger>
       <TabsTrigger value="30d" className="text-xs">30d</TabsTrigger>
-      <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
     </TabsList>
   </Tabs>
 )
@@ -70,8 +69,8 @@ const NavIcon = ({ Icon, href, isActive, label }) => (
 )
 
 export function Dashboard() {
-  const [timeRange, setTimeRange] = useState('all')
-  const { stats, isLoading, isError } = useGlobalStats(timeRange)
+  const [timeRange, setTimeRange] = useState('30d')
+  const { stats, isLoading, isError } = useTimeWindowStats(timeRange)
 
   if (isError) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -116,7 +115,7 @@ export function Dashboard() {
                 Icon={BarChart3}
                 href="/stats"
                 isActive={true}
-                label="Global Stats"
+                label="Summary Stats"
               />
               <NavIcon
                 Icon={Bot}

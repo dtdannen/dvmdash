@@ -3,7 +3,10 @@ import useSWR from 'swr'
 
 const fetcher = (url: string) =>
   fetch(url)
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error('API request failed')
+      return res.json()
+    })
     .then(data => ({
       ...data,
       timestamp: new Date(data.timestamp),
@@ -11,11 +14,14 @@ const fetcher = (url: string) =>
       period_end: new Date(data.period_end),
     }));
 
-export function useGlobalStats(timeRange: string) {
+export function useTimeWindowStats(timeRange: string) {
   const { data, error, isLoading } = useSWR(
     `http://localhost:8000/api/stats/global/latest?timeRange=${timeRange}`,
     fetcher,
-    { refreshInterval: 1000 } // Refresh every second
+    {
+      refreshInterval: 1000,
+      onError: (err) => console.error('SWR Error:', err)
+    }
   )
 
   return {
