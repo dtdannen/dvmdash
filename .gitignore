@@ -11,7 +11,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -44,6 +43,9 @@ yarn-error.log*
 venv/
 ENV/
 
+# Data
+experiments/data
+
 # Docker
 .docker/
 /backend/event_collector/test_data/dvmdash.prod_events_29NOV2024.json
@@ -53,3 +55,21 @@ ENV/
 /v1/dvmdash/staticfiles/bootstrap/
 /v1/dvmdash/staticfiles/fontawesome/
 /v1/dvmdash/staticfiles/js/
+metrics/local_perf_test_20250119_144242.csv
+metrics/local_perf_test_20250119_145416_graph.png
+metrics/local_perf_test_20250119_145416.csv
+metrics/local_perf_test_20250120_123109_graph.png
+metrics/local_perf_test_20250120_123109.csv
+metrics/local_perf_test_20250120_141522_graph.png
+metrics/local_perf_test_20250120_141522.csv
+metrics/local_perf_test_20250120_143042.csv
+metrics/local_perf_test_20250120_150147_graph.png
+metrics/local_perf_test_20250120_150147.csv
+metrics/local_perf_test_20250120_150356.csv
+metrics/local_perf_test_20250120_150648_graph.png
+metrics/local_perf_test_20250120_150648.csv
+metrics/local_perf_test_20250120_150931.csv
+metrics/local_perf_test_20250120_152321_graph.png
+metrics/local_perf_test_20250120_152321.csv
+metrics/run_20250120_154227/metrics.csv
+metrics/run_20250120_154427/metrics.csv
