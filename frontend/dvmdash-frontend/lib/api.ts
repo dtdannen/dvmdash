@@ -27,8 +27,6 @@ export interface DVMStats {
 
 export interface KindTimeSeriesData {
   time: string
-  period_requests: number
-  period_responses: number
   running_total_requests: number
   running_total_responses: number
 }
@@ -38,8 +36,6 @@ export interface KindStats {
   timestamp: string
   period_start: string
   period_end: string
-  period_requests: number
-  period_responses: number
   running_total_requests: number
   running_total_responses: number
   num_supporting_dvms: number
@@ -143,4 +139,3 @@ export function useKindList(limit: number = 100, offset: number = 0) {
     isError: error
   };
 }
-

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DVMDash Stats</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.10/htmx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script>
+    htmx.defineOnLoad(function(content) {
+          if(content.id === "stats-data") {
+            const data = JSON.parse(content.innerHTML);
+
+            // Update all stat values
+            document.getElementById('total-requests').textContent = data.running_total_requests;
+            document.getElementById('total-responses').textContent = data.running_total_responses;
+            document.getElementById('unique-users').textContent = data.running_total_unique_users;
+            document.getElementById('unique-dvms').textContent = data.running_total_unique_dvms;
+            document.getElementById('unique-kinds').textContent = data.running_total_unique_kinds;
+            document.getElementById('popular-dvm').textContent = data.most_popular_dvm || '-';
+            document.getElementById('popular-kind').textContent = data.most_popular_kind || '-';
+            document.getElementById('competitive-kind').textContent = data.most_competitive_kind || '-';
+
+            // Update last updated timestamp
+            const timestamp = new Date(data.timestamp);
+            document.getElementById('last-updated').textContent =
+              `Last updated: ${timestamp.toLocaleString()}`;
+          }
+        });
+    </script>
+    <style>
+        .tab-active {
+            background-color: rgb(var(--primary-color, 59 130 246));
+            color: white;
+        }
+        .tab-list {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.5rem;
+            background-color: rgb(243 244 246);
+            padding: 0.25rem;
+            border-radius: 0.5rem;
+            width: 100%;
+            max-width: 20rem;
+        }
+        .tab-trigger {
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 0.375rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .tab-trigger:hover {
+            background-color: rgb(229 231 235);
+        }
+        .tab-trigger.active {
+            background-color: white;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <header class="border-b bg-white">
+        <div class="container mx-auto flex h-16 items-center justify-between pl-2 pr-4">
+            <!-- Left side: Home and Title -->
+            <div class="flex items-center space-x-3">
+                <a href="/" class="inline-flex items-center justify-center w-12 h-12 rounded-lg hover:bg-gray-100">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                </a>
+                <h1 class="text-xl font-bold">DVMDash Stats</h1>
+            </div>
+
+            <!-- Center: Navigation -->
+            <div class="flex-1 flex justify-center">
+                <nav class="flex items-center space-x-2" aria-label="Main Navigation">
+                    <a href="/stats" class="inline-flex items-center justify-center w-12 h-12 rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-700" aria-label="Global Stats">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18M9 9v8m4-6v6m4-8v8"/>
+                        </svg>
+                    </a>
+                    <a href="/dvm-stats" class="inline-flex items-center justify-center w-12 h-12 rounded-lg transition-colors hover:bg-gray-100" aria-label="Per DVM Stats">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 16a3 3 0 110-6 3 3 0 010 6z"/>
+                        </svg>
+                    </a>
+                    <a href="/kind-stats" class="inline-flex items-center justify-center w-12 h-12 rounded-lg transition-colors hover:bg-gray-100" aria-label="Per Kind Stats">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 7h.01M7 3h5a1.99 1.99 0 013 0h5a2 2 0 012 2v14a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h3z"/>
+                        </svg>
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Right side: Time Range Selector -->
+            <div class="flex items-center">
+                <div class="tab-list">
+                    <input type="hidden" name="timeRange" value="all" />
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="outerHTML" hx-target="#stats-data" onclick="updateTimeRange(this, '1h')">1h</button>
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="outerHTML" hx-target="#stats-data" onclick="updateTimeRange(this, '24h')">24h</button>
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="outerHTML" hx-target="#stats-data" onclick="updateTimeRange(this, '7d')">7d</button>
+                    <button class="tab-trigger" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="outerHTML" hx-target="#stats-data" onclick="updateTimeRange(this, '30d')">30d</button>
+                    <button class="tab-trigger active" hx-get="http://localhost:8000/api/stats/global/latest" hx-include="[name='timeRange']" hx-swap="outerHTML" hx-target="#stats-data" onclick="updateTimeRange(this, 'all')">All</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="w-full bg-gray-100 py-3">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-sm text-gray-600" id="last-updated">Loading...</p>
+        </div>
+    </div>
+
+    <div id="error-message" class="hidden">
+        <div class="container mx-auto p-4">
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <strong class="font-bold">Error!</strong>
+                <span class="block sm:inline"> Unable to connect to the API. Make sure the server is running at http://localhost:8000</span>
+            </div>
+        </div>
+    </div>
+
+    <main class="container mx-auto p-4">
+        <div id="stats-grid" class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div id="stats-data"
+                 hx-get="http://localhost:8000/api/stats/global/latest"
+                 hx-trigger="load, every 1s"
+                 hx-include="[name='timeRange']"
+                 hx-swap="outerHTML">
+            </div>
+            <!-- Cards -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Total Job Requests</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="total-requests">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Total Job Responses</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="total-responses">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Unique Users</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="unique-users">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Unique DVMs</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="unique-dvms">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Unique Kinds</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M7 7h.01M7 3h5a1.99 1.99 0 013 0h5a2 2 0 012 2v14a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h3zm0 4h.01M11 7h.01M15 7h.01M19 7h.01M7 11h.01M11 11h.01M15 11h.01M19 11h.01M7 15h.01M11 15h.01M15 15h.01M19 15h.01"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="unique-kinds">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Most Popular DVM</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="popular-dvm">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Most Popular Kind</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="popular-kind">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-600">Most Competitive Kind</h3>
+                    <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <div class="mt-2">
+                    <div class="text-2xl font-bold" id="competitive-kind">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- New chart section -->
+        <div class="mt-8 bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-medium mb-4">Activity Over Time</h2>
+            <div class="h-[400px]">
+                <canvas id="timeSeriesChart"></canvas>
+            </div>
+        </div>
+
+
+    </main>
+
+    <script>
+        let timeSeriesChart = null;
+
+        // Initialize the chart
+        function initializeChart() {
+            const ctx = document.getElementById('timeSeriesChart').getContext('2d');
+            timeSeriesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Total Requests',
+                            borderColor: 'rgb(59, 130, 246)',
+                            data: []
+                        },
+                        {
+                            label: 'Total Responses',
+                            borderColor: 'rgb(16, 185, 129)',
+                            data: []
+                        },
+                        {
+                            label: 'Unique Users',
+                            borderColor: 'rgb(245, 158, 11)',
+                            data: []
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        async function updateChart(timeRange) {
+          try {
+            const response = await fetch(`http://localhost:8000/api/stats/global/timeseries?timeRange=${timeRange}`);
+            const data = await response.json();
+
+            if (!timeSeriesChart) {
+              initializeChart();
+            }
+
+            timeSeriesChart.data.labels = data.map(d => new Date(d.timestamp));
+            timeSeriesChart.data.datasets[0].data = data.map(d => d.total_requests);
+            timeSeriesChart.data.datasets[1].data = data.map(d => d.total_responses);
+            timeSeriesChart.data.datasets[2].data = data.map(d => d.unique_users);
+
+            // Adjust time unit based on time range
+            const timeUnit = timeRange === '1h' ? 'minute'
+                             : timeRange === '24h' ? 'hour'
+                             : timeRange === '7d' ? 'day'
+                             : 'day';
+
+            timeSeriesChart.options.scales.x.time.unit = timeUnit;
+            timeSeriesChart.update();
+          } catch (error) {
+            console.error('Error updating chart:', error);
+          }
+        }
+
+
+        // Call this function when the time range changes
+        function updateTimeRange(button, range) {
+          document.querySelector('input[name="timeRange"]').value = range;
+          document.querySelectorAll('.tab-trigger').forEach(btn => {
+            btn.classList.remove('active');
+          });
+          button.classList.add('active');
+
+          // Update both stats and chart
+          htmx.trigger('#stats-data', 'refresh');
+          updateChart(range);
+        }
+
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize time range
+            const timeRangeInput = document.querySelector('input[name="timeRange"]');
+            if (!timeRangeInput) {
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'timeRange';
+                hiddenInput.value = 'all';
+                document.body.appendChild(hiddenInput);
+            }
+
+            // Set initial active state
+            const allTimeButton = document.querySelector('.tab-trigger:last-child');
+            if (allTimeButton) {
+                allTimeButton.classList.add('active');
+            }
+
+            // Initialize and start chart updates
+            initializeChart();
+            updateChart();
+            setInterval(updateChart, 1000);
+        });
+    </script>
+</body>
+</html>

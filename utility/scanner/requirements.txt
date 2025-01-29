@@ -1,0 +1,4 @@
+loguru==0.7.3
+nostr-sdk==0.36.0
+PyYAML==6.0.2
+tqdm==4.67.1
