@@ -53,3 +53,13 @@ export interface DVMListItem {
 export interface DVMList {
   dvms: DVMListItem[];
 }
+
+export interface KindListResponse {
+  kinds: {
+    kind: number;
+    num_requests: number;
+    num_responses: number;
+    num_supporting_dvms: number;
+    last_seen: Date;
+  }[];
+}

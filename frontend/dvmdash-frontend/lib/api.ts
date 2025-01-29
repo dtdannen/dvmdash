@@ -65,3 +65,20 @@ export function useDVMList(limit: number = 100, offset: number = 0) {
     isError: error
   };
 }
+
+export function useKindList(limit: number = 100, offset: number = 0) {
+  const { data, error, isLoading } = useSWR(
+    `http://localhost:8000/api/kinds?limit=${limit}&offset=${offset}`,
+    fetcher,
+    {
+      refreshInterval: 1000,
+      onError: (err) => console.error('SWR Error:', err)
+    }
+  );
+
+  return {
+    kindList: data,
+    isLoading,
+    isError: error
+  };
+}

@@ -84,6 +84,18 @@ class GlobalStatsResponse(BaseModel):
     time_series: List[TimeSeriesData]
 
 
+class KindListItem(BaseModel):
+    kind: int
+    num_requests: int
+    num_responses: int
+    num_supporting_dvms: int
+    last_seen: datetime
+
+
+class KindListResponse(BaseModel):
+    kinds: List[KindListItem]
+
+
 app = FastAPI(title="DVMDash API")
 
 # Add CORS middleware
@@ -359,6 +371,51 @@ async def get_dvm_stats(
         time_series = [dict(row) for row in timeseries_rows]
 
         return {**dict(stats), "time_series": time_series}
+
+
+@app.get("/api/kinds", response_model=KindListResponse)
+async def list_kinds(
+    limit: int = Query(
+        default=100, ge=1, le=1000, description="Number of kinds to return"
+    ),
+    offset: int = Query(default=0, ge=0, description="Number of kinds to skip"),
+):
+    """
+    Get a list of kinds with their stats and number of supporting DVMs.
+    Returns kinds ordered by total requests in descending order.
+    """
+    async with app.state.pool.acquire() as conn:
+        query = """
+            WITH latest_stats AS (
+                SELECT DISTINCT ON (ksr.kind)
+                    ksr.kind,
+                    ksr.timestamp as last_seen,
+                    ksr.running_total_requests as num_requests,
+                    ksr.running_total_responses as num_responses
+                FROM kind_stats_rollups ksr
+                ORDER BY ksr.kind, ksr.timestamp DESC
+            ),
+            dvm_counts AS (
+                SELECT 
+                    kind,
+                    COUNT(DISTINCT dvm) as num_supporting_dvms
+                FROM kind_dvm_support
+                GROUP BY kind
+            )
+            SELECT 
+                ls.kind,
+                ls.num_requests,
+                ls.num_responses,
+                ls.last_seen,
+                COALESCE(dc.num_supporting_dvms, 0) as num_supporting_dvms
+            FROM latest_stats ls
+            LEFT JOIN dvm_counts dc ON dc.kind = ls.kind
+            ORDER BY ls.num_requests DESC
+            LIMIT $1
+            OFFSET $2
+        """
+        rows = await conn.fetch(query, limit, offset)
+        return {"kinds": [dict(row) for row in rows]}
 
 
 if __name__ == "__main__":
