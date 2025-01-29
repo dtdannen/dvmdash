@@ -89,12 +89,12 @@ export function KindStats({ kindId }: { kindId: number }) {
   // Transform time series data for charts
   const requestData = stats.time_series.map((point) => ({
     time: point.time,
-    requests: point.period_requests
+    requests: point.running_total_requests
   }))
 
   const responseData = stats.time_series.map((point) => ({
     time: point.time,
-    responses: point.period_responses
+    responses: point.running_total_responses
   }))
 
   return (
@@ -155,29 +155,7 @@ export function KindStats({ kindId }: { kindId: number }) {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Period Requests</CardTitle>
-              <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.period_requests.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Requests in current period</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Period Responses</CardTitle>
-              <Server className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.period_responses.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Responses in current period</p>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -203,21 +181,10 @@ export function KindStats({ kindId }: { kindId: number }) {
 
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle>Kind Activity</CardTitle>
+            <CardTitle>Total Activity Over Time</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="requests">
-              <TabsList className="mb-4">
-                <TabsTrigger value="requests">Requests</TabsTrigger>
-                <TabsTrigger value="responses">Responses</TabsTrigger>
-              </TabsList>
-              <TabsContent value="requests">
-                <RequestChart data={requestData} />
-              </TabsContent>
-              <TabsContent value="responses">
-                <ResponseChart data={responseData} />
-              </TabsContent>
-            </Tabs>
+            <RequestChart data={requestData} />
           </CardContent>
         </Card>
       </main>

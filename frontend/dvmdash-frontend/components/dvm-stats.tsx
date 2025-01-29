@@ -18,8 +18,10 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-const TimeRangeSelector = ({ timeRange, setTimeRange }) => (
-  <Tabs value={timeRange} onValueChange={setTimeRange} className="w-full max-w-xs">
+import type { TimeWindow, TimeRangeSelectorProps, ChartProps, NavIconProps } from '@/lib/types'
+
+const TimeRangeSelector = ({ timeRange, setTimeRange }: TimeRangeSelectorProps) => (
+  <Tabs value={timeRange} onValueChange={(value) => setTimeRange(value as TimeWindow)} className="w-full max-w-xs">
     <TabsList className="grid w-full grid-cols-5 h-9">
       <TabsTrigger value="1h" className="text-xs">1h</TabsTrigger>
       <TabsTrigger value="24h" className="text-xs">24h</TabsTrigger>
@@ -29,7 +31,7 @@ const TimeRangeSelector = ({ timeRange, setTimeRange }) => (
   </Tabs>
 )
 
-const ResponseChart = ({ data }) => (
+const ResponseChart = ({ data }: ChartProps) => (
   <ResponsiveContainer width="100%" height={400}>
     <LineChart data={data}>
       <CartesianGrid strokeDasharray="3 3" />
@@ -41,7 +43,7 @@ const ResponseChart = ({ data }) => (
   </ResponsiveContainer>
 )
 
-const FeedbackChart = ({ data }) => (
+const FeedbackChart = ({ data }: ChartProps) => (
   <ResponsiveContainer width="100%" height={400}>
     <LineChart data={data}>
       <CartesianGrid strokeDasharray="3 3" />
@@ -53,7 +55,7 @@ const FeedbackChart = ({ data }) => (
   </ResponsiveContainer>
 )
 
-const NavIcon = ({ Icon, href, isActive, label }) => (
+const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   <Link
     href={href}
     className={cn(
@@ -68,7 +70,7 @@ const NavIcon = ({ Icon, href, isActive, label }) => (
 )
 
 export function DVMStats({ dvmId }: { dvmId: string }) {
-  const [timeRange, setTimeRange] = useState('30d')
+  const [timeRange, setTimeRange] = useState<TimeWindow>('30d')
   const { stats, isLoading, isError } = useDVMStats(dvmId, timeRange)
 
   console.log('DVMStats render:', { dvmId, timeRange, isLoading, isError, hasStats: !!stats });
@@ -89,12 +91,12 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
   // Transform time series data for charts
   const responseData = stats.time_series.map(point => ({
     time: point.time,
-    responses: point.period_responses
+    responses: point.running_total_responses
   }))
 
   const feedbackData = stats.time_series.map(point => ({
     time: point.time,
-    feedback: point.period_feedback
+    feedback: point.running_total_feedback
   }))
 
   return (
@@ -155,29 +157,7 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Period Responses</CardTitle>
-              <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.period_responses.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Responses in current period</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Period Feedback</CardTitle>
-              <ThumbsUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.period_feedback.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Feedback received in current period</p>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Responses</CardTitle>
