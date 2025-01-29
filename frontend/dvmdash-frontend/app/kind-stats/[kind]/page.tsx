@@ -6,5 +6,5 @@ import { useParams } from 'next/navigation'
 export default function KindStatsPage() {
   const params = useParams()
   console.log("URL Params:", params); // Debug log
-  return <KindStats dvmId={params.dvmId as string} />
+  return <KindStats kindId={params.kindId as string} />
 }

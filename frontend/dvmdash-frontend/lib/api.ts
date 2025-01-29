@@ -1,49 +1,110 @@
-// lib/api.ts
 import useSWR from 'swr'
+import { TimeWindow, TimeWindowStats } from './types'
 
-const fetcher = (url: string) =>
-  fetch(url)
-    .then(res => {
-      if (!res.ok) throw new Error('API request failed')
-      return res.json()
-    })
-    .then(data => ({
-      ...data,
-      timestamp: new Date(data.timestamp),
-      period_start: new Date(data.period_start),
-      period_end: new Date(data.period_end),
-    }));
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// Add a new hook for fetching DVM stats
-export function useDVMStats(dvmId: string, timeRange: string) {
+const fetcher = (url: string) => fetch(url).then(res => res.json())
 
-    console.log(`Making request to: http://localhost:8000/api/stats/dvm/${dvmId}?timeRange=${timeRange}`);
-  const { data, error, isLoading } = useSWR(
-    dvmId ? `http://localhost:8000/api/stats/dvm/${dvmId}?timeRange=${timeRange}` : null,
-    fetcher,
-    { refreshInterval: 1000, // Refresh every second
-        onError: (err) => console.error('SWR Error:', err)}
-  );
-
-  return {
-    stats: data,
-    isLoading,
-    isError: error
-  };
+export interface DVMTimeSeriesData {
+  time: string
+  period_feedback: number
+  period_responses: number
+  running_total_feedback: number
+  running_total_responses: number
 }
 
-export function useTimeWindowStats(timeRange: string) {
-  const { data, error, isLoading } = useSWR(
-    `http://localhost:8000/api/stats/global/latest?timeRange=${timeRange}`,
+export interface DVMStats {
+  dvm_id: string
+  timestamp: string
+  period_start: string
+  period_end: string
+  period_feedback: number
+  period_responses: number
+  running_total_feedback: number
+  running_total_responses: number
+  time_series: DVMTimeSeriesData[]
+}
+
+export interface KindTimeSeriesData {
+  time: string
+  period_requests: number
+  period_responses: number
+  running_total_requests: number
+  running_total_responses: number
+}
+
+export interface KindStats {
+  kind: number
+  timestamp: string
+  period_start: string
+  period_end: string
+  period_requests: number
+  period_responses: number
+  running_total_requests: number
+  running_total_responses: number
+  num_supporting_dvms: number
+  supporting_dvms: string[]
+  time_series: KindTimeSeriesData[]
+}
+
+export function useDVMStats(dvmId: string, timeRange: TimeWindow) {
+  const { data, error, isLoading } = useSWR<DVMStats>(
+    `${API_BASE}/api/stats/dvm/${dvmId}?timeRange=${timeRange}`,
     fetcher,
     {
-      refreshInterval: 1000,
-      onError: (err) => console.error('SWR Error:', err)
+      refreshInterval: 1000, // Update every second
     }
   )
 
   return {
-    stats: data,
+    stats: data ? {
+      ...data,
+      timestamp: new Date(data.timestamp),
+      period_start: new Date(data.period_start),
+      period_end: new Date(data.period_end),
+    } : null,
+    isLoading,
+    isError: error
+  }
+}
+
+export function useKindStats(kindId: number, timeRange: TimeWindow) {
+  const { data, error, isLoading } = useSWR<KindStats>(
+    `${API_BASE}/api/stats/kind/${kindId}?timeRange=${timeRange}`,
+    fetcher,
+    {
+      refreshInterval: 1000, // Update every second
+    }
+  )
+
+  return {
+    stats: data ? {
+      ...data,
+      timestamp: new Date(data.timestamp),
+      period_start: new Date(data.period_start),
+      period_end: new Date(data.period_end),
+    } : null,
+    isLoading,
+    isError: error
+  }
+}
+
+export function useTimeWindowStats(timeRange: TimeWindow) {
+  const { data, error, isLoading } = useSWR<TimeWindowStats>(
+    timeRange ? `${API_BASE}/api/stats/global/latest?timeRange=${timeRange}` : null,
+    fetcher,
+    {
+      refreshInterval: 1000, // Update every second
+    }
+  )
+
+  return {
+    stats: data ? {
+      ...data,
+      timestamp: new Date(data.timestamp),
+      period_start: new Date(data.period_start),
+      period_end: new Date(data.period_end),
+    } : null,
     isLoading,
     isError: error
   }
@@ -82,3 +143,4 @@ export function useKindList(limit: number = 100, offset: number = 0) {
     isError: error
   };
 }
+

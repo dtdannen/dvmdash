@@ -84,6 +84,28 @@ class GlobalStatsResponse(BaseModel):
     time_series: List[TimeSeriesData]
 
 
+class KindTimeSeriesData(BaseModel):
+    time: str
+    period_requests: int
+    period_responses: int
+    running_total_requests: int
+    running_total_responses: int
+
+
+class KindStatsResponse(BaseModel):
+    kind: int
+    timestamp: datetime
+    period_start: datetime
+    period_end: datetime
+    period_requests: int
+    period_responses: int
+    running_total_requests: int
+    running_total_responses: int
+    num_supporting_dvms: int
+    supporting_dvms: List[str]
+    time_series: List[KindTimeSeriesData]
+
+
 class KindListItem(BaseModel):
     kind: int
     num_requests: int
@@ -367,6 +389,117 @@ async def get_dvm_stats(
 
         timeseries_rows = await conn.fetch(
             timeseries_query, dvm_id, timeRange.to_db_value()
+        )
+        time_series = [dict(row) for row in timeseries_rows]
+
+        return {**dict(stats), "time_series": time_series}
+
+
+@app.get("/api/stats/kind/{kind_id}", response_model=KindStatsResponse)
+async def get_kind_stats(
+    kind_id: int = Path(..., description="Kind ID"),
+    timeRange: TimeWindow = Query(
+        default=TimeWindow.ONE_MONTH,
+        alias="timeRange",
+        description="Time window for stats",
+    ),
+):
+    async with app.state.pool.acquire() as conn:
+        # Get the latest stats
+        stats_query = """
+            WITH latest_rollup AS (
+                SELECT 
+                    kind,
+                    timestamp,
+                    period_start,
+                    period_end,
+                    period_requests,
+                    period_responses,
+                    running_total_requests,
+                    running_total_responses
+                FROM kind_stats_rollups 
+                WHERE kind = $1
+                ORDER BY timestamp DESC 
+                LIMIT 1
+            ),
+            supporting_dvms AS (
+                SELECT array_agg(dvm) as dvms, COUNT(*) as dvm_count
+                FROM kind_dvm_support
+                WHERE kind = $1
+                GROUP BY kind
+            )
+            SELECT 
+                r.*,
+                COALESCE(s.dvm_count, 0) as num_supporting_dvms,
+                COALESCE(s.dvms, ARRAY[]::text[]) as supporting_dvms
+            FROM latest_rollup r
+            LEFT JOIN supporting_dvms s ON true
+        """
+        stats = await conn.fetchrow(stats_query, kind_id)
+
+        if not stats:
+            # Check if kind exists but has no stats
+            kind_check = await conn.fetchrow(
+                "SELECT kind FROM kind_dvm_support WHERE kind = $1 LIMIT 1", kind_id
+            )
+            if not kind_check:
+                raise HTTPException(status_code=404, detail=f"Kind {kind_id} not found")
+            # Return empty stats if kind exists but has no data
+            return {
+                "kind": kind_id,
+                "timestamp": datetime.now(),
+                "period_start": datetime.now(),
+                "period_end": datetime.now(),
+                "period_requests": 0,
+                "period_responses": 0,
+                "running_total_requests": 0,
+                "running_total_responses": 0,
+                "num_supporting_dvms": 0,
+                "supporting_dvms": [],
+                "time_series": [],
+            }
+
+        # Get time series data
+        timeseries_query = """
+            WITH first_timestamp AS (
+                SELECT MIN(timestamp) as first_ts
+                FROM kind_stats_rollups
+                WHERE kind = $1
+            ),
+            timestamps AS (
+                SELECT generate_series(
+                    CASE 
+                        WHEN $2 = '1 hour' THEN GREATEST(NOW() - INTERVAL '1 hour', (SELECT first_ts FROM first_timestamp))
+                        WHEN $2 = '24 hours' THEN GREATEST(NOW() - INTERVAL '24 hours', (SELECT first_ts FROM first_timestamp))
+                        WHEN $2 = '7 days' THEN GREATEST(NOW() - INTERVAL '7 days', (SELECT first_ts FROM first_timestamp))
+                        WHEN $2 = '30 days' THEN GREATEST(NOW() - INTERVAL '30 days', (SELECT first_ts FROM first_timestamp))
+                        ELSE (SELECT first_ts FROM first_timestamp)
+                    END,
+                    NOW(),
+                    CASE 
+                        WHEN $2 = '1 hour' THEN INTERVAL '5 minutes'
+                        WHEN $2 = '24 hours' THEN INTERVAL '1 hour'
+                        WHEN $2 = '7 days' THEN INTERVAL '6 hours'
+                        WHEN $2 = '30 days' THEN INTERVAL '1 day'
+                        ELSE INTERVAL '1 day'
+                    END
+                ) AS ts
+            )
+            SELECT 
+                to_char(t.ts, 'YYYY-MM-DD HH24:MI:SS') as time,
+                COALESCE(s.period_requests, 0) as period_requests,
+                COALESCE(s.period_responses, 0) as period_responses,
+                COALESCE(s.running_total_requests, 0) as running_total_requests,
+                COALESCE(s.running_total_responses, 0) as running_total_responses
+            FROM timestamps t
+            LEFT JOIN kind_stats_rollups s ON 
+                date_trunc('hour', s.timestamp) = date_trunc('hour', t.ts)
+                AND s.kind = $1
+            ORDER BY t.ts ASC
+        """
+
+        timeseries_rows = await conn.fetch(
+            timeseries_query, kind_id, timeRange.to_db_value()
         )
         time_series = [dict(row) for row in timeseries_rows]
 

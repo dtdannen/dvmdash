@@ -1,3 +1,26 @@
+export type TimeWindow = '1h' | '24h' | '7d' | '30d'
+
+export interface ChartData {
+  time: string
+  [key: string]: string | number
+}
+
+export interface TimeRangeSelectorProps {
+  timeRange: TimeWindow
+  setTimeRange: (value: TimeWindow) => void
+}
+
+export interface ChartProps {
+  data: ChartData[]
+}
+
+export interface NavIconProps {
+  Icon: React.ComponentType<any>
+  href: string
+  isActive: boolean
+  label: string
+}
+
 // lib/types.ts
 export interface TimeSeriesData {
   time: string;

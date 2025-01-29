@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart3, Bot, Tags, Home, Search } from 'lucide-react'
 import { useKindList } from '@/lib/api'
+import { NavIconProps, KindListResponse } from '@/lib/types'
 
-const NavIcon = ({ Icon, href, isActive, label }) => (
+const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   <Link
     href={href}
     className={cn(
@@ -20,7 +21,7 @@ const NavIcon = ({ Icon, href, isActive, label }) => (
   </Link>
 )
 
-const KindTable = ({ kinds }) => {
+const KindTable = ({ kinds }: { kinds: KindListResponse['kinds'] }) => {
   return (
     <Table>
       <TableHeader>
@@ -35,7 +36,11 @@ const KindTable = ({ kinds }) => {
       <TableBody>
         {kinds.map((kind) => (
           <TableRow key={kind.kind}>
-            <TableCell className="font-medium">{kind.kind}</TableCell>
+            <TableCell className="font-medium">
+              <Link href={`/kind-stats/${kind.kind}`} className="hover:underline">
+                {kind.kind}
+              </Link>
+            </TableCell>
             <TableCell className="text-right">{kind.num_requests.toLocaleString()}</TableCell>
             <TableCell className="text-right">{kind.num_responses.toLocaleString()}</TableCell>
             <TableCell className="text-right">{kind.num_supporting_dvms}</TableCell>
@@ -52,7 +57,7 @@ export function KindList() {
   const { kindList, isLoading, isError } = useKindList(100, 0) // Updated hook name
 
   // Filter kinds based on search term
-  const filteredKinds = kindList?.kinds.filter(kind =>
+  const filteredKinds = kindList?.kinds.filter((kind: KindListResponse['kinds'][0]) =>
     kind.kind.toString().includes(searchTerm)
   ) || []
 
