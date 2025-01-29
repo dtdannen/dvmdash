@@ -116,7 +116,7 @@ export function DVMList() {
               <NavIcon
                 Icon={Bot}
                 href="/dvm-stats"
-                isActive={false}
+                isActive={true}
                 label="Per DVM Stats"
               />
               <NavIcon
