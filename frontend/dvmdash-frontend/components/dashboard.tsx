@@ -113,7 +113,7 @@ export function Dashboard() {
             <nav className="flex items-center space-x-2" aria-label="Main Navigation">
               <NavIcon
                 Icon={BarChart3}
-                href="/stats"
+                href="/"
                 isActive={true}
                 label="Summary Stats"
               />

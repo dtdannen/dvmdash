@@ -73,7 +73,7 @@ export function KindList() {
             <nav className="flex items-center space-x-2" aria-label="Main Navigation">
               <NavIcon
                 Icon={BarChart3}
-                href="/stats"
+                href="/"
                 isActive={false}
                 label="Summary Stats"
               />
