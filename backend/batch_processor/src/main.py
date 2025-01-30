@@ -900,10 +900,10 @@ class BatchProcessor:
                         SELECT 
                             entity_id as dvm_id,
                             COUNT(DISTINCT CASE 
-                                WHEN event_id LIKE 'resp%' THEN event_id 
+                                WHEN kind BETWEEN 6000 AND 6999 THEN event_id 
                             END) as responses,
                             COUNT(DISTINCT CASE 
-                                WHEN event_id LIKE 'feed%' THEN event_id
+                                WHEN kind = 7000 THEN event_id
                             END) as feedback
                         FROM entity_activity
                         WHERE entity_type = 'dvm'
@@ -924,10 +924,11 @@ class BatchProcessor:
                 )
 
                 # Prepare values for bulk insert
+                current_time = datetime.now(timezone.utc)
                 for row in dvm_stats:
                     values.append((
                         row['dvm_id'],
-                        stats.period_end,  # timestamp
+                        current_time,  # Use current time instead of period_end
                         window_size,
                         period_start,
                         stats.period_end,
@@ -942,6 +943,11 @@ class BatchProcessor:
                         (dvm_id, timestamp, window_size, period_start, period_end,
                          total_responses, total_feedback)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (dvm_id, timestamp, window_size) DO UPDATE
+                    SET total_responses = EXCLUDED.total_responses,
+                        total_feedback = EXCLUDED.total_feedback,
+                        period_start = EXCLUDED.period_start,
+                        period_end = EXCLUDED.period_end
                     """,
                     values
                 )
@@ -1006,10 +1012,11 @@ class BatchProcessor:
                 )
 
                 # Prepare values for bulk insert
+                current_time = datetime.now(timezone.utc)
                 for row in kind_stats:
                     values.append((
                         row['kind'],
-                        stats.period_end,  # timestamp
+                        current_time,  # Use current time instead of period_end
                         window_size,
                         period_start,
                         stats.period_end,
@@ -1024,6 +1031,11 @@ class BatchProcessor:
                         (kind, timestamp, window_size, period_start, period_end,
                          total_requests, total_responses)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (kind, timestamp, window_size) DO UPDATE
+                    SET total_requests = EXCLUDED.total_requests,
+                        total_responses = EXCLUDED.total_responses,
+                        period_start = EXCLUDED.period_start,
+                        period_end = EXCLUDED.period_end
                     """,
                     values
                 )
@@ -1106,14 +1118,14 @@ class BatchProcessor:
             ),
             CompetitiveKind AS (
                 SELECT 
-                    kind,
+                    (kind - 1000) as kind,  -- Convert 6xxx to 5xxx
                     COUNT(DISTINCT entity_id)::integer as dvm_count
                 FROM entity_activity
                 CROSS JOIN IntervalStart
                 WHERE entity_type = 'dvm'
-                AND kind IS NOT NULL
+                AND kind BETWEEN 6000 AND 6999  -- Look at response events
                 AND observed_at >= IntervalStart.start_time
-                GROUP BY kind
+                GROUP BY (kind - 1000)  -- Group by the 5xxx version
                 ORDER BY dvm_count DESC
                 LIMIT 1
             ),

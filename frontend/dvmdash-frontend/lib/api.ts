@@ -7,10 +7,8 @@ const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export interface DVMTimeSeriesData {
   time: string
-  period_feedback: number
-  period_responses: number
-  running_total_feedback: number
-  running_total_responses: number
+  total_responses: number
+  total_feedback: number
 }
 
 export interface DVMStats {
@@ -18,10 +16,8 @@ export interface DVMStats {
   timestamp: string
   period_start: string
   period_end: string
-  period_feedback: number
-  period_responses: number
-  running_total_feedback: number
-  running_total_responses: number
+  total_responses: number
+  total_feedback: number
   time_series: DVMTimeSeriesData[]
 }
 
@@ -106,9 +102,9 @@ export function useTimeWindowStats(timeRange: TimeWindow) {
   }
 }
 
-export function useDVMList(limit: number = 100, offset: number = 0) {
+export function useDVMList(limit: number = 100, offset: number = 0, timeRange?: TimeWindow) {
   const { data, error, isLoading } = useSWR(
-    `http://localhost:8000/api/dvms?limit=${limit}&offset=${offset}`,
+    `${API_BASE}/api/dvms?limit=${limit}&offset=${offset}${timeRange ? `&timeRange=${timeRange}` : ''}`,
     fetcher,
     {
       refreshInterval: 1000,
@@ -123,9 +119,9 @@ export function useDVMList(limit: number = 100, offset: number = 0) {
   };
 }
 
-export function useKindList(limit: number = 100, offset: number = 0) {
+export function useKindList(limit: number = 100, offset: number = 0, timeRange?: TimeWindow) {
   const { data, error, isLoading } = useSWR(
-    `http://localhost:8000/api/kinds?limit=${limit}&offset=${offset}`,
+    `${API_BASE}/api/kinds?limit=${limit}&offset=${offset}${timeRange ? `&timeRange=${timeRange}` : ''}`,
     fetcher,
     {
       refreshInterval: 1000,

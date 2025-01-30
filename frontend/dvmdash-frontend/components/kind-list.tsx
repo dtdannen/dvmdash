@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart3, Bot, Tags, Home, Search } from 'lucide-react'
 import { useKindList } from '@/lib/api'
-import { NavIconProps, KindListResponse } from '@/lib/types'
+import { NavIconProps, KindListResponse, TimeWindow, KindListItem } from '@/lib/types'
+import { TimeRangeSelector } from './time-range-selector'
 
 const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   <Link
@@ -21,7 +22,11 @@ const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   </Link>
 )
 
-const KindTable = ({ kinds }: { kinds: KindListResponse['kinds'] }) => {
+interface KindTableProps {
+  kinds: KindListResponse['kinds']
+}
+
+const KindTable = ({ kinds }: KindTableProps) => {
   return (
     <Table>
       <TableHeader>
@@ -41,8 +46,8 @@ const KindTable = ({ kinds }: { kinds: KindListResponse['kinds'] }) => {
                 {kind.kind}
               </Link>
             </TableCell>
-            <TableCell className="text-right">{kind.num_requests.toLocaleString()}</TableCell>
-            <TableCell className="text-right">{kind.num_responses.toLocaleString()}</TableCell>
+            <TableCell className="text-right">{kind.total_requests?.toLocaleString() ?? '0'}</TableCell>
+            <TableCell className="text-right">{kind.total_responses?.toLocaleString() ?? '0'}</TableCell>
             <TableCell className="text-right">{kind.num_supporting_dvms}</TableCell>
             <TableCell className="text-right">{new Date(kind.last_seen).toLocaleString()}</TableCell>
           </TableRow>
@@ -54,10 +59,11 @@ const KindTable = ({ kinds }: { kinds: KindListResponse['kinds'] }) => {
 
 export function KindList() {
   const [searchTerm, setSearchTerm] = useState('')
-  const { kindList, isLoading, isError } = useKindList(100, 0) // Updated hook name
+  const [timeRange, setTimeRange] = useState<TimeWindow>('30d')
+  const { kindList, isLoading, isError } = useKindList(100, 0, timeRange)
 
   // Filter kinds based on search term
-  const filteredKinds = kindList?.kinds.filter((kind: KindListResponse['kinds'][0]) =>
+  const filteredKinds = kindList?.kinds.filter((kind: KindListItem) =>
     kind.kind.toString().includes(searchTerm)
   ) || []
 
@@ -95,6 +101,9 @@ export function KindList() {
                 label="Per Kind Stats"
               />
             </nav>
+          </div>
+          <div className="flex items-center">
+            <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
           </div>
         </div>
       </header>

@@ -46,10 +46,8 @@ export interface TimeWindowStats {
 
 export interface DVMTimeSeriesData {
   time: string;
-  period_feedback: number;
-  period_responses: number;
-  running_total_feedback: number;
-  running_total_responses: number;
+  total_responses: number;
+  total_feedback: number;
 }
 
 export interface DVMStats {
@@ -57,20 +55,19 @@ export interface DVMStats {
   timestamp: Date;
   period_start: Date;
   period_end: Date;
-  period_feedback: number;
-  period_responses: number;
-  running_total_feedback: number;
-  running_total_responses: number;
+  total_responses: number;
+  total_feedback: number;
   time_series: DVMTimeSeriesData[];
 }
 
 export interface DVMListItem {
   id: string;
   last_seen: Date;
-  total_responses: number;
-  total_feedback: number;
-  total_events: number;
+  total_responses?: number;
+  total_feedback?: number;
+  total_events?: number;
   supported_kinds: number[];
+  is_active: boolean;
 }
 
 export interface DVMList {
@@ -95,12 +92,14 @@ export interface KindStats {
   time_series: KindTimeSeriesData[];
 }
 
+export interface KindListItem {
+  kind: number;
+  total_requests?: number;
+  total_responses?: number;
+  num_supporting_dvms: number;
+  last_seen: Date;
+}
+
 export interface KindListResponse {
-  kinds: {
-    kind: number;
-    num_requests: number;
-    num_responses: number;
-    num_supporting_dvms: number;
-    last_seen: Date;
-  }[];
+  kinds: KindListItem[];
 }

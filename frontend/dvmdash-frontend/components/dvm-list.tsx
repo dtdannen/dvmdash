@@ -12,8 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useRouter } from 'next/navigation'
 import { BarChart3, Bot, Tags, Home, Search, LayoutGrid, List } from 'lucide-react'
 import { useDVMList } from '@/lib/api'
+import { TimeRangeSelector } from './time-range-selector'
+import { TimeWindow, NavIconProps, DVMListItem } from '@/lib/types'
+import { LucideIcon } from 'lucide-react'
 
-const NavIcon = ({ Icon, href, isActive, label }) => (
+const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   <Link
     href={href}
     className={cn(
@@ -27,11 +30,15 @@ const NavIcon = ({ Icon, href, isActive, label }) => (
   </Link>
 )
 
-const DVMCard = ({ dvm }) => {
+interface DVMCardProps {
+  dvm: DVMListItem
+}
+
+const DVMCard = ({ dvm }: DVMCardProps) => {
   const router = useRouter()
   const initials = dvm.id.substring(0, 2).toUpperCase()
   const lastSeenDate = new Date(dvm.last_seen)
-  const timeAgo = Math.round((new Date() - lastSeenDate) / (1000 * 60)) // minutes ago
+  const timeAgo = Math.round((Date.now() - lastSeenDate.getTime()) / (1000 * 60)) // minutes ago
 
   return (
     <Card className="overflow-hidden cursor-pointer" onClick={() => router.push(`/dvm-stats/${dvm.id}`)}>
@@ -48,7 +55,7 @@ const DVMCard = ({ dvm }) => {
           </div>
         </div>
         <div className="mt-4 flex justify-between text-xs text-gray-500">
-          <span>{dvm.total_events.toLocaleString()} events</span>
+          <span>{dvm.total_events?.toLocaleString() ?? '0'} events</span>
           <span>{timeAgo}m ago</span>
         </div>
       </CardContent>
@@ -56,7 +63,11 @@ const DVMCard = ({ dvm }) => {
   )
 }
 
-const DVMTable = ({ dvms }) => {
+interface DVMTableProps {
+  dvms: DVMListItem[]
+}
+
+const DVMTable = ({ dvms }: DVMTableProps) => {
   const router = useRouter()
   return (
     <Table>
@@ -69,11 +80,11 @@ const DVMTable = ({ dvms }) => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {dvms.map((dvm) => (
+        {dvms.map((dvm: DVMListItem) => (
           <TableRow key={dvm.id} className="cursor-pointer" onClick={() => router.push(`/dvm-stats/${dvm.id}`)}>
             <TableCell className="font-medium">{dvm.id}</TableCell>
             <TableCell>{dvm.supported_kinds.length}</TableCell>
-            <TableCell>{dvm.total_events.toLocaleString()}</TableCell>
+            <TableCell>{dvm.total_events?.toLocaleString() ?? '0'}</TableCell>
             <TableCell>{new Date(dvm.last_seen).toLocaleString()}</TableCell>
           </TableRow>
         ))}
@@ -85,10 +96,11 @@ const DVMTable = ({ dvms }) => {
 export function DVMList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isCardView, setIsCardView] = useState(true)
-  const { dvmList, isLoading, isError } = useDVMList(100, 0)
+  const [timeRange, setTimeRange] = useState<TimeWindow>('30d')
+  const { dvmList, isLoading, isError } = useDVMList(100, 0, timeRange as TimeWindow)
 
   // Filter DVMs based on search term
-  const filteredDVMs = dvmList?.dvms.filter(dvm =>
+  const filteredDVMs = dvmList?.dvms.filter((dvm: DVMListItem) =>
     dvm.id.toLowerCase().includes(searchTerm.toLowerCase())
   ) || []
 
@@ -127,6 +139,9 @@ export function DVMList() {
               />
             </nav>
           </div>
+          <div className="flex items-center">
+            <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
+          </div>
         </div>
       </header>
 
@@ -164,7 +179,7 @@ export function DVMList() {
         ) : (
           isCardView ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {filteredDVMs.map(dvm => (
+              {filteredDVMs.map((dvm: DVMListItem) => (
                 <DVMCard key={dvm.id} dvm={dvm} />
               ))}
             </div>

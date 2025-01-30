@@ -91,12 +91,12 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
   // Transform time series data for charts
   const responseData = stats.time_series.map(point => ({
     time: point.time,
-    responses: point.running_total_responses
+    responses: point.total_responses
   }))
 
   const feedbackData = stats.time_series.map(point => ({
     time: point.time,
-    feedback: point.running_total_feedback
+    feedback: point.total_feedback
   }))
 
   return (
@@ -164,7 +164,7 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
               <Server className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.running_total_responses.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{stats.total_responses.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">Total responses to date</p>
             </CardContent>
           </Card>
@@ -175,7 +175,7 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
               <Star className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.running_total_feedback.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{stats.total_feedback.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">Total feedback received to date</p>
             </CardContent>
           </Card>
