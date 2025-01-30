@@ -62,10 +62,10 @@ class BatchStats:
     dvm_kinds: Dict[str, Set[int]] = None  # dvm -> set of kinds supported
 
     # Track all entity observations with timestamps
-    # entity_id is either a kind or npub (user or dvm)
+    # entity_id is a user or dvm npub
     entity_activity: Dict[
-        str, List[Tuple[str, datetime, str]]
-    ] = None  # entity_type -> List[(entity_id, timestamp, event_id)]
+        str, List[Tuple[str, datetime, str, int]]
+    ] = None  # entity_type -> List[(entity_id, timestamp, event_id, kind)]
 
     # Track users and their activities
     user_timestamps: Dict[str, datetime] = None  # user -> latest timestamp
@@ -92,7 +92,6 @@ class BatchStats:
         self.entity_activity = {  # Initialize with empty lists for each entity type
             "dvm": [],
             "user": [],
-            "kind": [],
         }
         self.user_is_dvm = defaultdict(bool)
         self.kind_requests = defaultdict(int)
@@ -396,12 +395,10 @@ class BatchProcessor:
                 # Update base tables first
                 await self._update_base_tables(conn, stats)
 
-                # Update rollup tables
-                await self._update_dvm_stats_rollup(conn, stats)
-                await self._update_kind_stats_rollup(conn, stats)
-
-                # update time window stats
+                # Update all time window stats
                 await self._update_window_stats(conn, stats)
+                await self._update_dvm_window_stats(conn, stats)
+                await self._update_kind_window_stats(conn, stats)
 
             # this does not need to be an atomic transaction, it's only adding new data
             await self._save_events(conn, events)
@@ -595,11 +592,8 @@ class BatchProcessor:
                     stats.period_requests += 1
                     stats.kind_requests[kind] += 1
                     stats.update_user_timestamp(pubkey, timestamp)
-                    # Track each observation
-                    stats.entity_activity["user"].append((pubkey, timestamp, event_id))
-                    stats.entity_activity["kind"].append(
-                        (str(kind), timestamp, event_id)
-                    )
+                    # Track each observation with kind
+                    stats.entity_activity["user"].append((pubkey, timestamp, event_id, kind))
 
                 elif 6000 <= kind <= 6999:  # Response event
                     request_kind = kind - 1000
@@ -610,18 +604,16 @@ class BatchProcessor:
                     stats.update_dvm_timestamp(pubkey, timestamp)
                     stats.add_kind_to_dvm_kinds(pubkey, request_kind)
 
-                    stats.entity_activity["dvm"].append((pubkey, timestamp, event_id))
-                    stats.entity_activity["kind"].append(
-                        (str(kind), timestamp, event_id)
-                    )
+                    # Track each observation with kind
+                    stats.entity_activity["dvm"].append((pubkey, timestamp, event_id, kind))
 
                 elif kind == 7000:  # Feedback event
                     stats.period_feedback += 1
                     stats.dvm_feedback[pubkey] += 1
                     stats.update_dvm_timestamp(pubkey, timestamp)
                     stats.user_is_dvm[pubkey] = True
-                    # Track each observation
-                    stats.entity_activity["dvm"].append((pubkey, timestamp, event_id))
+                    # Track each observation with kind
+                    stats.entity_activity["dvm"].append((pubkey, timestamp, event_id, kind))
 
                 stats.events_processed.append(event)
             except MultipleMonthBatch as e:
@@ -790,15 +782,15 @@ class BatchProcessor:
         all_activity = []
         for entity_type, observations in stats.entity_activity.items():
             all_activity.extend(
-                (entity_id, entity_type, timestamp, event_id)
-                for entity_id, timestamp, event_id in observations
+                (entity_id, entity_type, timestamp, event_id, kind)
+                for entity_id, timestamp, event_id, kind in observations
             )
 
         if all_activity:
             await conn.executemany(
                 """
-                INSERT INTO entity_activity (entity_id, entity_type, observed_at, event_id)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO entity_activity (entity_id, entity_type, observed_at, event_id, kind)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (entity_id, observed_at, event_id) DO NOTHING
                 """,
                 all_activity,
@@ -878,180 +870,166 @@ class BatchProcessor:
             values,
         )
 
-    async def _update_dvm_stats_rollup(
+    async def _update_dvm_window_stats(
         self, conn: asyncpg.Connection, stats: BatchStats
     ) -> None:
-        """Update dvm_stats_rollups table with new stats."""
+        """Update DVM time window stats for all window sizes."""
         if not stats.dvm_responses and not stats.dvm_feedback:
             return
 
+        window_sizes = ["1 hour", "24 hours", "7 days", "30 days"]
+        window_to_delta = {
+            "1 hour": timedelta(hours=1),
+            "24 hours": timedelta(days=1),
+            "7 days": timedelta(days=7),
+            "30 days": timedelta(days=30),
+        }
+
         try:
-            # Get previous running totals for each DVM
-            dvm_ids = list(
-                set(stats.dvm_responses.keys()) | set(stats.dvm_feedback.keys())
-            )
-            prev_totals = await conn.fetch(
-                """
-                SELECT dvm_id, 
-                       COALESCE(MAX(running_total_responses), 0) as total_responses,
-                       COALESCE(MAX(running_total_feedback), 0) as total_feedback
-                FROM dvm_stats_rollups
-                WHERE dvm_id = ANY($1)
-                GROUP BY dvm_id
-            """,
-                dvm_ids,
-            )
-
-            prev_totals_dict = {
-                row["dvm_id"]: (row["total_responses"], row["total_feedback"])
-                for row in prev_totals
-            }
-
-            # Prepare values for new rollup entries
-            values = [
-                (
-                    dvm_id,
-                    stats.period_end,  # timestamp
-                    stats.period_start,
-                    stats.period_end,  # add period_end
-                    stats.dvm_feedback.get(dvm_id, 0),
-                    stats.dvm_responses.get(dvm_id, 0),
-                    prev_totals_dict.get(dvm_id, (0, 0))[1]
-                    + stats.dvm_feedback.get(dvm_id, 0),
-                    prev_totals_dict.get(dvm_id, (0, 0))[0]
-                    + stats.dvm_responses.get(dvm_id, 0),
+            # Get active DVMs
+            dvm_ids = list(set(stats.dvm_responses.keys()) | set(stats.dvm_feedback.keys()))
+            
+            values = []
+            for window_size in window_sizes:
+                period_start = stats.period_end - window_to_delta[window_size]
+                
+                # Get stats for each DVM within the time window
+                dvm_stats = await conn.fetch(
+                    """
+                    WITH WindowActivity AS (
+                        SELECT 
+                            entity_id as dvm_id,
+                            COUNT(DISTINCT CASE 
+                                WHEN event_id LIKE 'resp%' THEN event_id 
+                            END) as responses,
+                            COUNT(DISTINCT CASE 
+                                WHEN event_id LIKE 'feed%' THEN event_id
+                            END) as feedback
+                        FROM entity_activity
+                        WHERE entity_type = 'dvm'
+                        AND entity_id = ANY($1)
+                        AND observed_at >= $2
+                        AND observed_at <= $3
+                        GROUP BY entity_id
+                    )
+                    SELECT 
+                        dvm_id,
+                        COALESCE(responses, 0) as total_responses,
+                        COALESCE(feedback, 0) as total_feedback
+                    FROM WindowActivity
+                    """,
+                    dvm_ids,
+                    period_start,
+                    stats.period_end
                 )
-                for dvm_id in dvm_ids
-            ]
 
-            await conn.executemany(
-                """
-                INSERT INTO dvm_stats_rollups 
-                    (dvm_id, timestamp, period_start, period_end, period_feedback, period_responses,
-                     running_total_feedback, running_total_responses)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                ON CONFLICT (dvm_id, timestamp) DO UPDATE
-                SET period_start = EXCLUDED.period_start,
-                    period_end = EXCLUDED.period_end,
-                    period_feedback = EXCLUDED.period_feedback,
-                    period_responses = EXCLUDED.period_responses,
-                    running_total_feedback = EXCLUDED.running_total_feedback,
-                    running_total_responses = EXCLUDED.running_total_responses
-                """,
-                values,
-            )
+                # Prepare values for bulk insert
+                for row in dvm_stats:
+                    values.append((
+                        row['dvm_id'],
+                        stats.period_end,  # timestamp
+                        window_size,
+                        period_start,
+                        stats.period_end,
+                        row['total_responses'],
+                        row['total_feedback']
+                    ))
 
-            # Count how many were actually inserted vs updated using a separate query
-            inserted_count = await conn.fetchval(
-                """
-                SELECT COUNT(*)
-                FROM dvm_stats_rollups
-                WHERE (dvm_id, timestamp) IN (
-                    SELECT unnest($1::text[]), unnest($2::timestamptz[])
-                )
-                """,
-                [v[0] for v in values],  # dvm_ids
-                [v[1] for v in values],  # timestamps
-            )
-
-            if inserted_count < len(values):
-                skipped = len(values) - inserted_count
-                logger.warning(
-                    f"BP-{self.unique_id[:6]} Some DVM stats rollup records were updated rather than inserted ({skipped} updates)"
+            if values:
+                await conn.executemany(
+                    """
+                    INSERT INTO dvm_time_window_stats 
+                        (dvm_id, timestamp, window_size, period_start, period_end,
+                         total_responses, total_feedback)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    values
                 )
 
         except Exception as e:
-            logger.error(
-                f"BP-{self.unique_id[:6]} Error updating DVM stats rollups: {e}"
-            )
+            logger.error(f"BP-{self.unique_id[:6]} Error updating DVM time window stats: {e}")
             logger.error(traceback.format_exc())
             raise
 
-    async def _update_kind_stats_rollup(
+    async def _update_kind_window_stats(
         self, conn: asyncpg.Connection, stats: BatchStats
     ) -> None:
-        """Update kind_stats_rollups table with new stats."""
+        """Update kind time window stats for all window sizes."""
         if not stats.kind_requests and not stats.kind_responses:
             return
 
+        window_sizes = ["1 hour", "24 hours", "7 days", "30 days"]
+        window_to_delta = {
+            "1 hour": timedelta(hours=1),
+            "24 hours": timedelta(days=1),
+            "7 days": timedelta(days=7),
+            "30 days": timedelta(days=30),
+        }
+
         try:
-            # Get previous running totals for each kind
-            kinds = list(
-                set(stats.kind_requests.keys()) | set(stats.kind_responses.keys())
-            )
-            prev_totals = await conn.fetch(
-                """
-                SELECT kind,
-                       COALESCE(MAX(running_total_requests), 0) as total_requests,
-                       COALESCE(MAX(running_total_responses), 0) as total_responses
-                FROM kind_stats_rollups
-                WHERE kind = ANY($1)
-                GROUP BY kind
-            """,
-                kinds,
-            )
-
-            prev_totals_dict = {
-                row["kind"]: (row["total_requests"], row["total_responses"])
-                for row in prev_totals
-            }
-
-            values = [
-                (
-                    kind,
-                    stats.period_end,  # timestamp
-                    stats.period_start,
-                    stats.period_end,  # add period_end
-                    stats.kind_requests.get(kind, 0),
-                    stats.kind_responses.get(kind, 0),
-                    prev_totals_dict.get(kind, (0, 0))[0]
-                    + stats.kind_requests.get(kind, 0),
-                    prev_totals_dict.get(kind, (0, 0))[1]
-                    + stats.kind_responses.get(kind, 0),
+            # Get active kinds
+            kinds = list(set(stats.kind_requests.keys()) | set(stats.kind_responses.keys()))
+            
+            values = []
+            for window_size in window_sizes:
+                period_start = stats.period_end - window_to_delta[window_size]
+                
+                # Get stats for each kind within the time window
+                kind_stats = await conn.fetch(
+                    """
+                    WITH WindowActivity AS (
+                        SELECT 
+                            kind,
+                            COUNT(DISTINCT CASE 
+                                WHEN kind BETWEEN 5000 AND 5999 
+                                THEN event_id 
+                            END) as requests,
+                            COUNT(DISTINCT CASE 
+                                WHEN kind BETWEEN 6000 AND 6999 
+                                THEN event_id
+                            END) as responses
+                        FROM entity_activity
+                        WHERE kind = ANY($1)
+                        AND observed_at >= $2
+                        AND observed_at <= $3
+                        GROUP BY kind
+                    )
+                    SELECT 
+                        kind,
+                        COALESCE(requests, 0) as total_requests,
+                        COALESCE(responses, 0) as total_responses
+                    FROM WindowActivity
+                    """,
+                    kinds,
+                    period_start,
+                    stats.period_end
                 )
-                for kind in kinds
-            ]
 
-            await conn.executemany(
-                """
-                INSERT INTO kind_stats_rollups 
-                    (kind, timestamp, period_start, period_end, period_requests, period_responses,
-                     running_total_requests, running_total_responses)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                ON CONFLICT (kind, timestamp) DO UPDATE
-                SET period_start = EXCLUDED.period_start,
-                    period_end = EXCLUDED.period_end,
-                    period_requests = EXCLUDED.period_requests,
-                    period_responses = EXCLUDED.period_responses,
-                    running_total_requests = EXCLUDED.running_total_requests,
-                    running_total_responses = EXCLUDED.running_total_responses
-                """,
-                values,
-            )
+                # Prepare values for bulk insert
+                for row in kind_stats:
+                    values.append((
+                        row['kind'],
+                        stats.period_end,  # timestamp
+                        window_size,
+                        period_start,
+                        stats.period_end,
+                        row['total_requests'],
+                        row['total_responses']
+                    ))
 
-            # Count how many were actually inserted vs updated using a separate query
-            inserted_count = await conn.fetchval(
-                """
-                SELECT COUNT(*)
-                FROM kind_stats_rollups
-                WHERE (kind, timestamp) IN (
-                    SELECT unnest($1::integer[]), unnest($2::timestamptz[])
-                )
-                """,
-                [v[0] for v in values],  # kinds
-                [v[1] for v in values],  # timestamps
-            )
-
-            if inserted_count < len(values):
-                skipped = len(values) - inserted_count
-                logger.warning(
-                    f"BP-{self.unique_id[:6]} Some kind stats rollup records were updated rather than inserted ({skipped} updates)"
+            if values:
+                await conn.executemany(
+                    """
+                    INSERT INTO kind_time_window_stats 
+                        (kind, timestamp, window_size, period_start, period_end,
+                         total_requests, total_responses)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    values
                 )
 
         except Exception as e:
-            logger.error(
-                f"BP-{self.unique_id[:6]} Error updating kind stats rollups: {e}"
-            )
+            logger.error(f"BP-{self.unique_id[:6]} Error updating kind time window stats: {e}")
             logger.error(traceback.format_exc())
             raise
 
@@ -1071,83 +1049,91 @@ class BatchProcessor:
         metrics = (
             await conn.fetchrow(
                 """
-            WITH TimeWindowStats AS (
+            WITH IntervalStart AS (
+                SELECT NOW() - (CASE 
+                    WHEN $1 = '1 hour' THEN INTERVAL '1 hour'
+                    WHEN $1 = '24 hours' THEN INTERVAL '24 hours'
+                    WHEN $1 = '7 days' THEN INTERVAL '7 days'
+                    WHEN $1 = '30 days' THEN INTERVAL '30 days'
+                END) as start_time
+            ),
+            KindActivity AS (
+                SELECT 
+                    kind,
+                    COUNT(DISTINCT CASE 
+                        WHEN kind BETWEEN 5000 AND 5999 
+                        THEN event_id 
+                    END) as requests,
+                    COUNT(DISTINCT CASE 
+                        WHEN kind BETWEEN 6000 AND 6999 
+                        THEN event_id
+                    END) as responses
+                FROM entity_activity, IntervalStart
+                WHERE kind IS NOT NULL
+                AND observed_at >= IntervalStart.start_time
+                GROUP BY kind
+            ),
+            TimeWindowStats AS (
                 SELECT
-                    COALESCE(SUM(ksr.period_requests), 0)::integer as total_requests,
-                    COALESCE(SUM(ksr.period_responses), 0)::integer as total_responses
-                FROM kind_stats_rollups ksr
-                WHERE CASE 
-                    WHEN $1 = 'all time' THEN TRUE
-                    ELSE ksr.timestamp >= NOW() - ($1::interval)
-                END
+                    COALESCE(SUM(requests), 0)::integer as total_requests,
+                    COALESCE(SUM(responses), 0)::integer as total_responses
+                FROM KindActivity
+            ),
+            DVMActivity AS (
+                SELECT 
+                    entity_id as dvm_id,
+                    COUNT(DISTINCT event_id) as response_count
+                FROM entity_activity, IntervalStart
+                WHERE entity_type = 'dvm'
+                AND observed_at >= IntervalStart.start_time
+                GROUP BY entity_id
             ),
             PopularDVM AS (
                 SELECT 
-                    dvm_id, 
-                    SUM(period_responses)::integer as total_responses
-                FROM dvm_stats_rollups dsr
-                WHERE CASE 
-                    WHEN $1 = 'all time' THEN TRUE
-                    ELSE dsr.timestamp >= NOW() - ($1::interval)
-                END
-                GROUP BY dvm_id
-                ORDER BY total_responses DESC
+                    dvm_id,
+                    response_count as total_responses
+                FROM DVMActivity
+                ORDER BY response_count DESC
                 LIMIT 1
             ),
             PopularKind AS (
                 SELECT 
-                    kind, 
-                    SUM(period_requests)::integer as total_requests
-                FROM kind_stats_rollups ksr2
-                WHERE CASE 
-                    WHEN $1 = 'all time' THEN TRUE
-                    ELSE ksr2.timestamp >= NOW() - ($1::interval)
-                END
-                GROUP BY kind
-                ORDER BY total_requests DESC
+                    kind,
+                    requests as total_requests
+                FROM KindActivity
+                ORDER BY requests DESC
                 LIMIT 1
             ),
             CompetitiveKind AS (
                 SELECT 
-                    kind, 
-                    COUNT(DISTINCT dvm)::integer as dvm_count
-                FROM kind_dvm_support kds
-                WHERE CASE 
-                    WHEN $1 = 'all time' THEN TRUE
-                    ELSE kds.last_seen >= NOW() - ($1::interval)
-                END
+                    kind,
+                    COUNT(DISTINCT entity_id)::integer as dvm_count
+                FROM entity_activity
+                CROSS JOIN IntervalStart
+                WHERE entity_type = 'dvm'
+                AND kind IS NOT NULL
+                AND observed_at >= IntervalStart.start_time
                 GROUP BY kind
                 ORDER BY dvm_count DESC
                 LIMIT 1
             ),
-            -- Use entity_activity for unique counts
             ActiveDVMs AS (
                 SELECT COUNT(DISTINCT entity_id)::integer as total_dvms
-                FROM entity_activity
+                FROM entity_activity, IntervalStart
                 WHERE entity_type = 'dvm'
-                AND CASE 
-                    WHEN $1 = 'all time' THEN TRUE
-                    ELSE observed_at >= NOW() - ($1::interval)
-                END
+                AND observed_at >= IntervalStart.start_time
             ),
             ActiveKinds AS (
-                SELECT COUNT(DISTINCT entity_id)::integer as total_kinds
-                FROM entity_activity
-                WHERE entity_type = 'kind'
-                AND CAST(entity_id AS integer) BETWEEN 5000 AND 5999
-                AND CASE 
-                    WHEN $1 = 'all time' THEN TRUE
-                    ELSE observed_at >= NOW() - ($1::interval)
-                END
+                SELECT COUNT(DISTINCT kind)::integer as total_kinds
+                FROM entity_activity, IntervalStart
+                WHERE kind BETWEEN 5000 AND 5999
+                AND observed_at >= IntervalStart.start_time
             ),
             ActiveUsers AS (
                 SELECT COUNT(DISTINCT entity_id)::integer as total_users
-                FROM entity_activity
+                FROM entity_activity, IntervalStart
                 WHERE entity_type = 'user'
-                AND CASE 
-                    WHEN $1 = 'all time' THEN TRUE
-                    ELSE observed_at >= NOW() - ($1::interval)
-                END
+                AND observed_at >= IntervalStart.start_time
             )
             SELECT 
                 tws.total_requests,

@@ -14,43 +14,30 @@ CREATE TABLE dvms (
 );
 
 
-CREATE TABLE dvm_stats_rollups (
+CREATE TABLE dvm_time_window_stats (
     dvm_id TEXT REFERENCES dvms(id) ON DELETE CASCADE,
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    window_size TEXT NOT NULL CHECK (window_size IN ('1 hour', '24 hours', '7 days', '30 days')),
     period_start TIMESTAMP WITH TIME ZONE NOT NULL,
     period_end TIMESTAMP WITH TIME ZONE NOT NULL,
-    period_feedback BIGINT NOT NULL CHECK (period_feedback >= 0),
-    period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
-    running_total_feedback BIGINT NOT NULL,
-    running_total_responses BIGINT NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (dvm_id, timestamp),
-
-    CHECK (period_start <= timestamp),
-    CHECK (period_end <= CURRENT_TIMESTAMP),
+    total_responses INTEGER NOT NULL CHECK (total_responses >= 0),
+    total_feedback INTEGER NOT NULL CHECK (total_feedback >= 0),
+    PRIMARY KEY (dvm_id, timestamp, window_size),
     CHECK (period_start <= period_end),
-    CHECK (running_total_feedback >= period_feedback),
-    CHECK (running_total_responses >= period_responses)
+    CHECK (period_end <= CURRENT_TIMESTAMP)
 );
 
-
-CREATE TABLE kind_stats_rollups (
+CREATE TABLE kind_time_window_stats (
     kind INTEGER CHECK (kind BETWEEN 5000 AND 5999),
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    window_size TEXT NOT NULL CHECK (window_size IN ('1 hour', '24 hours', '7 days', '30 days')),
     period_start TIMESTAMP WITH TIME ZONE NOT NULL,
     period_end TIMESTAMP WITH TIME ZONE NOT NULL,
-    period_requests BIGINT NOT NULL CHECK (period_requests >= 0),
-    period_responses BIGINT NOT NULL CHECK (period_responses >= 0),
-    running_total_requests BIGINT NOT NULL,
-    running_total_responses BIGINT NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (kind, timestamp),
-
-    CHECK (period_start <= timestamp),
-    CHECK (period_end <= CURRENT_TIMESTAMP),
+    total_requests INTEGER NOT NULL CHECK (total_requests >= 0),
+    total_responses INTEGER NOT NULL CHECK (total_responses >= 0),
+    PRIMARY KEY (kind, timestamp, window_size),
     CHECK (period_start <= period_end),
-    CHECK (running_total_requests >= period_requests),
-    CHECK (running_total_responses >= period_responses)
+    CHECK (period_end <= CURRENT_TIMESTAMP)
 );
 
 
@@ -98,8 +85,9 @@ CREATE TABLE time_window_stats (
 
 CREATE TABLE entity_activity (
     id SERIAL PRIMARY KEY, -- Auto-generated unique identifier
-    entity_id TEXT NOT NULL, -- either a user npub, dvm npub, or kind integer as text
-    entity_type TEXT NOT NULL CHECK (entity_type IN ('dvm', 'user', 'kind')),
+    entity_id TEXT NOT NULL, -- either a user npub or dvm npub
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('dvm', 'user')),
+    kind INTEGER CHECK (kind BETWEEN 5000 AND 7000),
     observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
     event_id TEXT NOT NULL,
     UNIQUE (entity_id, observed_at, event_id)
@@ -174,22 +162,24 @@ CREATE INDEX IF NOT EXISTS idx_events_inserted_at ON raw_events(inserted_at DESC
 -- Entity Activity Table Indices
 CREATE INDEX idx_entity_activity_timestamp ON entity_activity (observed_at DESC);
 CREATE INDEX idx_entity_activity_type_timestamp ON entity_activity (entity_type, observed_at DESC);
+CREATE INDEX idx_entity_activity_kind ON entity_activity (kind);
+CREATE INDEX idx_entity_activity_kind_timestamp ON entity_activity (kind, observed_at DESC);
 
 -- DVMs Table Indices
 CREATE INDEX idx_dvms_last_seen ON dvms (last_seen DESC);
 CREATE INDEX idx_dvms_first_seen ON dvms (first_seen);
 
--- DVM Stats Rollups Indices
-CREATE INDEX idx_dvm_stats_dvm_timestamp ON dvm_stats_rollups (dvm_id, timestamp DESC);
-CREATE INDEX idx_dvm_stats_timestamp ON dvm_stats_rollups (timestamp DESC);
-CREATE INDEX idx_dvm_stats_period_responses ON dvm_stats_rollups (period_responses DESC);
-CREATE INDEX idx_dvm_stats_responses_dvm ON dvm_stats_rollups (running_total_responses DESC, dvm_id);
+-- DVM Time Window Stats Indices
+CREATE INDEX idx_dvm_time_window_stats_timestamp ON dvm_time_window_stats (timestamp DESC);
+CREATE INDEX idx_dvm_time_window_stats_window ON dvm_time_window_stats (window_size, timestamp DESC);
+CREATE INDEX idx_dvm_time_window_stats_responses ON dvm_time_window_stats (total_responses DESC);
+CREATE INDEX idx_dvm_time_window_stats_feedback ON dvm_time_window_stats (total_feedback DESC);
 
--- Kind Stats Rollups Indices
-CREATE INDEX idx_kind_stats_kind_timestamp ON kind_stats_rollups (kind, timestamp DESC);
-CREATE INDEX idx_kind_stats_timestamp ON kind_stats_rollups (timestamp DESC);
-CREATE INDEX idx_kind_stats_period_requests ON kind_stats_rollups (period_requests DESC);
-CREATE INDEX idx_kind_stats_requests_kind ON kind_stats_rollups (running_total_requests DESC, kind);
+-- Kind Time Window Stats Indices
+CREATE INDEX idx_kind_time_window_stats_timestamp ON kind_time_window_stats (timestamp DESC);
+CREATE INDEX idx_kind_time_window_stats_window ON kind_time_window_stats (window_size, timestamp DESC);
+CREATE INDEX idx_kind_time_window_stats_requests ON kind_time_window_stats (total_requests DESC);
+CREATE INDEX idx_kind_time_window_stats_responses ON kind_time_window_stats (total_responses DESC);
 
 -- Users Table Indices
 CREATE INDEX idx_users_last_seen ON users (last_seen DESC);

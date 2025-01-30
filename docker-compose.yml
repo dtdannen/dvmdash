@@ -40,7 +40,7 @@ services:
       dockerfile: ./backend/event_collector/Dockerfile
     profiles: ["collector", "all"]
     environment:
-      - USE_TEST_DATA=false
+      - USE_TEST_DATA=true
       - START_LISTENING=true
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=DEBUG

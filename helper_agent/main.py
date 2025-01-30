@@ -42,7 +42,18 @@ def print_issues(issues):
         )
 
 
+def get_open_issues_count_without_PRs(repo_name):
+    issues = get_sorted_issues(repo_name, state="open")
+    open_issues_without_prs = [issue for issue in issues if issue.pull_request is None]
+    return open_issues_without_prs
+
+
 if __name__ == "__main__":
     repo_name = "dtdannen/dvmdash"
     issues = get_sorted_issues(repo_name)
     print_issues(issues)
+
+    # print all open issues without PRs
+    open_issues_without_prs = get_open_issues_count_without_PRs(repo_name)
+    for issue in open_issues_without_prs:
+        print(issue)

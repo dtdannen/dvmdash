@@ -401,17 +401,14 @@ class MonthlyArchiver:
                 WITH period_metrics AS (
                     SELECT
                         COUNT(*) FILTER (
-                            WHERE entity_type = 'kind' 
-                            AND CAST(entity_id AS INTEGER) BETWEEN 5000 AND 5999
+                            WHERE kind BETWEEN 5000 AND 5999
                         ) as total_requests,
                         COUNT(*) FILTER (
-                            WHERE entity_type = 'kind' 
-                            AND CAST(entity_id AS INTEGER) BETWEEN 6000 AND 6999
+                            WHERE kind BETWEEN 6000 AND 6999
                         ) as total_responses,
                         COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'dvm') as unique_dvms,
-                        COUNT(DISTINCT entity_id) FILTER (
-                            WHERE entity_type = 'kind' AND 
-                            CAST(entity_id AS INTEGER) BETWEEN 5000 AND 5999
+                        COUNT(DISTINCT kind) FILTER (
+                            WHERE kind BETWEEN 5000 AND 5999
                         ) as unique_kinds,
                         COUNT(DISTINCT entity_id) FILTER (WHERE entity_type = 'user') as unique_users
                     FROM entity_activity
@@ -419,20 +416,32 @@ class MonthlyArchiver:
                 ),
                 monthly_dvm_stats AS (
                     SELECT 
-                        dvm_id,
-                        SUM(period_feedback) as feedback_count,
-                        SUM(period_responses) as response_count
-                    FROM dvm_stats_rollups
-                    WHERE period_start >= $1 AND period_end < $2
-                    GROUP BY dvm_id
+                        entity_id as dvm_id,
+                        COUNT(DISTINCT CASE 
+                            WHEN event_id LIKE 'feed%' THEN event_id
+                        END) as feedback_count,
+                        COUNT(DISTINCT CASE 
+                            WHEN event_id LIKE 'resp%' THEN event_id
+                        END) as response_count
+                    FROM entity_activity
+                    WHERE entity_type = 'dvm'
+                    AND observed_at >= $1 AND observed_at < $2
+                    GROUP BY entity_id
                 ),
                 monthly_kind_stats AS (
                     SELECT 
                         kind,
-                        SUM(period_requests) as request_count,
-                        SUM(period_responses) as response_count
-                    FROM kind_stats_rollups
-                    WHERE period_start >= $1 AND period_end < $2
+                        COUNT(DISTINCT CASE 
+                            WHEN kind BETWEEN 5000 AND 5999 
+                            THEN event_id 
+                        END) as request_count,
+                        COUNT(DISTINCT CASE 
+                            WHEN kind BETWEEN 6000 AND 6999 
+                            THEN event_id
+                        END) as response_count
+                    FROM entity_activity
+                    WHERE kind IS NOT NULL
+                    AND observed_at >= $1 AND observed_at < $2
                     GROUP BY kind
                 )
                 SELECT
