@@ -453,7 +453,7 @@ async def get_kind_stats(
             }
 
         timeseries_query = """
-            WITH timestamps AS (
+            WITH intervals AS (
                 SELECT generate_series(
                     CASE 
                         WHEN $2 = '1 hour' THEN NOW() - INTERVAL '1 hour'
@@ -468,18 +468,31 @@ async def get_kind_stats(
                         WHEN $2 = '7 days' THEN INTERVAL '6 hours'
                         WHEN $2 = '30 days' THEN INTERVAL '1 day'
                     END
-                ) AS ts
+                ) AS interval_start
+            ),
+            interval_stats AS (
+                SELECT 
+                    i.interval_start,
+                    COUNT(DISTINCT CASE WHEN ea.kind = $1 THEN ea.event_id END) as requests,
+                    COUNT(DISTINCT CASE WHEN ea.kind = $1 + 1000 THEN ea.event_id END) as responses
+                FROM intervals i
+                LEFT JOIN entity_activity ea ON 
+                    ea.observed_at >= i.interval_start AND 
+                    ea.observed_at < i.interval_start + 
+                        CASE 
+                            WHEN $2 = '1 hour' THEN INTERVAL '5 minutes'
+                            WHEN $2 = '24 hours' THEN INTERVAL '1 hour'
+                            WHEN $2 = '7 days' THEN INTERVAL '6 hours'
+                            WHEN $2 = '30 days' THEN INTERVAL '1 day'
+                        END
+                GROUP BY i.interval_start
+                ORDER BY i.interval_start
             )
-            SELECT 
-                to_char(t.ts, 'YYYY-MM-DD HH24:MI:SS') as time,
-                COALESCE(s.total_requests, 0) as total_requests,
-                COALESCE(s.total_responses, 0) as total_responses
-            FROM timestamps t
-            LEFT JOIN kind_time_window_stats s ON 
-                date_trunc('hour', s.timestamp) = date_trunc('hour', t.ts)
-                AND s.kind = $1
-                AND s.window_size = $2
-            ORDER BY t.ts ASC
+            SELECT
+                to_char(interval_start, 'YYYY-MM-DD HH24:MI:SS') as time,
+                COALESCE(requests, 0) as total_requests,
+                COALESCE(responses, 0) as total_responses
+            FROM interval_stats
         """
 
         timeseries_rows = await conn.fetch(

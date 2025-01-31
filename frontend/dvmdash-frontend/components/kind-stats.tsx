@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
 import { useKindStats, KindStats as KindStatsType } from '@/lib/api'
-import type { TimeWindow, TimeRangeSelectorProps, ChartProps, NavIconProps } from '@/lib/types'
+import type { TimeWindow, TimeRangeSelectorProps, ChartProps, NavIconProps, KindTimeSeriesData, ChartData } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -17,11 +17,16 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  BarChart,
+  Bar,
+  Legend
 } from 'recharts'
 
+type ViewMode = 'bar' | 'cumulative'
+
 const TimeRangeSelector = ({ timeRange, setTimeRange }: TimeRangeSelectorProps) => (
-  <Tabs value={timeRange} onValueChange={setTimeRange} className="w-full max-w-xs">
-    <TabsList className="grid w-full grid-cols-5 h-9">
+  <Tabs value={timeRange} onValueChange={(value: string) => setTimeRange(value as TimeWindow)} className="w-full max-w-xs">
+    <TabsList className="grid w-full grid-cols-4 h-9">
       <TabsTrigger value="1h" className="text-xs">1h</TabsTrigger>
       <TabsTrigger value="24h" className="text-xs">24h</TabsTrigger>
       <TabsTrigger value="7d" className="text-xs">7d</TabsTrigger>
@@ -30,29 +35,121 @@ const TimeRangeSelector = ({ timeRange, setTimeRange }: TimeRangeSelectorProps) 
   </Tabs>
 )
 
-const RequestChart = ({ data }: ChartProps) => (
-  <ResponsiveContainer width="100%" height={400}>
-    <LineChart data={data}>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey="time" />
-      <YAxis />
-      <Tooltip />
-      <Line type="monotone" dataKey="requests" stroke="#8884d8" name="Requests" />
-    </LineChart>
-  </ResponsiveContainer>
-)
+interface ActivityData extends ChartData, KindTimeSeriesData {}
 
-const ResponseChart = ({ data }: ChartProps) => (
-  <ResponsiveContainer width="100%" height={400}>
-    <LineChart data={data}>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey="time" />
-      <YAxis />
-      <Tooltip />
-      <Line type="monotone" dataKey="responses" stroke="#82ca9d" name="Responses" />
-    </LineChart>
-  </ResponsiveContainer>
-)
+const formatRelativeTime = (timeStr: string, timeRange: TimeWindow): string => {
+  const time = new Date(timeStr);
+  const now = new Date();
+  const diffMs = now.getTime() - time.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+
+  switch (timeRange) {
+    case '1h':
+      return `${diffMins}m ago`;
+    case '24h':
+      return `${diffHours}h ago`;
+    case '7d':
+      return `${diffDays}d ago`;
+    case '30d':
+      return `${diffWeeks}w ago`;
+    default:
+      return timeStr;
+  }
+};
+
+const getXAxisInterval = (timeRange: TimeWindow): number | "preserveStartEnd" => {
+  switch (timeRange) {
+    case '1h':
+      return 4; // Show every 15 minutes (assuming 1-minute intervals)
+    case '24h':
+      return 6; // Show every 4 hours (assuming 1-hour intervals)
+    case '7d':
+      return 24; // Show every day (assuming 1-hour intervals)
+    case '30d':
+      return 48; // Show every other day (assuming 1-hour intervals)
+    default:
+      return 'preserveStartEnd';
+  }
+};
+
+const ActivityChart = ({ data, viewMode, timeRange }: { data: ActivityData[], viewMode: ViewMode, timeRange: TimeWindow }) => {
+  const chartData = useMemo(() => {
+    if (viewMode !== 'cumulative') return data;
+    
+    let requestSum = 0;
+    let responseSum = 0;
+    return data.map(point => ({
+      ...point,
+      total_requests: (requestSum += Number(point.total_requests)),
+      total_responses: (responseSum += Number(point.total_responses))
+    }));
+  }, [data, viewMode]);
+
+  if (viewMode === 'bar') {
+    return (
+      <ResponsiveContainer width="100%" height={400}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis 
+            dataKey="time"
+            angle={-45}
+            textAnchor="end"
+            height={80}
+            interval={getXAxisInterval(timeRange)}
+            tickFormatter={(time) => formatRelativeTime(time, timeRange)}
+          />
+          <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
+          <Tooltip 
+            labelFormatter={(time) => formatRelativeTime(time as string, timeRange)}
+            formatter={(value) => [Number(value).toLocaleString(), undefined]}
+          />
+          <Legend />
+          <Bar dataKey="total_requests" fill="#8884d8" name="Requests" />
+          <Bar dataKey="total_responses" fill="#82ca9d" name="Responses" />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={400}>
+      <LineChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" />
+          <XAxis 
+            dataKey="time"
+            angle={-45}
+            textAnchor="end"
+            height={80}
+            interval={getXAxisInterval(timeRange)}
+            tickFormatter={(time) => formatRelativeTime(time, timeRange)}
+          />
+        <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
+        <Tooltip 
+          labelFormatter={(time) => formatRelativeTime(time as string, timeRange)}
+          formatter={(value) => [Number(value).toLocaleString(), undefined]}
+        />
+        <Legend />
+        <Line 
+          type="monotone" 
+          dataKey="total_requests" 
+          stroke="#8884d8" 
+          name="Cumulative Requests"
+          strokeWidth={2}
+        />
+        <Line 
+          type="monotone" 
+          dataKey="total_responses" 
+          stroke="#82ca9d" 
+          name="Cumulative Responses"
+          strokeWidth={2}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
 
 const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   <Link
@@ -70,6 +167,7 @@ const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
 
 export function KindStats({ kindId }: { kindId: number }) {
   const [timeRange, setTimeRange] = useState<TimeWindow>('30d')
+  const [viewMode, setViewMode] = useState<ViewMode>('bar')
   const { stats, isLoading, isError } = useKindStats(kindId, timeRange)
 
   console.log('KindStats render:', { kindId, timeRange, isLoading, isError, hasStats: !!stats });
@@ -80,21 +178,15 @@ export function KindStats({ kindId }: { kindId: number }) {
     </div>
   )
 
-  if (isLoading || !stats) return (
+  if (isLoading || !stats || !stats.total_requests) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <p>Loading...</p>
+      <p>{isLoading ? "Loading..." : "No stats available"}</p>
     </div>
   )
 
-  // Transform time series data for charts
-  const requestData = stats.time_series.map((point) => ({
-    time: point.time,
-    requests: point.running_total_requests
-  }))
-
-  const responseData = stats.time_series.map((point) => ({
-    time: point.time,
-    responses: point.running_total_responses
+  const chartData: ActivityData[] = (stats.time_series || []).map(point => ({
+    ...point,
+    [point.time]: point.time,  // Add index signature requirement
   }))
 
   return (
@@ -151,7 +243,10 @@ export function KindStats({ kindId }: { kindId: number }) {
         <div className="mb-6">
           <h2 className="text-2xl font-bold mb-2">Kind: {stats.kind}</h2>
           <p className="text-sm text-muted-foreground">
-            Showing data from {stats.period_start.toLocaleString()} to {stats.period_end.toLocaleString()}
+            {stats.period_start && stats.period_end ? 
+              `Showing data from ${stats.period_start.toLocaleString()} to ${stats.period_end.toLocaleString()}` :
+              'Time range not available'
+            }
           </p>
         </div>
 
@@ -162,7 +257,7 @@ export function KindStats({ kindId }: { kindId: number }) {
               <Hash className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.running_total_requests.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{stats.total_requests.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">Total requests to date</p>
             </CardContent>
           </Card>
@@ -180,11 +275,27 @@ export function KindStats({ kindId }: { kindId: number }) {
         </div>
 
         <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Total Activity Over Time</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Activity Over Time</CardTitle>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={viewMode === 'bar' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('bar')}
+              >
+                Bar
+              </Button>
+              <Button
+                variant={viewMode === 'cumulative' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('cumulative')}
+              >
+                Cumulative
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <RequestChart data={requestData} />
+            <ActivityChart data={chartData} viewMode={viewMode} timeRange={timeRange} />
           </CardContent>
         </Card>
       </main>

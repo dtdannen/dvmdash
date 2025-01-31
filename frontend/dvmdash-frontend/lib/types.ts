@@ -76,8 +76,8 @@ export interface DVMList {
 
 export interface KindTimeSeriesData {
   time: string;
-  running_total_requests: number;
-  running_total_responses: number;
+  total_requests: number;
+  total_responses: number;
 }
 
 export interface KindStats {
@@ -85,8 +85,8 @@ export interface KindStats {
   timestamp: Date;
   period_start: Date;
   period_end: Date;
-  running_total_requests: number;
-  running_total_responses: number;
+  total_requests: number;
+  total_responses: number;
   num_supporting_dvms: number;
   supporting_dvms: string[];
   time_series: KindTimeSeriesData[];
