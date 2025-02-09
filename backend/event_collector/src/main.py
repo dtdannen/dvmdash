@@ -768,43 +768,72 @@ async def main(args):
         next_reconnect = time.time() + reconnect_interval
 
         while True:
+            client = None
+            handle_notifications_task = None
             try:
+                logger.info(f"Connecting to relays (next reconnect at {time.strftime('%H:%M:%S', time.localtime(next_reconnect))})")
                 client, notification_handler, handle_notifications_task = await nostr_client(args.days_lookback)
-                
-                # Run until next reconnect time
-                while time.time() < next_reconnect:
-                    await asyncio.sleep(1)
 
-                # Force reconnect
-                logger.info("Forcing reconnect to relays...")
-                await client.disconnect()
+                # Check reconnect time while allowing notifications to process
+                try:
+                    remaining_time = max(0.1, next_reconnect - time.time())
+                    await asyncio.wait_for(
+                        handle_notifications_task,
+                        timeout=remaining_time
+                    )
+                    logger.info("Notification handler completed naturally, will reconnect...")
+                except asyncio.TimeoutError:
+                    logger.info("Reconnect interval reached, forcing reconnect...")
+                except Exception as e:
+                    logger.error(f"Error in notification handler: {e}")
+                    logger.error(traceback.format_exc())
                 
-                # Create new client and connections
-                client, notification_handler, handle_notifications_task = await nostr_client(args.days_lookback)
+                # Clean up the current notification handler task
+                if handle_notifications_task and not handle_notifications_task.done():
+                    handle_notifications_task.cancel()
+                    try:
+                        await handle_notifications_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as e:
+                        logger.error(f"Error cancelling notification handler: {e}")
+
+                # Disconnect client and update next reconnect time
+                if client:
+                    try:
+                        await client.disconnect()
+                    except Exception as e:
+                        logger.error(f"Error disconnecting client: {e}")
+                
                 next_reconnect = time.time() + reconnect_interval
+                logger.info(f"Disconnected. Next reconnect at {time.strftime('%H:%M:%S', time.localtime(next_reconnect))}")
 
             except KeyboardInterrupt:
                 logger.info("Received keyboard interrupt, shutting down...")
                 break
             except Exception as e:
                 logger.error(f"Unhandled exception in main: {e}")
-                traceback.print_exc()
+                logger.error(traceback.format_exc())
                 # Wait before attempting reconnect
                 await asyncio.sleep(10)
                 # Reset reconnect timer
                 next_reconnect = time.time() + reconnect_interval
             finally:
-                try:
-                    await client.disconnect()
-                except Exception as e:
-                    logger.error(f"Error disconnecting client: {e}")
+                # Clean up any remaining tasks
+                if handle_notifications_task and not handle_notifications_task.done():
+                    handle_notifications_task.cancel()
+                    try:
+                        await handle_notifications_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as e:
+                        logger.error(f"Error in final task cleanup: {e}")
 
-                for task in asyncio.all_tasks():
-                    if task is not asyncio.current_task():
-                        task.cancel()
-
-                await asyncio.gather(*asyncio.all_tasks(), return_exceptions=True)
-                logger.info("All tasks have been cancelled, exiting...")
+                if client:
+                    try:
+                        await client.disconnect()
+                    except Exception as e:
+                        logger.error(f"Error in final client cleanup: {e}")
 
 
 if __name__ == "__main__":
