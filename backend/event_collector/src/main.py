@@ -692,12 +692,12 @@ def parse_args():
                     # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_may.json,"
                     # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jun.json,"
                     # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jul.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_aug.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_sep.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_oct.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_nov.json,"
+                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_aug.json,"
+                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_sep.json,"
+                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_oct.json,"
+                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_nov.json,"
                     "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_dec.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2025_jan_1_to_9.json"
+                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2025_jan_1_to_30.json"
                 ),
             )
         ),
@@ -764,33 +764,47 @@ async def main(args):
                 logger.error(f"Error loading test data: {e}")
                 return
     else:
-        try:
-            (
-                client,
-                notification_handler,
-                handle_notifications_task,
-            ) = await nostr_client(args.days_lookback)
+        reconnect_interval = 240  # Reconnect every 4 minutes
+        next_reconnect = time.time() + reconnect_interval
 
-            while True:
-                await asyncio.sleep(1)
-
-        except KeyboardInterrupt:
-            logger.info("Received keyboard interrupt, shutting down...")
-        except Exception as e:
-            logger.error(f"Unhandled exception in main: {e}")
-            traceback.print_exc()
-        finally:
+        while True:
             try:
+                client, notification_handler, handle_notifications_task = await nostr_client(args.days_lookback)
+                
+                # Run until next reconnect time
+                while time.time() < next_reconnect:
+                    await asyncio.sleep(1)
+
+                # Force reconnect
+                logger.info("Forcing reconnect to relays...")
                 await client.disconnect()
+                
+                # Create new client and connections
+                client, notification_handler, handle_notifications_task = await nostr_client(args.days_lookback)
+                next_reconnect = time.time() + reconnect_interval
+
+            except KeyboardInterrupt:
+                logger.info("Received keyboard interrupt, shutting down...")
+                break
             except Exception as e:
-                logger.error(f"Error disconnecting client: {e}")
+                logger.error(f"Unhandled exception in main: {e}")
+                traceback.print_exc()
+                # Wait before attempting reconnect
+                await asyncio.sleep(10)
+                # Reset reconnect timer
+                next_reconnect = time.time() + reconnect_interval
+            finally:
+                try:
+                    await client.disconnect()
+                except Exception as e:
+                    logger.error(f"Error disconnecting client: {e}")
 
-            for task in asyncio.all_tasks():
-                if task is not asyncio.current_task():
-                    task.cancel()
+                for task in asyncio.all_tasks():
+                    if task is not asyncio.current_task():
+                        task.cancel()
 
-            await asyncio.gather(*asyncio.all_tasks(), return_exceptions=True)
-            logger.info("All tasks have been cancelled, exiting...")
+                await asyncio.gather(*asyncio.all_tasks(), return_exceptions=True)
+                logger.info("All tasks have been cancelled, exiting...")
 
 
 if __name__ == "__main__":
