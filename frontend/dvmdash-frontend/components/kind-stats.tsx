@@ -37,41 +37,54 @@ const TimeRangeSelector = ({ timeRange, setTimeRange }: TimeRangeSelectorProps) 
 
 interface ActivityData extends ChartData, KindTimeSeriesData {}
 
-const formatRelativeTime = (timeStr: string, timeRange: TimeWindow): string => {
+const formatRelativeTime = (timeStr: string, timeRange: TimeWindow, isTooltip: boolean = false): string => {
   const time = new Date(timeStr);
-  const now = new Date();
-  const diffMs = now.getTime() - time.getTime();
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffWeeks = Math.floor(diffDays / 7);
 
   switch (timeRange) {
-    case '1h':
-      return `${diffMins}m ago`;
-    case '24h':
-      return `${diffHours}h ago`;
-    case '7d':
-      return `${diffDays}d ago`;
-    case '30d':
-      return `${diffWeeks}w ago`;
+    case '1h': {
+      const hours = time.getUTCHours();
+      const minutes = time.getUTCMinutes();
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+    case '24h': {
+      const hour = time.getUTCHours();
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${hour12} ${ampm}`;
+    }
+    case '7d': {
+      const month = time.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+      const day = time.getUTCDate();
+      if (isTooltip) {
+        const hour = time.getUTCHours();
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        return `${month} ${day} ${hour12} ${ampm}`;
+      }
+      return `${month} ${day}`;
+    }
+    case '30d': {
+      const month = time.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+      const day = time.getUTCDate();
+      return `${month} ${day}`;
+    }
     default:
       return timeStr;
   }
 };
 
-const getXAxisInterval = (timeRange: TimeWindow): number | "preserveStartEnd" => {
+const getXAxisInterval = (timeRange: TimeWindow): number => {
   switch (timeRange) {
     case '1h':
-      return 4; // Show every 15 minutes (assuming 1-minute intervals)
+      return 5; // Show every 5 minutes
     case '24h':
-      return 6; // Show every 4 hours (assuming 1-hour intervals)
+      return 1; // Show every hour
     case '7d':
-      return 24; // Show every day (assuming 1-hour intervals)
+      return 24; // Show every day
     case '30d':
-      return 48; // Show every other day (assuming 1-hour intervals)
+      return 1; // Show every day
     default:
-      return 'preserveStartEnd';
+      return 1;
   }
 };
 
@@ -88,6 +101,25 @@ const ActivityChart = ({ data, viewMode, timeRange }: { data: ActivityData[], vi
     }));
   }, [data, viewMode]);
 
+  // Get ticks for 7-day view (first data point of each day)
+  const dayTicks = useMemo(() => {
+    if (timeRange !== '7d') return undefined;
+    
+    const ticks: string[] = [];
+    let currentDay: number | null = null;
+    
+    data.forEach(point => {
+      const date = new Date(point.time);
+      const day = date.getUTCDate();
+      if (currentDay !== day) {
+        currentDay = day;
+        ticks.push(point.time);
+      }
+    });
+    
+    return ticks;
+  }, [data, timeRange]);
+
   if (viewMode === 'bar') {
     return (
       <ResponsiveContainer width="100%" height={400}>
@@ -97,13 +129,29 @@ const ActivityChart = ({ data, viewMode, timeRange }: { data: ActivityData[], vi
             dataKey="time"
             angle={-45}
             textAnchor="end"
-            height={80}
-            interval={getXAxisInterval(timeRange)}
+            height={100}
+            interval={timeRange === '7d' ? undefined : getXAxisInterval(timeRange)}
+            ticks={timeRange === '7d' ? dayTicks : undefined}
             tickFormatter={(time) => formatRelativeTime(time, timeRange)}
+            axisLine={true}
+            orientation="bottom"
+            padding={{ left: 30, right: 30 }}
+          />
+          <XAxis 
+            dataKey="time"
+            angle={-45}
+            textAnchor="end"
+            height={100}
+            interval={timeRange === '7d' ? undefined : getXAxisInterval(timeRange)}
+            ticks={timeRange === '7d' ? dayTicks : undefined}
+            tickFormatter={(time) => formatRelativeTime(time, timeRange)}
+            axisLine={true}
+            orientation="top"
+            padding={{ left: 30, right: 30 }}
           />
           <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
           <Tooltip 
-            labelFormatter={(time) => formatRelativeTime(time as string, timeRange)}
+            labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
             formatter={(value) => [Number(value).toLocaleString(), undefined]}
           />
           <Legend />
@@ -122,15 +170,31 @@ const ActivityChart = ({ data, viewMode, timeRange }: { data: ActivityData[], vi
             dataKey="time"
             angle={-45}
             textAnchor="end"
-            height={80}
-            interval={getXAxisInterval(timeRange)}
+            height={100}
+            interval={timeRange === '7d' ? undefined : getXAxisInterval(timeRange)}
+            ticks={timeRange === '7d' ? dayTicks : undefined}
             tickFormatter={(time) => formatRelativeTime(time, timeRange)}
+            axisLine={true}
+            orientation="bottom"
+            padding={{ left: 30, right: 30 }}
+          />
+          <XAxis 
+            dataKey="time"
+            angle={-45}
+            textAnchor="end"
+            height={100}
+            interval={timeRange === '7d' ? undefined : getXAxisInterval(timeRange)}
+            ticks={timeRange === '7d' ? dayTicks : undefined}
+            tickFormatter={(time) => formatRelativeTime(time, timeRange)}
+            axisLine={true}
+            orientation="top"
+            padding={{ left: 30, right: 30 }}
           />
         <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
-        <Tooltip 
-          labelFormatter={(time) => formatRelativeTime(time as string, timeRange)}
-          formatter={(value) => [Number(value).toLocaleString(), undefined]}
-        />
+          <Tooltip 
+            labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
+            formatter={(value) => [Number(value).toLocaleString(), undefined]}
+          />
         <Legend />
         <Line 
           type="monotone" 
