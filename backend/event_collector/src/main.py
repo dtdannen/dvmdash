@@ -651,8 +651,8 @@ def parse_args():
     parser.add_argument(
         "--runtime",
         type=int,
-        help="Number of minutes to run before exiting, default is 360 (6 hrs)",
-        default=360,
+        help="Number of minutes to run before exiting",
+        default=-1,
     )
     parser.add_argument(
         "--days_lookback",
@@ -851,7 +851,7 @@ if __name__ == "__main__":
                 "`START_LISTENING=true docker compose restart event_collector` after all containers are up."
             )
             loop.run_forever()
-        elif args.runtime:
+        elif args.runtime > 0:
             end_time = datetime.datetime.now() + datetime.timedelta(
                 minutes=args.runtime
             )
