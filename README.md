@@ -1,11 +1,62 @@
 # dvmdash
 
-DVMDash aims to be a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
+DVMDash is a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
 
 
 A version of the website is running here:
 
 https://dvmdash.live/
+
+## Run locally
+
+Install docker compose on your system.
+
+```commandline
+docker compose up -d
+```
+
+Now check everything looks good, should all be healthy:
+
+```commandline
+docker compose ps
+```
+
+Then to start listening to relays, run:
+
+```commandline
+START_LISTENING=true docker compose restart event_collector
+```
+
+and then if for any reason you want to stop listening to relays, run:
+
+```commandline
+START_LISTENING=false docker compose restart event_collector
+```
+
+And once it's all running, navigate to `localhost:3000`
+
+## Local Development
+
+After you make changes, and want to run the docker, make sure to rebuild the containers like:
+
+```commandline
+docker compose up --build -d
+```
+
+First, check that the all the services are running:
+
+```commandline
+docker compose ps
+```
+
+After the containers are up and running, run:
+
+```commandline
+docker compose --profile test up tests
+```
+
+
+
 
 ## Run Locally
 
