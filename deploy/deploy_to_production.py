@@ -7,7 +7,7 @@ from loguru import logger
 from dotenv import load_dotenv
 
 # Import your existing infrastructure classes
-from your_infra_module import (
+from production_components import (
     PostgresTestRunner,
     RedisRunner,
     EventCollectorAppPlatformRunner,
@@ -16,8 +16,7 @@ from your_infra_module import (
     BetterStackLogsRunner,
 )
 
-# Global shutdown event
-shutdown_event = asyncio.Event()
+PROJECT_NAME = "dvmdash_production"
 
 
 class APIAppPlatformRunner:
@@ -210,29 +209,21 @@ async def main():
 
     project_name = "your-production-project-name"
 
-    # Setup signal handlers
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(shutdown(sig)))
-
     try:
         # Stage 1: Infrastructure and historical data
+        print(f"Starting stage one of deployment for project: {project_name}")
         stage_one_infra = await stage_one_deployment(project_name, do_token)
+
+        print(f"Starting stage two of deployment for project: {project_name}")
 
         # Stage 2: Production services
         all_services = await stage_two_deployment(
             stage_one_infra, project_name, do_token
         )
 
-        # Keep running until interrupted
-        while not shutdown_event.is_set():
-            await asyncio.sleep(1)
-
     except Exception as e:
         logger.error(f"Deployment failed: {e}")
         raise
-    finally:
-        await cleanup_deployment(all_services if "all_services" in locals() else {})
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 from fastapi import FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import asyncpg
 from typing import Optional, List, Union
@@ -221,14 +221,6 @@ async def get_latest_global_stats(
         # Combine all data
         resulting_data = {**dict(stats), "time_series": time_series}
 
-        # print out the stats:
-        # for k, v in resulting_data.items():
-        #     if k != "time_series":
-        #         print(f"{k}: {v}")
-        #
-        # for i in range(min(5, len(resulting_data["time_series"]))):
-        #     print(resulting_data["time_series"][i])
-
         return resulting_data
 
 
@@ -317,7 +309,25 @@ async def get_dvm_stats(
         description="Time window for stats",
     ),
 ):
+    print(f"[DVM Stats] Getting stats for DVM {dvm_id} with timeRange {timeRange}")
+
     async with app.state.pool.acquire() as conn:
+        # First check if DVM exists
+        dvm_check = await conn.fetchrow(
+            "SELECT id, is_active FROM dvms WHERE id = $1", dvm_id
+        )
+        if not dvm_check:
+            print(f"[DVM Stats] DVM {dvm_id} not found")
+            raise HTTPException(status_code=404, detail=f"DVM {dvm_id} not found")
+        if not dvm_check["is_active"]:
+            print(f"[DVM Stats] DVM {dvm_id} is no longer active")
+            raise HTTPException(
+                status_code=404, detail=f"DVM {dvm_id} is no longer active"
+            )
+
+        print(f"[DVM Stats] Found active DVM {dvm_id}")
+
+        # Get latest stats from dvm_time_window_stats
         stats_query = """
             SELECT 
                 dvm_id,
@@ -327,35 +337,33 @@ async def get_dvm_stats(
                 total_responses,
                 total_feedback
             FROM dvm_time_window_stats 
-            WHERE dvm_id = $1 
+            WHERE dvm_id = $1
             AND window_size = $2
             ORDER BY timestamp DESC 
             LIMIT 1
         """
+        
+        print(f"[DVM Stats] Fetching stats with window size {timeRange.to_db_value()}")
         stats = await conn.fetchrow(stats_query, dvm_id, timeRange.to_db_value())
 
         if not stats:
-            # Check if DVM exists
-            dvm_check = await conn.fetchrow(
-                "SELECT id, is_active FROM dvms WHERE id = $1", dvm_id
-            )
-            if not dvm_check:
-                raise HTTPException(status_code=404, detail=f"DVM {dvm_id} not found")
-            if not dvm_check["is_active"]:
-                raise HTTPException(
-                    status_code=404, detail=f"DVM {dvm_id} is no longer active"
-                )
-            # Return empty stats if DVM exists but has no data
-            return {
+            print(f"[DVM Stats] No stats found, returning empty stats")
+            # Return empty stats if no data exists
+            stats = {
                 "dvm_id": dvm_id,
                 "timestamp": datetime.now(),
+                "period_start": datetime.now(),
+                "period_end": datetime.now(),
                 "total_responses": 0,
-                "total_feedback": 0,
-                "time_series": [],
+                "total_feedback": 0
             }
 
+        print(f"[DVM Stats] Found stats: {stats}")
+
+        # Calculate time series data from entity_activity
+        print(f"[DVM Stats] Calculating time series data")
         timeseries_query = """
-            WITH timestamps AS (
+            WITH intervals AS (
                 SELECT generate_series(
                     CASE 
                         WHEN $2 = '1 hour' THEN NOW() - INTERVAL '1 hour'
@@ -370,26 +378,50 @@ async def get_dvm_stats(
                         WHEN $2 = '7 days' THEN INTERVAL '6 hours'
                         WHEN $2 = '30 days' THEN INTERVAL '1 day'
                     END
-                ) AS ts
+                ) AS interval_start
+            ),
+            interval_stats AS (
+                SELECT 
+                    i.interval_start,
+                    COUNT(DISTINCT CASE 
+                        WHEN ea.kind >= 6000 AND ea.kind <= 6999 
+                        THEN ea.event_id 
+                    END) as responses,
+                    COUNT(DISTINCT CASE 
+                        WHEN ea.kind = 7000 
+                        THEN ea.event_id 
+                    END) as feedback
+                FROM intervals i
+                LEFT JOIN entity_activity ea ON 
+                    ea.entity_type = 'dvm'
+                    AND ea.entity_id = $1
+                    AND ea.observed_at >= i.interval_start 
+                    AND ea.observed_at < i.interval_start + 
+                        CASE 
+                            WHEN $2 = '1 hour' THEN INTERVAL '5 minutes'
+                            WHEN $2 = '24 hours' THEN INTERVAL '1 hour'
+                            WHEN $2 = '7 days' THEN INTERVAL '6 hours'
+                            WHEN $2 = '30 days' THEN INTERVAL '1 day'
+                        END
+                GROUP BY i.interval_start
+                ORDER BY i.interval_start
             )
-            SELECT 
-                to_char(t.ts, 'YYYY-MM-DD HH24:MI:SS') as time,
-                COALESCE(s.total_responses, 0) as total_responses,
-                COALESCE(s.total_feedback, 0) as total_feedback
-            FROM timestamps t
-            LEFT JOIN dvm_time_window_stats s ON 
-                date_trunc('hour', s.timestamp) = date_trunc('hour', t.ts)
-                AND s.dvm_id = $1
-                AND s.window_size = $2
-            ORDER BY t.ts ASC
+            SELECT
+                to_char(interval_start, 'YYYY-MM-DD HH24:MI:SS') as time,
+                COALESCE(responses, 0) as total_responses,
+                COALESCE(feedback, 0) as total_feedback
+            FROM interval_stats
         """
 
         timeseries_rows = await conn.fetch(
             timeseries_query, dvm_id, timeRange.to_db_value()
         )
         time_series = [dict(row) for row in timeseries_rows]
+        print(f"[DVM Stats] Found {len(time_series)} time series data points")
 
-        return {**dict(stats), "time_series": time_series}
+        result = {**dict(stats), "time_series": time_series}
+        print(f"[DVM Stats] Returning result with {len(result['time_series'])} time series points")
+        return result
 
 
 @app.get("/api/stats/kind/{kind_id}", response_model=KindStatsResponse)

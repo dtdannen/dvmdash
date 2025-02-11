@@ -9,12 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useRouter } from 'next/navigation'
 import { BarChart3, Bot, Tags, Home, Search, LayoutGrid, List } from 'lucide-react'
 import { useDVMList } from '@/lib/api'
 import { TimeRangeSelector } from './time-range-selector'
 import { TimeWindow, NavIconProps, DVMListItem } from '@/lib/types'
-import { LucideIcon } from 'lucide-react'
 
 const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   <Link
@@ -35,31 +33,38 @@ interface DVMCardProps {
 }
 
 const DVMCard = ({ dvm }: DVMCardProps) => {
-  const router = useRouter()
   const initials = dvm.id.substring(0, 2).toUpperCase()
   const lastSeenDate = new Date(dvm.last_seen)
   const timeAgo = Math.round((Date.now() - lastSeenDate.getTime()) / (1000 * 60)) // minutes ago
 
   return (
-    <Card className="overflow-hidden cursor-pointer" onClick={() => router.push(`/dvm-stats/${dvm.id}`)}>
-      <CardContent className="p-4">
-        <div className="flex items-center space-x-4">
-          <Avatar>
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{dvm.id}</p>
-            <p className="text-xs text-gray-500 truncate">
-              {dvm.supported_kinds.length} supported kinds
-            </p>
+    <Link href={`/dvm-stats/${dvm.id}`} className="block">
+      <Card className="overflow-hidden cursor-pointer hover:bg-muted/50 transition-colors">
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-4">
+            <Avatar>
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">{dvm.id}</p>
+              <p className="text-xs text-gray-500 truncate">
+                {dvm.supported_kinds.length} supported kinds • {dvm.num_supporting_kinds} supporting
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="mt-4 flex justify-between text-xs text-gray-500">
-          <span>{dvm.total_events?.toLocaleString() ?? '0'} events</span>
-          <span>{timeAgo}m ago</span>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="mt-4 space-y-2 text-xs text-gray-500">
+            <div className="flex justify-between">
+              <span>Requests: {dvm.total_requests?.toLocaleString() ?? '0'}</span>
+              <span>Responses: {dvm.total_responses?.toLocaleString() ?? '0'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Last seen: {timeAgo}m ago</span>
+              <span>{dvm.is_active ? '🟢 Active' : '⚫️ Inactive'}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   )
 }
 
@@ -68,24 +73,31 @@ interface DVMTableProps {
 }
 
 const DVMTable = ({ dvms }: DVMTableProps) => {
-  const router = useRouter()
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>ID</TableHead>
-          <TableHead>Supported Kinds</TableHead>
-          <TableHead>Total Events</TableHead>
-          <TableHead>Last Seen</TableHead>
+          <TableHead>DVM</TableHead>
+          <TableHead className="text-right">Supported Kinds</TableHead>
+          <TableHead className="text-right">Requests</TableHead>
+          <TableHead className="text-right">Responses</TableHead>
+          <TableHead className="text-right">Supporting Kinds</TableHead>
+          <TableHead className="text-right">Last Seen</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {dvms.map((dvm: DVMListItem) => (
-          <TableRow key={dvm.id} className="cursor-pointer" onClick={() => router.push(`/dvm-stats/${dvm.id}`)}>
-            <TableCell className="font-medium">{dvm.id}</TableCell>
-            <TableCell>{dvm.supported_kinds.length}</TableCell>
-            <TableCell>{dvm.total_events?.toLocaleString() ?? '0'}</TableCell>
-            <TableCell>{new Date(dvm.last_seen).toLocaleString()}</TableCell>
+          <TableRow key={dvm.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <TableCell className="font-medium">
+              <Link href={`/dvm-stats/${dvm.id}`} className="hover:underline">
+                {dvm.id}
+              </Link>
+            </TableCell>
+            <TableCell className="text-right">{dvm.supported_kinds.length}</TableCell>
+            <TableCell className="text-right">{dvm.total_requests?.toLocaleString() ?? '0'}</TableCell>
+            <TableCell className="text-right">{dvm.total_responses?.toLocaleString() ?? '0'}</TableCell>
+            <TableCell className="text-right">{dvm.num_supporting_kinds}</TableCell>
+            <TableCell className="text-right">{new Date(dvm.last_seen).toLocaleString()}</TableCell>
           </TableRow>
         ))}
       </TableBody>

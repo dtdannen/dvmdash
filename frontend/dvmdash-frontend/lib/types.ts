@@ -57,16 +57,19 @@ export interface DVMStats {
   period_end: Date;
   total_responses: number;
   total_feedback: number;
+  supported_kinds: number[];
   time_series: DVMTimeSeriesData[];
 }
 
 export interface DVMListItem {
   id: string;
   last_seen: Date;
+  total_requests?: number;
   total_responses?: number;
   total_feedback?: number;
   total_events?: number;
   supported_kinds: number[];
+  num_supporting_kinds: number;
   is_active: boolean;
 }
 
