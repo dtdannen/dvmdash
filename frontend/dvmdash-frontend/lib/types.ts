@@ -25,6 +25,7 @@ export interface NavIconProps {
 export interface TimeSeriesData {
   time: string;
   total_requests: number;
+  total_responses: number;
   unique_users: number;
   unique_dvms: number;
 }

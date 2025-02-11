@@ -24,6 +24,220 @@ metrics_queue = Queue()
 load_dotenv()
 
 
+class MetricsCollector:
+    """Collects and stores metrics from various components"""
+
+    def __init__(self, redis_client, project_name: str, num_batch_processors: int):
+        self.metrics_history = []
+        self.redis_db_info = redis_client
+        self.project_name = project_name
+        self.start_time = None
+        self.last_redis_count = 0
+        self.last_postgres_count = 0
+        self.collection_interval = 2  # seconds
+        self.num_batch_processors = num_batch_processors
+
+        # Create metrics directory if it doesn't exist
+        self.metrics_dir = "experiments/data"
+        if not os.path.exists(self.metrics_dir):
+            os.makedirs(self.metrics_dir)
+
+        # Create run-specific directory
+        self.run_timestamp = datetime.now().strftime("%Y_%b_%d_at_%H_%M_%S")
+        self.run_dir = os.path.join(self.metrics_dir, f"run_{self.run_timestamp}")
+        os.makedirs(self.run_dir)
+        logger.info(f"Created run directory: {self.run_dir}")
+
+        self.csv_filename = f"{self.run_dir}/{self.project_name}_{self.num_batch_processors}BP_{self.run_timestamp}_metrics.csv"
+        self.initialize_csv()
+        logger.info(f"Initialized CSV file: {self.csv_filename}")
+
+    def initialize_csv(self):
+        """Initialize CSV file with updated headers"""
+        with open(self.csv_filename, "w", newline="") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "time_since_start",
+                    "project",
+                    "redis_queue_size",
+                    "postgres_events",
+                    "postgres_pipeline_entity_activity_count",
+                ],
+            )
+            writer.writeheader()
+        logger.debug("CSV file initialized with headers")
+
+    async def monitor_redis_items(self, redis_client, delay: int = 1):
+        while not shutdown_event.is_set():
+            try:
+                # Only get dvmdash_events count
+                events_count = await redis_client.llen("dvmdash_events")
+                processed_count = await redis_client.scard("dvmdash_processed_events")
+
+                # Get memory info
+                memory_info = await redis_client.info("memory")
+                used_memory_mb = int(memory_info["used_memory"]) / (1024 * 1024)
+
+                logger.info(
+                    f"Events: {events_count}, Processed: {processed_count}, Memory: {used_memory_mb:.2f}MB"
+                )
+                await asyncio.sleep(delay)
+            except redis.RedisError as e:
+                logger.error(f"Redis error: {e}")
+                await asyncio.sleep(delay)
+
+    async def monitor_postgres_events_db(self, postgres_pool, delay: int = 1):
+        while not shutdown_event.is_set():
+            try:
+                async with postgres_pool.acquire() as conn:
+                    count = await conn.fetchval("SELECT COUNT(*) FROM raw_events")
+                    logger.info(f"Events in Postgres: {count}")
+                    await asyncio.sleep(delay)
+            except asyncpg.exceptions.PostgresError as e:
+                logger.error(f"Postgres error: {e}")
+                await asyncio.sleep(delay)
+
+    async def wait_for_queue_size(
+        self,
+        redis_client,
+        target_size: int,
+        check_interval: int = 10,
+        timeout: int = 3600,
+    ):
+        """
+        Wait for Redis queue to reach target size
+
+        Args:
+            redis_client: Redis client instance
+            target_size: Target number of items in queue
+            check_interval: How often to check queue size (seconds)
+            timeout: Maximum time to wait (seconds)
+
+        Returns:
+            bool: True if target size reached, False if timeout occurred
+        """
+        start_time = time.time()
+        logger.info(f"Waiting for Redis queue to reach {target_size:,} items...")
+
+        while not shutdown_event.is_set():
+            try:
+                current_size = await redis_client.llen("dvmdash_events")
+                processed_count = await redis_client.scard("dvmdash_processed_events")
+
+                logger.info(
+                    f"Current queue size: {current_size:,}, Processed: {processed_count:,}"
+                )
+
+                if current_size >= target_size:
+                    logger.info(f"Target queue size of {target_size:,} reached!")
+                    return True
+
+                # Check timeout
+                if time.time() - start_time > timeout:
+                    logger.warning(f"Timeout reached after {timeout} seconds")
+                    return False
+
+                # Calculate and log ingestion rate
+                await asyncio.sleep(check_interval)
+                new_size = await redis_client.llen("dvmdash_events")
+                rate = (new_size - current_size) / check_interval
+                logger.info(f"Current ingestion rate: {rate:.2f} items/second")
+
+                # Estimate time remaining
+                if rate > 0:
+                    items_remaining = target_size - new_size
+                    time_remaining = items_remaining / rate
+                    logger.info(
+                        f"Estimated time remaining: {time_remaining:.2f} seconds"
+                    )
+
+            except redis.RedisError as e:
+                logger.error(f"Redis error while monitoring queue size: {e}")
+                await asyncio.sleep(check_interval)
+
+        return False
+
+    async def check_redis_empty(self, redis_client, delay: int = 5):
+        """Monitor Redis queue and trigger shutdown when empty"""
+        while not shutdown_event.is_set():
+            try:
+                # this check is to avoid premature shutdown
+                if self.start_time is not None:
+                    queue_size = await redis_client.llen("dvmdash_events")
+                    if queue_size == 0:
+                        logger.info("Redis queue is empty, initiating shutdown...")
+                        shutdown_event.set()
+                        return
+                await asyncio.sleep(delay)
+            except redis.RedisError as e:
+                logger.error(f"Redis error while checking queue: {e}")
+                await asyncio.sleep(delay)
+
+    # Add this method for a more detailed progress visualization
+    async def monitor_queue_progress(self, redis_client, target_size: int):
+        """Monitor and display queue progress with percentage and progress bar"""
+        try:
+            current_size = await redis_client.llen("dvmdash_events")
+            percentage = min(100, (current_size / target_size) * 100)
+            bar_length = 50
+            filled_length = int(bar_length * current_size / target_size)
+            bar = "=" * filled_length + "-" * (bar_length - filled_length)
+
+            logger.info(
+                f"Progress: [{bar}] {percentage:.1f}% ({current_size:,}/{target_size:,})"
+            )
+        except redis.RedisError as e:
+            logger.error(f"Error monitoring progress: {e}")
+
+    async def collect_metrics_history(self, redis_client, postgres_pipeline_pool):
+        """Collect and store metrics history with timestamps"""
+        while not shutdown_event.is_set():
+            try:
+                # Skip collection if start time hasn't been set
+                if self.start_time is None:
+                    await asyncio.sleep(2)
+                    continue
+
+                time_since_start = time.time() - self.start_time
+
+                metrics = {
+                    "time_since_start": f"{time_since_start:.3f}",
+                    "project": self.project_name,
+                    "redis_queue_size": await redis_client.llen("dvmdash_events"),
+                    "postgres_events": await postgres_pipeline_pool.fetchval(
+                        "SELECT COUNT(*) FROM raw_events"
+                    ),
+                    "postgres_pipeline_entity_activity_count": await postgres_pipeline_pool.fetchval(
+                        "SELECT COUNT(*) FROM entity_activity"
+                    ),
+                }
+
+                self.metrics_history.append(metrics)
+
+                # Write to CSV file
+                with open(self.csv_filename, "a", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=metrics.keys())
+                    writer.writerow(metrics)
+
+                # Log current metrics
+                logger.info(
+                    f"Metrics at {time_since_start:,.3f}s: "
+                    f"Redis Queue={metrics['redis_queue_size']:,}, "
+                    f"Postgres Events={metrics['postgres_events']:,},"
+                    f"Postgres Pipeline Entity Activity Count={metrics['postgres_pipeline_entity_activity_count']:,},"
+                )
+
+                await asyncio.sleep(self.collection_interval)  # Collect every 2 seconds
+
+            except (redis.RedisError, asyncpg.PostgresError) as e:
+                logger.error(f"Error collecting metrics: {e}")
+                await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"Unexpected error in metrics collection: {e}")
+                await asyncio.sleep(1)
+
+
 class BetterStackLogsRunner:
     """Create betterstack logs so we can get all logs from the app platform"""
 

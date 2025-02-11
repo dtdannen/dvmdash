@@ -60,6 +60,7 @@ class TimeWindow(str, Enum):
 class TimeSeriesData(BaseModel):
     time: str
     total_requests: int
+    total_responses: int
     unique_users: int
     unique_dvms: int
 
@@ -179,19 +180,13 @@ async def get_latest_global_stats(
 
         # Get time series data
         timeseries_query = """
-            WITH first_timestamp AS (
-                SELECT MIN(timestamp) as first_ts
-                FROM time_window_stats
-                WHERE window_size = $1
-            ),
-            timestamps AS (
+            WITH intervals AS (
                 SELECT generate_series(
                     CASE 
-                        WHEN $1 = '1 hour' THEN GREATEST(NOW() - INTERVAL '1 hour', (SELECT first_ts FROM first_timestamp))
-                        WHEN $1 = '24 hours' THEN GREATEST(NOW() - INTERVAL '24 hours', (SELECT first_ts FROM first_timestamp))
-                        WHEN $1 = '7 days' THEN GREATEST(NOW() - INTERVAL '7 days', (SELECT first_ts FROM first_timestamp))
-                        WHEN $1 = '30 days' THEN GREATEST(NOW() - INTERVAL '30 days', (SELECT first_ts FROM first_timestamp))
-                        ELSE (SELECT first_ts FROM first_timestamp)
+                        WHEN $1 = '1 hour' THEN NOW() - INTERVAL '1 hour'
+                        WHEN $1 = '24 hours' THEN NOW() - INTERVAL '24 hours'
+                        WHEN $1 = '7 days' THEN NOW() - INTERVAL '7 days'
+                        WHEN $1 = '30 days' THEN NOW() - INTERVAL '30 days'
                     END,
                     NOW(),
                     CASE 
@@ -199,20 +194,48 @@ async def get_latest_global_stats(
                         WHEN $1 = '24 hours' THEN INTERVAL '1 hour'
                         WHEN $1 = '7 days' THEN INTERVAL '6 hours'
                         WHEN $1 = '30 days' THEN INTERVAL '1 day'
-                        ELSE INTERVAL '1 day'
                     END
-                ) AS ts
+                ) AS interval_start
+            ),
+            interval_stats AS (
+                SELECT 
+                    i.interval_start,
+                    COUNT(DISTINCT CASE 
+                        WHEN ea.kind BETWEEN 5000 AND 5999 
+                        THEN ea.event_id 
+                    END) as total_requests,
+                    COUNT(DISTINCT CASE 
+                        WHEN ea.kind BETWEEN 6000 AND 6999 
+                        THEN ea.event_id 
+                    END) as total_responses,
+                    COUNT(DISTINCT CASE 
+                        WHEN ea.entity_type = 'user' 
+                        THEN ea.entity_id 
+                    END) as unique_users,
+                    COUNT(DISTINCT CASE 
+                        WHEN ea.entity_type = 'dvm' 
+                        THEN ea.entity_id 
+                    END) as unique_dvms
+                FROM intervals i
+                LEFT JOIN entity_activity ea ON 
+                    ea.observed_at >= i.interval_start 
+                    AND ea.observed_at < i.interval_start + 
+                        CASE 
+                            WHEN $1 = '1 hour' THEN INTERVAL '5 minutes'
+                            WHEN $1 = '24 hours' THEN INTERVAL '1 hour'
+                            WHEN $1 = '7 days' THEN INTERVAL '6 hours'
+                            WHEN $1 = '30 days' THEN INTERVAL '1 day'
+                        END
+                GROUP BY i.interval_start
+                ORDER BY i.interval_start
             )
-            SELECT 
-                to_char(t.ts, 'YYYY-MM-DD HH24:MI:SS') as time,
-                COALESCE(s.total_requests, 0) as total_requests,
-                COALESCE(s.unique_users, 0) as unique_users,
-                COALESCE(s.unique_dvms, 0) as unique_dvms
-            FROM timestamps t
-            LEFT JOIN time_window_stats s ON 
-                date_trunc('hour', s.timestamp) = date_trunc('hour', t.ts)
-                AND s.window_size = $1
-            ORDER BY t.ts ASC
+            SELECT
+                to_char(interval_start, 'YYYY-MM-DD HH24:MI:SS') as time,
+                total_requests,
+                total_responses,
+                unique_users,
+                unique_dvms
+            FROM interval_stats
         """
 
         timeseries_rows = await conn.fetch(timeseries_query, timeRange.to_db_value())
