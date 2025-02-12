@@ -130,8 +130,8 @@ RELEVANT_KINDS = get_relevant_kinds()
 
 
 def parse_filename_date(filename: str) -> tuple[int, int]:
-    """Parse year and month from filename like dvm_data_2024_nov.json or dvm_data_2024_nov_15.json"""
-    pattern = r'dvm_data_(\d{4})_([a-zA-Z]+)(?:_\d+)?\.json'
+    """Parse year and month from filename like dvm_data_2024_nov.json"""
+    pattern = r'dvm_data_(\d{4})_([a-zA-Z]+)\.json'
     match = re.match(pattern, filename)
     if not match:
         raise ValueError(f"Invalid filename format: {filename}")
@@ -151,8 +151,11 @@ def parse_filename_date(filename: str) -> tuple[int, int]:
         
     return year, month
 
-async def get_historical_data_urls() -> list[str]:
-    """Get all historical data files from CDN, sorted by date"""
+async def get_historical_data_urls(historical_months: Optional[int] = None) -> list[str]:
+    """
+    Get historical data files from CDN, sorted by date.
+    If historical_months is set, returns only the most recent X months of data.
+    """
     base_url = 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com'
     
     # For now, we'll use a list of known files since we can't list bucket contents directly
@@ -185,12 +188,20 @@ async def get_historical_data_urls() -> list[str]:
         except ValueError:
             return float('inf')  # Put invalid filenames at the end
             
-    sorted_files = sorted(files, key=sort_key)
+    sorted_files = sorted(files, key=sort_key, reverse=True)  # Sort newest first
+    
+    # If historical_months is set, limit to most recent X months
+    if historical_months is not None:
+        sorted_files = sorted_files[:historical_months]
+        
+    # Re-sort chronologically for processing
+    sorted_files.sort(key=sort_key)
+    
     return [f'{base_url}/{filename}' for filename in sorted_files]
 
-class TestDataLoader:
+class HistoricalDataLoader:
     """
-    Loads test data from a MongoDB JSON export file and simulates real-time event ingestion
+    Loads historical data from a MongoDB JSON export file and simulates real-time event ingestion
     by feeding events to Redis queue in batches. Uses streaming to handle large files efficiently.
     """
 
@@ -523,27 +534,6 @@ class TestDataLoader:
         )
 
 
-# old
-async def load_test_data(
-    redis_client,
-    urls: list[str],
-    batch_size: int = 10000,
-    delay: float = 0.05,
-    deduplicator=None,
-    max_batches: Optional[int] = None,
-) -> None:
-    """Helper function to load test data."""
-    loader = TestDataLoader(
-        redis_client=redis_client,
-        urls=urls,
-        batch_size=batch_size,
-        delay_between_batches=delay,
-        deduplicator=deduplicator,
-        max_batches=max_batches,
-    )
-    await loader.process_events()
-
-
 class EventDeduplicator:
     def __init__(
         self,
@@ -736,7 +726,7 @@ def parse_args():
         help="Start listening to relays immediately",
         default=(os.getenv("START_LISTENING", "false").lower() == "true"),
     )
-    # Test data arguments
+    # historical data arguments
     parser.add_argument(
         "--historical-data",
         action="store_true",
@@ -744,181 +734,210 @@ def parse_args():
         default=(os.getenv("LOAD_HISTORICAL_DATA", "false").lower() == "true"),
     )
     parser.add_argument(
-        "--test-data-urls",
+        "--historical-data-urls",
         type=str,
-        default=os.getenv("TEST_DATA_URLS", ""),
-        help="Optional comma-separated list of specific test data URLs. If not provided, will automatically discover and sort all available monthly data files.",
+        default=os.getenv("HISTORICAL_DATA_URLS", ""),
+        help="Optional comma-separated list of specific historical data URLs. If not provided, will automatically discover and sort all available monthly data files.",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=int(os.getenv("TEST_DATA_BATCH_SIZE", "10000")),
-        help="Number of events to process in each batch when loading test data",
+        default=int(os.getenv("HISTORICAL_DATA_BATCH_SIZE", "10000")),
+        help="Number of events to process in each batch when loading HISTORICAL data",
     )
     parser.add_argument(
         "--batch-delay",
         type=float,
-        default=float(os.getenv("TEST_DATA_BATCH_DELAY", "0.001")),
-        help="Delay in seconds between processing batches of test data",
+        default=float(os.getenv("HISTORICAL_DATA_BATCH_DELAY", "0.001")),
+        help="Delay in seconds between processing batches of HISTORICAL data",
     )
     parser.add_argument(
         "--max-batches",
         type=int,
         help="Maximum number of batches to process (optional)",
     )
+    parser.add_argument(
+        "--historical-months",
+        type=int,
+        default=int(os.getenv("HISTORICAL_MONTHS", "0")),
+        help="Number of most recent months to process from historical data. If 0 or not set, processes all available months.",
+    )
     return parser.parse_args()
 
 
-async def main(args):
-    if args.historical_data:
-        logger.info(f"Historical data flag is {args.historical_data}, loading historical data...")
-        # Initialize Redis and deduplicator
-        redis_client = redis.from_url(
-            REDIS_URL,
-            socket_timeout=5,
-            socket_connect_timeout=5,
-            socket_keepalive=True,
-            health_check_interval=30,
-        )
-        deduplicator = EventDeduplicator(redis_client)
+async def process_historical_data(args):
+    """Process historical data from URLs"""
+    logger.info("Starting historical data processing...")
+    redis_client = redis.from_url(
+        REDIS_URL,
+        socket_timeout=5,
+        socket_connect_timeout=5,
+        socket_keepalive=True,
+        health_check_interval=30,
+    )
+    deduplicator = EventDeduplicator(redis_client)
 
-        # Initialize URLs - either from args or discover automatically
-        urls = None
-        if args.test_data_urls:
-            urls = [url.strip() for url in args.test_data_urls.split(",") if url.strip()]
-            if not urls:
-                logger.warning("No valid URLs provided in TEST_DATA_URLS, will discover automatically")
-
-            if urls:
-                logger.info(f"Using provided test data URLs: {urls}")
-            else:
-                logger.info("Will automatically discover and sort available monthly data files")
-            try:
-                loader = TestDataLoader(
-                    redis_client=redis_client,
-                    urls=urls,
-                    batch_size=args.batch_size,
-                    delay_between_batches=args.batch_delay,
-                    deduplicator=deduplicator,
-                    max_batches=args.max_batches,
-                )
-                logger.info(
-                    f"Created test data loader, now about to run process events parallel"
-                )
-                # Use parallel processing instead of sequential
-                await loader.process_events_parallel(max_concurrent=1)
-            except Exception as e:
-                logger.error(f"Error loading test data: {e}")
-                return
+    # Initialize URLs - either from args or discover automatically
+    urls = None
+    if args.historical_data_urls:
+        urls = [url.strip() for url in args.historical_data_urls.split(",") if url.strip()]
+        if not urls:
+            logger.warning("No valid URLs provided in HISTORICAL_DATA_URLS, will discover automatically")
+            urls = await get_historical_data_urls(args.historical_months)
     else:
-        reconnect_interval = 240  # Reconnect every 4 minutes
-        next_reconnect = time.time() + reconnect_interval
+        logger.info("No URLs provided, will automatically discover and sort available monthly data files")
+        urls = await get_historical_data_urls(args.historical_months)
 
-        while True:
-            client = None
-            handle_notifications_task = None
+    if not urls:
+        logger.error("No historical data URLs found")
+        return False
+
+    if args.historical_months:
+        logger.info(f"Processing only the most recent {args.historical_months} months of historical data")
+    else:
+        logger.info("Processing all available historical data")
+    
+    logger.info(f"Using historical data URLs: {urls}")
+    try:
+        loader = HistoricalDataLoader(
+            redis_client=redis_client,
+            urls=urls,
+            batch_size=args.batch_size,
+            delay_between_batches=args.batch_delay,
+            deduplicator=deduplicator,
+            max_batches=args.max_batches,
+        )
+        logger.info("Created historical data loader, now about to run process events parallel")
+        await loader.process_events_parallel(max_concurrent=1)
+        logger.info("Historical data processing completed successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error loading historical data: {e}")
+        return False
+
+async def listen_to_relays(args):
+    """Listen to relays for new events"""
+    logger.info("Starting relay listener...")
+    reconnect_interval = 240  # Reconnect every 4 minutes
+    next_reconnect = time.time() + reconnect_interval
+
+    while True:
+        client = None
+        handle_notifications_task = None
+        try:
+            logger.info(f"Connecting to relays (next reconnect at {time.strftime('%H:%M:%S', time.localtime(next_reconnect))})")
+            client, notification_handler, handle_notifications_task = await nostr_client(args.days_lookback)
+
+            # Check reconnect time while allowing notifications to process
             try:
-                logger.info(f"Connecting to relays (next reconnect at {time.strftime('%H:%M:%S', time.localtime(next_reconnect))})")
-                client, notification_handler, handle_notifications_task = await nostr_client(args.days_lookback)
-
-                # Check reconnect time while allowing notifications to process
-                try:
-                    remaining_time = max(0.1, next_reconnect - time.time())
-                    await asyncio.wait_for(
-                        handle_notifications_task,
-                        timeout=remaining_time
-                    )
-                    logger.info("Notification handler completed naturally, will reconnect...")
-                except asyncio.TimeoutError:
-                    logger.info("Reconnect interval reached, forcing reconnect...")
-                except Exception as e:
-                    logger.error(f"Error in notification handler: {e}")
-                    logger.error(traceback.format_exc())
-                
-                # Clean up the current notification handler task
-                if handle_notifications_task and not handle_notifications_task.done():
-                    handle_notifications_task.cancel()
-                    try:
-                        await handle_notifications_task
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as e:
-                        logger.error(f"Error cancelling notification handler: {e}")
-
-                # Disconnect client and update next reconnect time
-                if client:
-                    try:
-                        await client.disconnect()
-                    except Exception as e:
-                        logger.error(f"Error disconnecting client: {e}")
-                
-                next_reconnect = time.time() + reconnect_interval
-                logger.info(f"Disconnected. Next reconnect at {time.strftime('%H:%M:%S', time.localtime(next_reconnect))}")
-
-            except KeyboardInterrupt:
-                logger.info("Received keyboard interrupt, shutting down...")
-                break
+                remaining_time = max(0.1, next_reconnect - time.time())
+                await asyncio.wait_for(
+                    handle_notifications_task,
+                    timeout=remaining_time
+                )
+                logger.info("Notification handler completed naturally, will reconnect...")
+            except asyncio.TimeoutError:
+                logger.info("Reconnect interval reached, forcing reconnect...")
             except Exception as e:
-                logger.error(f"Unhandled exception in main: {e}")
+                logger.error(f"Error in notification handler: {e}")
                 logger.error(traceback.format_exc())
-                # Wait before attempting reconnect
-                await asyncio.sleep(10)
-                # Reset reconnect timer
-                next_reconnect = time.time() + reconnect_interval
-            finally:
-                # Clean up any remaining tasks
-                if handle_notifications_task and not handle_notifications_task.done():
-                    handle_notifications_task.cancel()
-                    try:
-                        await handle_notifications_task
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as e:
-                        logger.error(f"Error in final task cleanup: {e}")
+            
+            # Clean up the current notification handler task
+            if handle_notifications_task and not handle_notifications_task.done():
+                handle_notifications_task.cancel()
+                try:
+                    await handle_notifications_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.error(f"Error cancelling notification handler: {e}")
 
-                if client:
-                    try:
-                        await client.disconnect()
-                    except Exception as e:
-                        logger.error(f"Error in final client cleanup: {e}")
+            # Disconnect client and update next reconnect time
+            if client:
+                try:
+                    await client.disconnect()
+                except Exception as e:
+                    logger.error(f"Error disconnecting client: {e}")
+            
+            next_reconnect = time.time() + reconnect_interval
+            logger.info(f"Disconnected. Next reconnect at {time.strftime('%H:%M:%S', time.localtime(next_reconnect))}")
 
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt, shutting down...")
+            break
+        except Exception as e:
+            logger.error(f"Unhandled exception in main: {e}")
+            logger.error(traceback.format_exc())
+            # Wait before attempting reconnect
+            await asyncio.sleep(10)
+            # Reset reconnect timer
+            next_reconnect = time.time() + reconnect_interval
+        finally:
+            # Clean up any remaining tasks
+            if handle_notifications_task and not handle_notifications_task.done():
+                handle_notifications_task.cancel()
+                try:
+                    await handle_notifications_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.error(f"Error in final task cleanup: {e}")
+
+            if client:
+                try:
+                    await client.disconnect()
+                except Exception as e:
+                    logger.error(f"Error in final client cleanup: {e}")
+
+
+async def main(args):
+    """Main entry point with support for historical->relay transition"""
+    if args.historical_data:
+        logger.info("Historical data mode enabled - will process historical data then switch to relays")
+        historical_success = await process_historical_data(args)
+        if historical_success:
+            logger.info("Historical data processing complete - switching to relay mode")
+            if args.start_listening:
+                await listen_to_relays(args)
+            else:
+                logger.info("Not starting relay listener as --start-listening is not enabled")
+    else:
+        if not args.start_listening:
+            logger.info(
+                "Not listening to relays. Set START_LISTENING=true to begin or run "
+                "`START_LISTENING=true docker compose restart event_collector` after all containers are up."
+            )
+            while True:
+                await asyncio.sleep(3600)  # Sleep for an hour
+        else:
+            await listen_to_relays(args)
 
 if __name__ == "__main__":
     logger.info("Starting event collector...")
     args = parse_args()
 
+    async def run_program():
+        try:
+            if args.runtime > 0:
+                await asyncio.wait_for(main(args), timeout=(args.runtime * 60))
+            else:
+                await main(args)
+        except FileNotFoundError as e:
+            logger.error(f"Configuration error: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid configuration: {e}")
+            sys.exit(1)
+        except asyncio.TimeoutError:
+            logger.info(f"Program ran for {args.runtime} minutes and is now exiting.")
+        except Exception as e:
+            logger.error(f"Fatal error: {e}")
+            traceback.print_exc()
+            sys.exit(1)
+
     try:
-        loop = asyncio.get_event_loop()
-        if args.historical_data:
-            # Run historical data loader
-            loop.run_until_complete(main(args))
-        elif not args.start_listening:
-            logger.info(
-                "Not listening to relays. Set START_LISTENING=true to begin or run "
-                "`START_LISTENING=true docker compose restart event_collector` after all containers are up."
-            )
-            loop.run_forever()
-        elif args.runtime > 0:
-            end_time = datetime.datetime.now() + datetime.timedelta(
-                minutes=args.runtime
-            )
-            loop.run_until_complete(
-                asyncio.wait_for(main(args), timeout=(args.runtime * 60))
-            )
-        else:
-            loop.run_until_complete(main(args))
-    except FileNotFoundError as e:
-        logger.error(f"Configuration error: {e}")
-        sys.exit(1)
-    except ValueError as e:
-        logger.error(f"Invalid configuration: {e}")
-        sys.exit(1)
-    except asyncio.TimeoutError:
-        logger.info(f"Program ran for {args.runtime} minutes and is now exiting.")
-    except Exception as e:
-        logger.error(f"Fatal error in main loop: {e}")
-        traceback.print_exc()
-        sys.exit(1)
+        asyncio.run(run_program())
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt, shutting down...")
     finally:
-        loop.close()
-        logger.info("Event loop closed, exiting...")
+        logger.info("Program exiting...")

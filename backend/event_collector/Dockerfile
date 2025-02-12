@@ -25,9 +25,9 @@ COPY ./backend/shared /app/backend/shared
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
-ENV USE_TEST_DATA="true"
-ENV TEST_DATA_BATCH_SIZE="10000"
-ENV TEST_DATA_BATCH_DELAY="0.001"
+ENV LOAD_HISTORICAL_DATA="true"
+ENV HISTORICAL_DATA_BATCH_SIZE="10000"
+ENV HISTORICAL_DATA_BATCH_DELAY="0.001"
 ENV RELAYS="wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org"
 ENV START_LISTENING=true
 ENV LOG_LEVEL=DEBUG
