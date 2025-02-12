@@ -9,31 +9,30 @@ https://dvmdash.live/
 
 ## Run locally
 
-Install docker compose on your system.
+Install docker compose on your system. Then call docker compose up
 
 ```commandline
-docker compose up -d
+docker compose --profile all up -d
 ```
 
-Now check everything looks good, should all be healthy:
+It takes a minute or two for all the containers to get up and running.
 
 ```commandline
 docker compose ps
 ```
 
-Then to start listening to relays, run:
+By default, it's set to load historical data from last month and the current month, this requires a few GB of data. To turn this off, set `LOAD_HISTORICAL_DATA=false` in the `docker-compose.yml` file under the section `event_collector`. Once it's done pulling historical data, it will start listening to relays for more recent events.
+
+Run the frontend by:
 
 ```commandline
-START_LISTENING=true docker compose restart event_collector
+cd frontend/dvmdash-frontend/
+npm run dev
 ```
 
-and then if for any reason you want to stop listening to relays, run:
+Now you should be able to navigate to http://localhost:3000/ and see data from the last 30 days.
 
-```commandline
-START_LISTENING=false docker compose restart event_collector
-```
-
-And once it's all running, navigate to `localhost:3000`
+### Old Instructions Below
 
 ## Local Development
 
