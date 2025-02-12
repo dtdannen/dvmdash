@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import argparse
 import os
 import signal
 import sys
@@ -28,10 +29,12 @@ NUM_BATCH_PROCESSORS = 5
 # Global shutdown event
 shutdown_event = asyncio.Event()
 
-async def confirm_stage(stage_name: str, details: Dict[str, str]) -> bool:
+async def confirm_stage(stage_name: str, details: Dict[str, str]) -> Tuple[bool, bool]:
     """
     Display stage completion details and wait for user confirmation.
-    Returns True if user confirms, False to abort deployment.
+    Returns a tuple of (continue, destroy):
+        - continue: True to continue deployment, False to stop
+        - destroy: True to destroy infrastructure, False to keep it
     """
     logger.info(f"\n=== {stage_name} Complete ===")
     logger.info("Deployed resources:")
@@ -39,8 +42,15 @@ async def confirm_stage(stage_name: str, details: Dict[str, str]) -> bool:
         logger.info(f"  • {resource}: {status}")
     
     logger.info("\nPlease verify the infrastructure is correctly provisioned.")
-    response = await aioconsole.ainput("\nPress Enter to continue, or type anything to abort: ")
-    return not response.strip() or response.lower().strip() == 'yes'
+    response = await aioconsole.ainput("\nPress Enter to continue, 'abort' to quit without destroying, or 'destroy' to remove infrastructure: ")
+    response = response.lower().strip()
+    
+    if not response:
+        return True, False  # Continue deployment
+    elif response == 'destroy':
+        return False, True  # Stop and destroy
+    else:
+        return False, False  # Stop without destroying
 
 class PostgresManager:
     """Manages PostgreSQL database provisioning and configuration"""
@@ -313,11 +323,15 @@ class DeploymentManager:
                 "Redis": f"Host: {self.redis_config['host']}, Port: {self.redis_config['port']}"
             }
             
-            if await confirm_stage("Stage 1: Database Provisioning", details):
+            continue_deploy, destroy = await confirm_stage("Stage 1: Database Provisioning", details)
+            if continue_deploy:
                 logger.info("Stage 1 completed successfully!")
                 return True
             else:
-                logger.warning("User aborted deployment after Stage 1")
+                if destroy:
+                    logger.warning("User requested infrastructure destruction after Stage 1")
+                else:
+                    logger.warning("User aborted deployment after Stage 1")
                 await self.cleanup()
                 return False
             
@@ -367,31 +381,33 @@ class DeploymentManager:
                 self.postgres_config
             )
             
-            # Deploy services with explicit log token validation
-            logger.info("Deploying event collector and monthly archiver...")
-            await asyncio.gather(
-                self.event_collector.deploy(
-                    branch="main",
-                    logs_token=ec_logs_token,
-                    project_id=self.project_id
-                ),
-                self.monthly_archiver.deploy(
-                    branch="main",
-                    logs_token=ma_logs_token,
-                    project_id=self.project_id
-                )
+            # Deploy monthly archiver first
+            logger.info("Deploying monthly archiver...")
+            await self.monthly_archiver.deploy(
+                branch="main",
+                logs_token=ma_logs_token,
+                project_id=self.project_id
             )
             
-            # Deploy first batch processor with explicit log token
-            logger.info("Deploying batch processor...")
+            # Deploy first batch processor
+            logger.info("Deploying initial batch processor...")
             await self.batch_processor.deploy(
                 branch="main",
                 logs_token=bp_logs_token,
                 project_id=self.project_id
             )
             
-            # Scale batch processors
+            # Deploy event collector
+            logger.info("Deploying event collector...")
+            await self.event_collector.deploy(
+                branch="main",
+                logs_token=ec_logs_token,
+                project_id=self.project_id
+            )
+            
+            # Scale remaining batch processors after event collector is running
             if NUM_BATCH_PROCESSORS > 1:
+                logger.info(f"Scaling batch processors to {NUM_BATCH_PROCESSORS} instances...")
                 await self.batch_processor.scale(NUM_BATCH_PROCESSORS)
             
             # Wait for user confirmation
@@ -401,11 +417,15 @@ class DeploymentManager:
                 "Monthly Archiver": "Deployed and running"
             }
             
-            if await confirm_stage("Stage 2: Backend Services Deployment", details):
+            continue_deploy, destroy = await confirm_stage("Stage 2: Backend Services Deployment", details)
+            if continue_deploy:
                 logger.info("Stage 2 completed successfully!")
                 return True
             else:
-                logger.warning("User aborted deployment after Stage 2")
+                if destroy:
+                    logger.warning("User requested infrastructure destruction after Stage 2")
+                else:
+                    logger.warning("User aborted deployment after Stage 2")
                 await self.cleanup_stage2()
                 await self.cleanup()
                 return False
@@ -518,11 +538,15 @@ class DeploymentManager:
                 "Event Collector": "Configuration updated with production settings"
             }
             
-            if await confirm_stage("Stage 3: Frontend Deployment and Finalization", details):
+            continue_deploy, destroy = await confirm_stage("Stage 3: Frontend Deployment and Finalization", details)
+            if continue_deploy:
                 logger.info("Stage 3 completed successfully!")
                 return True
             else:
-                logger.warning("User aborted deployment after Stage 3")
+                if destroy:
+                    logger.warning("User requested infrastructure destruction after Stage 3")
+                else:
+                    logger.warning("User aborted deployment after Stage 3")
                 await self.cleanup_stage3()
                 await self.cleanup_stage2()
                 await self.cleanup()
@@ -571,6 +595,11 @@ class DeploymentManager:
 
 async def main():
     """Main deployment function"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Deploy DVM Dashboard production environment')
+    parser.add_argument('--stage', type=int, choices=[1, 2, 3], help='Start deployment from a specific stage (1-3)')
+    args = parser.parse_args()
+    
     # Setup signal handlers
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -578,20 +607,30 @@ async def main():
         
     deployment = DeploymentManager()
     try:
+        start_stage = args.stage if args.stage else 1
+        logger.info(f"Starting deployment from stage {start_stage}")
+        
         # Stage 1: Database Provisioning
-        if not await deployment.stage1_provision_databases():
-            logger.error("Deployment failed at Stage 1")
-            sys.exit(1)
+        if start_stage <= 1:
+            if not await deployment.stage1_provision_databases():
+                logger.error("Deployment failed at Stage 1")
+                sys.exit(1)
+        else:
+            logger.info("Skipping Stage 1 (Database Provisioning)")
             
         # Stage 2: Backend Services
-        if not await deployment.stage2_deploy_backend_services():
-            logger.error("Deployment failed at Stage 2")
-            sys.exit(1)
+        if start_stage <= 2:
+            if not await deployment.stage2_deploy_backend_services():
+                logger.error("Deployment failed at Stage 2")
+                sys.exit(1)
+        else:
+            logger.info("Skipping Stage 2 (Backend Services)")
             
         # Stage 3: Frontend and Finalization
-        if not await deployment.stage3_deploy_frontend_and_finalize():
-            logger.error("Deployment failed at Stage 3")
-            sys.exit(1)
+        if start_stage <= 3:
+            if not await deployment.stage3_deploy_frontend_and_finalize():
+                logger.error("Deployment failed at Stage 3")
+                sys.exit(1)
             
         logger.info("Deployment completed successfully!")
         

@@ -545,6 +545,11 @@ class ApiService(AppPlatformService):
                     "instance_size_slug": "basic-xxs",
                     "dockerfile_path": "api/Dockerfile",
                     "http_port": 8000,
+                    "health_check": {
+                        "http_path": "/health",
+                        "initial_delay_seconds": 10,
+                        "period_seconds": 30
+                    },
                     "routes": [
                         {
                             "path": "/api",
@@ -552,6 +557,10 @@ class ApiService(AppPlatformService):
                         }
                     ],
                     "envs": [
+                        {
+                            "key": "FRONTEND_URL",
+                            "value": "${_self.HOSTNAME}",
+                        },
                         {
                             "key": "POSTGRES_USER",
                             "value": self.postgres_config["user"],
@@ -628,8 +637,8 @@ class FrontendService(AppPlatformService):
                         "deploy_on_push": False,
                     },
                     "source_dir": "frontend/dvmdash-frontend",
-                    "output_dir": ".next",
-                    "build_command": "npm run build",
+                    "output_dir": ".next/standalone",
+                    "build_command": "npm install && npm run build",
                     "environment_slug": "node-js",
                     "routes": [
                         {
@@ -640,6 +649,10 @@ class FrontendService(AppPlatformService):
                         {
                             "key": "NEXT_PUBLIC_API_URL",
                             "value": "${_self.HOSTNAME}/api",
+                        },
+                        {
+                            "key": "NODE_ENV",
+                            "value": "production"
                         }
                     ],
                 }
