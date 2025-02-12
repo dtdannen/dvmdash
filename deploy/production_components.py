@@ -69,6 +69,23 @@ class AppPlatformService:
             "Content-Type": "application/json",
         }
         
+    async def transfer_to_project(self, project_id: str):
+        """Transfer app to specified project"""
+        if not self.app_id:
+            raise ValueError("No app exists yet")
+            
+        try:
+            transfer_response = requests.post(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}/transfer",
+                headers=self.headers,
+                json={"project_id": project_id}
+            )
+            transfer_response.raise_for_status()
+            logger.info(f"Transferred {self.name_prefix} to project {project_id}")
+        except Exception as e:
+            logger.error(f"Failed to transfer {self.name_prefix} to project: {str(e)}")
+            raise
+            
     async def wait_for_app_ready(self):
         """Wait for App Platform application to be ready"""
         while True:
@@ -111,51 +128,48 @@ class EventCollector(AppPlatformService):
         """Deploy Event Collector to App Platform"""
         logger.info(f"Deploying {self.name_prefix}...")
         
-        spec = {
-            "spec": {
-                "name": f"{self.project_name}-{self.name_prefix}",
-                "project_id": project_id,
-                "region": "nyc",
-                "workers": [
-                    {
-                        "name": "worker",
-                        "github": {
-                            "repo": "dtdannen/dvmdash",
-                            "branch": branch,
-                            "deploy_on_push": False,
+        app_spec = {
+            "name": f"{self.project_name}-{self.name_prefix}",
+            "region": "nyc",
+            "workers": [
+                {
+                    "name": "worker",
+                    "github": {
+                        "repo": "dtdannen/dvmdash",
+                        "branch": branch,
+                        "deploy_on_push": False,
+                    },
+                    "source_dir": ".",
+                    "instance_count": 1,
+                    "instance_size_slug": "apps-d-2vcpu-8gb",
+                    "dockerfile_path": "backend/event_collector/Dockerfile",
+                    "envs": [
+                        {
+                            "key": "REDIS_URL",
+                            "value": f"rediss://default:{self.redis_config['password']}@"
+                                    f"{self.redis_config['host']}:{self.redis_config['port']}",
+                            "type": "SECRET",
                         },
-                        "source_dir": ".",
-                        "instance_count": 1,
-                        "instance_size_slug": "apps-d-2vcpu-8gb",
-                        "dockerfile_path": "backend/event_collector/Dockerfile",
-                        "envs": [
-                            {
-                                "key": "REDIS_URL",
-                                "value": f"rediss://default:{self.redis_config['password']}@"
-                                        f"{self.redis_config['host']}:{self.redis_config['port']}",
-                                "type": "SECRET",
-                            },
-                            {
-                                "key": "USE_TEST_DATA",
-                                "value": "true",
-                            },
-                            {
-                                "key": "TEST_DATA_BATCH_SIZE",
-                                "value": "50000",
-                            },
-                            {
-                                "key": "TEST_DATA_BATCH_DELAY",
-                                "value": "0.0001",
-                            },
-                        ],
-                    }
-                ],
-            }
+                        {
+                            "key": "LOAD_HISTORICAL_DATA",
+                            "value": "true",
+                        },
+                        {
+                            "key": "TEST_DATA_BATCH_SIZE",
+                            "value": "50000",
+                        },
+                        {
+                            "key": "TEST_DATA_BATCH_DELAY",
+                            "value": "0.0001",
+                        },
+                    ],
+                }
+            ],
         }
         
         # Add logging configuration if token provided
         if logs_token:
-            spec["spec"]["workers"][0]["log_destinations"] = [
+            app_spec["workers"][0]["log_destinations"] = [
                 {
                     "name": "betterstack",
                     "logtail": {
@@ -168,17 +182,21 @@ class EventCollector(AppPlatformService):
             response = requests.post(
                 "https://api.digitalocean.com/v2/apps",
                 headers=self.headers,
-                json=spec,
+                json={"spec": app_spec, "project_id": project_id} if project_id else {"spec": app_spec},
             )
             response.raise_for_status()
             
-            self.app_id = response.json()["app"]["id"]
+            app_data = response.json()["app"]
+            self.app_id = app_data["id"]
             await self.wait_for_app_ready()
             
         except Exception as e:
             if hasattr(e, 'response') and e.response is not None:
-                error_detail = e.response.json() if e.response.content else str(e)
-                logger.error(f"Failed to deploy {self.name_prefix}: {error_detail}")
+                try:
+                    error_detail = e.response.json()
+                    logger.error(f"Failed to deploy {self.name_prefix}. API Response: {error_detail}")
+                except:
+                    logger.error(f"Failed to deploy {self.name_prefix}: {e.response.text}")
             else:
                 logger.error(f"Failed to deploy {self.name_prefix}: {str(e)}")
             await self.cleanup()
@@ -246,72 +264,69 @@ class BatchProcessor(AppPlatformService):
         """Deploy Batch Processor to App Platform"""
         logger.info(f"Deploying {self.name_prefix}...")
         
-        spec = {
-            "spec": {
-                "name": f"{self.project_name}-{self.name_prefix}",
-                "project_id": project_id,
-                "region": "nyc",
-                "workers": [
-                    {
-                        "name": "worker",
-                        "github": {
-                            "repo": "dtdannen/dvmdash",
-                            "branch": branch,
-                            "deploy_on_push": False,
+        app_spec = {
+            "name": f"{self.project_name}-{self.name_prefix}",
+            "region": "nyc",
+            "workers": [
+                {
+                    "name": "worker",
+                    "github": {
+                        "repo": "dtdannen/dvmdash",
+                        "branch": branch,
+                        "deploy_on_push": False,
+                    },
+                    "source_dir": ".",
+                    "instance_count": instance_count,
+                    "instance_size_slug": "apps-s-1vcpu-2gb",
+                    "dockerfile_path": "backend/batch_processor/Dockerfile",
+                    "envs": [
+                        {
+                            "key": "REDIS_URL",
+                            "value": f"rediss://default:{self.redis_config['password']}@"
+                                    f"{self.redis_config['host']}:{self.redis_config['port']}",
+                            "type": "SECRET",
                         },
-                        "source_dir": ".",
-                        "instance_count": instance_count,
-                        "instance_size_slug": "apps-s-1vcpu-2gb",
-                        "dockerfile_path": "backend/batch_processor/Dockerfile",
-                        "envs": [
-                            {
-                                "key": "REDIS_URL",
-                                "value": f"rediss://default:{self.redis_config['password']}@"
-                                        f"{self.redis_config['host']}:{self.redis_config['port']}",
-                                "type": "SECRET",
-                            },
-                            {
-                                "key": "POSTGRES_USER",
-                                "value": self.postgres_config["user"],
-                            },
-                            {
-                                "key": "POSTGRES_PASSWORD",
-                                "value": self.postgres_config["password"],
-                                "type": "SECRET",
-                            },
-                            {
-                                "key": "POSTGRES_DB",
-                                "value": self.postgres_config["database"],
-                            },
-                            {
-                                "key": "POSTGRES_HOST",
-                                "value": self.postgres_config["host"],
-                            },
-                            {
-                                "key": "POSTGRES_PORT",
-                                "value": str(self.postgres_config["port"]),
-                            },
-                            {
-                                "key": "MAX_WAIT_SECONDS",
-                                "value": "3",
-                            },
-                            {
-                                "key": "BATCH_SIZE",
-                                "value": "10000",
-                            },
-                            {
-                                "key": "BACKTEST_MODE",
-                                "value": "true",
-                            },
-                        ],
-                    }
-                ],
-            }
+                        {
+                            "key": "POSTGRES_USER",
+                            "value": self.postgres_config["user"],
+                        },
+                        {
+                            "key": "POSTGRES_PASSWORD",
+                            "value": self.postgres_config["password"],
+                            "type": "SECRET",
+                        },
+                        {
+                            "key": "POSTGRES_DB",
+                            "value": self.postgres_config["database"],
+                        },
+                        {
+                            "key": "POSTGRES_HOST",
+                            "value": self.postgres_config["host"],
+                        },
+                        {
+                            "key": "POSTGRES_PORT",
+                            "value": str(self.postgres_config["port"]),
+                        },
+                        {
+                            "key": "MAX_WAIT_SECONDS",
+                            "value": "3",
+                        },
+                        {
+                            "key": "BATCH_SIZE",
+                            "value": "10000",
+                        },
+                        {
+                            "key": "BACKTEST_MODE",
+                            "value": "true",
+                        },
+                    ],
+                }
+            ],
         }
         
         # Add logging configuration if token provided
         if logs_token:
-            spec["spec"]["workers"][0]["log_destinations"] = [
+            app_spec["workers"][0]["log_destinations"] = [
                 {
                     "name": "betterstack",
                     "logtail": {
@@ -324,11 +339,12 @@ class BatchProcessor(AppPlatformService):
             response = requests.post(
                 "https://api.digitalocean.com/v2/apps",
                 headers=self.headers,
-                json=spec,
+                json={"spec": app_spec, "project_id": project_id} if project_id else {"spec": app_spec},
             )
             response.raise_for_status()
             
-            self.app_id = response.json()["app"]["id"]
+            app_data = response.json()["app"]
+            self.app_id = app_data["id"]
             self.current_instance_count = instance_count
             await self.wait_for_app_ready()
             
@@ -414,72 +430,69 @@ class MonthlyArchiver(AppPlatformService):
         """Deploy Monthly Archiver to App Platform"""
         logger.info(f"Deploying {self.name_prefix}...")
         
-        spec = {
-            "spec": {
-                "name": f"{self.project_name}-{self.name_prefix}",
-                "project_id": project_id,
-                "region": "nyc",
-                "workers": [
-                    {
-                        "name": "worker",
-                        "github": {
-                            "repo": "dtdannen/dvmdash",
-                            "branch": branch,
-                            "deploy_on_push": False,
+        app_spec = {
+            "name": f"{self.project_name}-{self.name_prefix}",
+            "region": "nyc",
+            "workers": [
+                {
+                    "name": "worker",
+                    "github": {
+                        "repo": "dtdannen/dvmdash",
+                        "branch": branch,
+                        "deploy_on_push": False,
+                    },
+                    "source_dir": ".",
+                    "instance_count": 1,
+                    "instance_size_slug": "apps-s-1vcpu-2gb",
+                    "dockerfile_path": "backend/monthly_archiver/Dockerfile",
+                    "envs": [
+                        {
+                            "key": "REDIS_URL",
+                            "value": f"rediss://default:{self.redis_config['password']}@"
+                                    f"{self.redis_config['host']}:{self.redis_config['port']}",
+                            "type": "SECRET",
                         },
-                        "source_dir": ".",
-                        "instance_count": 1,
-                        "instance_size_slug": "db-s-1vcpu-1gb",
-                        "dockerfile_path": "backend/monthly_archiver/Dockerfile",
-                        "envs": [
-                            {
-                                "key": "REDIS_URL",
-                                "value": f"rediss://default:{self.redis_config['password']}@"
-                                        f"{self.redis_config['host']}:{self.redis_config['port']}",
-                                "type": "SECRET",
-                            },
-                            {
-                                "key": "POSTGRES_USER",
-                                "value": self.postgres_config["user"],
-                            },
-                            {
-                                "key": "POSTGRES_PASSWORD",
-                                "value": self.postgres_config["password"],
-                                "type": "SECRET",
-                            },
-                            {
-                                "key": "POSTGRES_DB",
-                                "value": self.postgres_config["database"],
-                            },
-                            {
-                                "key": "POSTGRES_HOST",
-                                "value": self.postgres_config["host"],
-                            },
-                            {
-                                "key": "POSTGRES_PORT",
-                                "value": str(self.postgres_config["port"]),
-                            },
-                            {
-                                "key": "DAILY_CLEANUP_INTERVAL_SECONDS",
-                                "value": "86400",  # 24 hours
-                            },
-                            {
-                                "key": "MONTHLY_CLEANUP_BUFFER_DAYS",
-                                "value": "3",
-                            },
-                            {
-                                "key": "BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS",
-                                "value": "15",
-                            },
-                        ],
-                    }
-                ],
-            }
+                        {
+                            "key": "POSTGRES_USER",
+                            "value": self.postgres_config["user"],
+                        },
+                        {
+                            "key": "POSTGRES_PASSWORD",
+                            "value": self.postgres_config["password"],
+                            "type": "SECRET",
+                        },
+                        {
+                            "key": "POSTGRES_DB",
+                            "value": self.postgres_config["database"],
+                        },
+                        {
+                            "key": "POSTGRES_HOST",
+                            "value": self.postgres_config["host"],
+                        },
+                        {
+                            "key": "POSTGRES_PORT",
+                            "value": str(self.postgres_config["port"]),
+                        },
+                        {
+                            "key": "DAILY_CLEANUP_INTERVAL_SECONDS",
+                            "value": "86400",  # 24 hours
+                        },
+                        {
+                            "key": "MONTHLY_CLEANUP_BUFFER_DAYS",
+                            "value": "3",
+                        },
+                        {
+                            "key": "BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS",
+                            "value": "15",
+                        },
+                    ],
+                }
+            ],
         }
         
         # Add logging configuration if token provided
         if logs_token:
-            spec["spec"]["workers"][0]["log_destinations"] = [
+            app_spec["workers"][0]["log_destinations"] = [
                 {
                     "name": "betterstack",
                     "logtail": {
@@ -492,11 +505,12 @@ class MonthlyArchiver(AppPlatformService):
             response = requests.post(
                 "https://api.digitalocean.com/v2/apps",
                 headers=self.headers,
-                json=spec,
+                json={"spec": app_spec, "project_id": project_id} if project_id else {"spec": app_spec},
             )
             response.raise_for_status()
             
-            self.app_id = response.json()["app"]["id"]
+            app_data = response.json()["app"]
+            self.app_id = app_data["id"]
             await self.wait_for_app_ready()
             
         except Exception as e:
@@ -515,61 +529,58 @@ class ApiService(AppPlatformService):
         """Deploy API to App Platform"""
         logger.info(f"Deploying {self.name_prefix}...")
         
-        spec = {
-            "spec": {
-                "name": f"{self.project_name}-{self.name_prefix}",
-                "project_id": project_id,
-                "region": "nyc",
-                "services": [
-                    {
-                        "name": "api",
-                        "github": {
-                            "repo": "dtdannen/dvmdash",
-                            "branch": branch,
-                            "deploy_on_push": False,
+        app_spec = {
+            "name": f"{self.project_name}-{self.name_prefix}",
+            "region": "nyc",
+            "services": [
+                {
+                    "name": "api",
+                    "github": {
+                        "repo": "dtdannen/dvmdash",
+                        "branch": branch,
+                        "deploy_on_push": False,
+                    },
+                    "source_dir": ".",
+                    "instance_count": 1,
+                    "instance_size_slug": "basic-xxs",
+                    "dockerfile_path": "api/Dockerfile",
+                    "http_port": 8000,
+                    "routes": [
+                        {
+                            "path": "/api",
+                            "preserve_path_prefix": True,
+                        }
+                    ],
+                    "envs": [
+                        {
+                            "key": "POSTGRES_USER",
+                            "value": self.postgres_config["user"],
                         },
-                        "source_dir": ".",
-                        "instance_count": 1,
-                        "instance_size_slug": "basic-xxs",
-                        "dockerfile_path": "api/Dockerfile",
-                        "http_port": 8000,
-                        "routes": [
-                            {
-                                "path": "/api",
-                                "preserve_path_prefix": True,
-                            }
-                        ],
-                        "envs": [
-                            {
-                                "key": "POSTGRES_USER",
-                                "value": self.postgres_config["user"],
-                            },
-                            {
-                                "key": "POSTGRES_PASSWORD",
-                                "value": self.postgres_config["password"],
-                                "type": "SECRET",
-                            },
-                            {
-                                "key": "POSTGRES_DB",
-                                "value": self.postgres_config["database"],
-                            },
-                            {
-                                "key": "POSTGRES_HOST",
-                                "value": self.postgres_config["host"],
-                            },
-                            {
-                                "key": "POSTGRES_PORT",
-                                "value": str(self.postgres_config["port"]),
-                            },
-                        ],
-                    }
-                ],
-            }
+                        {
+                            "key": "POSTGRES_PASSWORD",
+                            "value": self.postgres_config["password"],
+                            "type": "SECRET",
+                        },
+                        {
+                            "key": "POSTGRES_DB",
+                            "value": self.postgres_config["database"],
+                        },
+                        {
+                            "key": "POSTGRES_HOST",
+                            "value": self.postgres_config["host"],
+                        },
+                        {
+                            "key": "POSTGRES_PORT",
+                            "value": str(self.postgres_config["port"]),
+                        },
+                    ],
+                }
+            ],
         }
         
         # Add logging configuration if token provided
         if logs_token:
-            spec["spec"]["services"][0]["log_destinations"] = [
+            app_spec["services"][0]["log_destinations"] = [
                 {
                     "name": "betterstack",
                     "logtail": {
@@ -582,11 +593,12 @@ class ApiService(AppPlatformService):
             response = requests.post(
                 "https://api.digitalocean.com/v2/apps",
                 headers=self.headers,
-                json=spec,
+                json={"spec": app_spec, "project_id": project_id} if project_id else {"spec": app_spec},
             )
             response.raise_for_status()
             
-            self.app_id = response.json()["app"]["id"]
+            app_data = response.json()["app"]
+            self.app_id = app_data["id"]
             await self.wait_for_app_ready()
             
         except Exception as e:
@@ -604,42 +616,39 @@ class FrontendService(AppPlatformService):
         """Deploy Frontend to App Platform"""
         logger.info(f"Deploying {self.name_prefix}...")
         
-        spec = {
-            "spec": {
-                "name": f"{self.project_name}-{self.name_prefix}",
-                "project_id": project_id,
-                "region": "nyc",
-                "static_sites": [
-                    {
-                        "name": "frontend",
-                        "github": {
-                            "repo": "dtdannen/dvmdash",
-                            "branch": branch,
-                            "deploy_on_push": False,
-                        },
-                        "source_dir": "frontend/dvmdash-frontend",
-                        "output_dir": ".next",
-                        "build_command": "npm run build",
-                        "environment_slug": "node-js",
-                        "routes": [
-                            {
-                                "path": "/",
-                            }
-                        ],
-                        "envs": [
-                            {
-                                "key": "NEXT_PUBLIC_API_URL",
-                                "value": "${_self.HOSTNAME}/api",
-                            }
-                        ],
-                    }
-                ],
-            }
+        app_spec = {
+            "name": f"{self.project_name}-{self.name_prefix}",
+            "region": "nyc",
+            "static_sites": [
+                {
+                    "name": "frontend",
+                    "github": {
+                        "repo": "dtdannen/dvmdash",
+                        "branch": branch,
+                        "deploy_on_push": False,
+                    },
+                    "source_dir": "frontend/dvmdash-frontend",
+                    "output_dir": ".next",
+                    "build_command": "npm run build",
+                    "environment_slug": "node-js",
+                    "routes": [
+                        {
+                            "path": "/",
+                        }
+                    ],
+                    "envs": [
+                        {
+                            "key": "NEXT_PUBLIC_API_URL",
+                            "value": "${_self.HOSTNAME}/api",
+                        }
+                    ],
+                }
+            ],
         }
         
         # Add logging configuration if token provided
         if logs_token:
-            spec["spec"]["static_sites"][0]["log_destinations"] = [
+            app_spec["static_sites"][0]["log_destinations"] = [
                 {
                     "name": "betterstack",
                     "logtail": {
@@ -652,11 +661,12 @@ class FrontendService(AppPlatformService):
             response = requests.post(
                 "https://api.digitalocean.com/v2/apps",
                 headers=self.headers,
-                json=spec,
+                json={"spec": app_spec, "project_id": project_id} if project_id else {"spec": app_spec},
             )
             response.raise_for_status()
             
-            self.app_id = response.json()["app"]["id"]
+            app_data = response.json()["app"]
+            self.app_id = app_data["id"]
             await self.wait_for_app_ready()
             
         except Exception as e:
