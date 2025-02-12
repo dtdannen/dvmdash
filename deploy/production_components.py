@@ -628,7 +628,7 @@ class FrontendService(AppPlatformService):
         app_spec = {
             "name": f"{self.project_name}-{self.name_prefix}",
             "region": "nyc",
-            "static_sites": [
+            "services": [
                 {
                     "name": "frontend",
                     "github": {
@@ -637,9 +637,14 @@ class FrontendService(AppPlatformService):
                         "deploy_on_push": False,
                     },
                     "source_dir": "frontend/dvmdash-frontend",
-                    "output_dir": ".next/standalone",
-                    "build_command": "npm install && npm run build",
-                    "environment_slug": "node-js",
+                    "instance_count": 1,
+                    "instance_size_slug": "apps-s-1vcpu-2gb",
+                    "http_port": 3000,
+                    "health_check": {
+                        "http_path": "/",
+                        "initial_delay_seconds": 10,
+                        "period_seconds": 30
+                    },
                     "routes": [
                         {
                             "path": "/",
@@ -653,6 +658,25 @@ class FrontendService(AppPlatformService):
                         {
                             "key": "NODE_ENV",
                             "value": "production"
+                        },
+                        {
+                            "key": "PORT",
+                            "value": "3000"
+                        },
+                        {
+                            "key": "NPM_CONFIG_PRODUCTION",
+                            "value": "true",
+                            "scope": "BUILD_TIME"
+                        },
+                        {
+                            "key": "NEXT_TELEMETRY_DISABLED",
+                            "value": "1",
+                            "scope": "BUILD_TIME"
+                        },
+                        {
+                            "key": "NEXT_SHARP_PATH",
+                            "value": "/workspace/node_modules/sharp",
+                            "scope": "BUILD_TIME"
                         }
                     ],
                 }
@@ -661,7 +685,7 @@ class FrontendService(AppPlatformService):
         
         # Add logging configuration if token provided
         if logs_token:
-            app_spec["static_sites"][0]["log_destinations"] = [
+            app_spec["services"][0]["log_destinations"] = [
                 {
                     "name": "betterstack",
                     "logtail": {
@@ -671,18 +695,101 @@ class FrontendService(AppPlatformService):
             ]
             
         try:
+            # First validate the app spec
+            logger.info("Validating app specification...")
+            validate_response = requests.post(
+                "https://api.digitalocean.com/v2/apps/validate",
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                json={"spec": app_spec},
+            )
+            
+            try:
+                if validate_response.status_code != 200:
+                    logger.error(f"Validation response status: {validate_response.status_code}")
+                    logger.error(f"Raw response: {validate_response.text}")
+                    try:
+                        error_data = validate_response.json()
+                        logger.error(f"Validation response JSON: {error_data}")
+                        if "error" in error_data:
+                            logger.error(f"Error message: {error_data['error']['message']}")
+                            logger.error(f"Error code: {error_data['error'].get('code', 'no code')}")
+                        if "validation_errors" in error_data:
+                            for error in error_data["validation_errors"]:
+                                logger.error(f"- {error}")
+                    except Exception as e:
+                        logger.error(f"Failed to parse validation response as JSON: {str(e)}")
+                    raise ValueError(f"App specification validation failed with status {validate_response.status_code}")
+            except Exception as e:
+                logger.error(f"Validation request failed: {str(e)}")
+                raise
+            
+            # Deploy the app
+            logger.info("Creating app deployment...")
+            deploy_payload = {"spec": app_spec}
+            if project_id:
+                deploy_payload["project_id"] = project_id
+                
             response = requests.post(
                 "https://api.digitalocean.com/v2/apps",
                 headers=self.headers,
-                json={"spec": app_spec, "project_id": project_id} if project_id else {"spec": app_spec},
+                json=deploy_payload,
             )
-            response.raise_for_status()
+            
+            if response.status_code != 201:
+                error_data = response.json()
+                logger.error(f"Deployment failed with status {response.status_code}:")
+                if "message" in error_data:
+                    logger.error(f"Error message: {error_data['message']}")
+                if "error" in error_data:
+                    logger.error(f"Error details: {error_data['error']}")
+                raise ValueError(f"Failed to create app: {error_data.get('message', 'Unknown error')}")
             
             app_data = response.json()["app"]
             self.app_id = app_data["id"]
-            await self.wait_for_app_ready()
+            
+            # Monitor deployment progress
+            logger.info("Monitoring deployment progress...")
+            while True:
+                status = requests.get(
+                    f"https://api.digitalocean.com/v2/apps/{self.app_id}/deployments",
+                    headers=self.headers,
+                ).json()
+                
+                if "deployments" not in status or not status["deployments"]:
+                    await asyncio.sleep(10)
+                    continue
+                
+                latest_deployment = status["deployments"][0]
+                phase = latest_deployment.get("phase", "")
+                logger.info(f"Deployment phase: {phase}")
+                
+                if phase == "ACTIVE":
+                    logger.info("Deployment completed successfully!")
+                    break
+                elif phase in ["ERROR", "FAILED", "CANCELED"]:
+                    logger.error(f"Deployment failed in phase {phase}")
+                    if "progress" in latest_deployment:
+                        for step in latest_deployment["progress"].get("steps", []):
+                            if step.get("status") == "ERROR":
+                                logger.error(f"Step '{step.get('name')}' failed: {step.get('message')}")
+                    raise ValueError(f"Deployment failed in phase {phase}")
+                
+                await asyncio.sleep(10)
             
         except Exception as e:
-            logger.error(f"Failed to deploy {self.name_prefix}: {str(e)}")
+            logger.error(f"Failed to deploy {self.name_prefix}")
+            if hasattr(e, "response") and e.response is not None:
+                try:
+                    error_detail = e.response.json()
+                    logger.error(f"API Response: {error_detail}")
+                    if "error" in error_detail:
+                        logger.error(f"Error message: {error_detail['error'].get('message', '')}")
+                        logger.error(f"Error code: {error_detail['error'].get('code', '')}")
+                except:
+                    logger.error(f"Raw response: {e.response.text}")
             await self.cleanup()
-            raise
+            raise ValueError(f"Deployment failed: {str(e)}")

@@ -280,7 +280,7 @@ class RedisManager:
 class DeploymentManager:
     """Manages the entire deployment process"""
     
-    def __init__(self):
+    def __init__(self, postgres_config: Optional[Dict] = None):
         # Validate required environment variables
         self.do_token = os.getenv("DO_TOKEN")
         if not self.do_token:
@@ -293,12 +293,17 @@ class DeploymentManager:
             raise ValueError("BETTERSTACK_TOKEN environment variable is required")
             
         # Initialize managers
-        self.postgres = PostgresManager(self.do_token, self.project_name)
+        if postgres_config:
+            self.postgres_config = postgres_config
+            self.postgres = None  # Don't initialize PostgresManager if config provided
+        else:
+            self.postgres = PostgresManager(self.do_token, self.project_name)
+            self.postgres_config = None
+            
         self.redis = RedisManager(self.do_token, self.project_name)
         self.betterstack = BetterStackLogger(self.project_name)
         
         # Store configurations and components
-        self.postgres_config = None
         self.redis_config = None
         self.event_collector = None
         self.batch_processor = None
@@ -312,14 +317,17 @@ class DeploymentManager:
             logger.info("Starting Stage 1: Database Provisioning")
             
             # Provision databases concurrently
-            self.postgres_config, self.redis_config = await asyncio.gather(
-                self.postgres.provision(self.project_id),
-                self.redis.provision(self.project_id)
-            )
+            if self.postgres:
+                self.postgres_config, self.redis_config = await asyncio.gather(
+                    self.postgres.provision(self.project_id),
+                    self.redis.provision(self.project_id)
+                )
+            else:
+                self.redis_config = await self.redis.provision(self.project_id)
             
             # Wait for user confirmation
             details = {
-                "PostgreSQL": f"Host: {self.postgres_config['host']}, Port: {self.postgres_config['port']}",
+                "PostgreSQL": f"Host: {self.postgres_config['host']}, Port: {self.postgres_config['port']}" if self.postgres_config else "Using existing database",
                 "Redis": f"Host: {self.redis_config['host']}, Port: {self.redis_config['port']}"
             }
             
@@ -449,96 +457,39 @@ class DeploymentManager:
         if cleanup_tasks:
             await asyncio.gather(*cleanup_tasks)
             
-    async def stage3_deploy_frontend_and_finalize(self) -> bool:
-        """Stage 3: Deploy API and frontend, finalize event collector"""
+    async def stage3_deploy_api(self) -> bool:
+        """Stage 3: Deploy API service"""
         try:
-            logger.info("Starting Stage 3: Frontend Deployment and Finalization")
+            logger.info("Starting Stage 3: API Service Deployment")
             
-            # Create log sources with proper error handling
+            # Create log source with proper error handling
             api_logs_token = self.betterstack.create_source("api")
             if not api_logs_token:
                 raise ValueError("Failed to create api log source")
                 
-            frontend_logs_token = self.betterstack.create_source("frontend")
-            if not frontend_logs_token:
-                raise ValueError("Failed to create frontend log source")
-                
-            logger.info("Successfully created frontend/api log sources")
+            logger.info("Successfully created api log source")
             
-            # Initialize service managers
+            # Initialize API service manager
             self.api_service = ApiService(
                 self.do_token,
                 self.project_name,
                 self.postgres_config
             )
             
-            self.frontend_service = FrontendService(
-                self.do_token,
-                self.project_name
+            # Deploy API service
+            logger.info("Deploying API service...")
+            await self.api_service.deploy(
+                branch="main",
+                logs_token=api_logs_token,
+                project_id=self.project_id
             )
-            
-            # Deploy API and frontend concurrently with explicit log tokens
-            logger.info("Deploying API and frontend services...")
-            await asyncio.gather(
-                self.api_service.deploy(
-                    branch="main",
-                    logs_token=api_logs_token,
-                    project_id=self.project_id
-                ),
-                self.frontend_service.deploy(
-                    branch="main",
-                    logs_token=frontend_logs_token,
-                    project_id=self.project_id
-                )
-            )
-            
-            # Update event collector configuration and scale down
-            logger.info("Updating event collector configuration and scaling down...")
-            
-            # Get current app spec
-            response = requests.get(
-                f"https://api.digitalocean.com/v2/apps/{self.event_collector.app_id}",
-                headers=self.event_collector.headers,
-            )
-            response.raise_for_status()
-            current_spec = response.json()["app"]["spec"]
-            
-            # Update instance size and environment variables
-            for component in current_spec["workers"]:
-                if component["name"] == "worker":
-                    component["instance_size_slug"] = "db-s-1vcpu-1gb"
-                    for env in component["envs"]:
-                        if env["key"] in {
-                            "USE_TEST_DATA": "false",
-                            "START_LISTENING": "true",
-                            "RELAYS": "wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org"
-                        }:
-                            env["value"] = {
-                                "USE_TEST_DATA": "false",
-                                "START_LISTENING": "true",
-                                "RELAYS": "wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org"
-                            }[env["key"]]
-                    break
-            
-            # Update the app
-            response = requests.put(
-                f"https://api.digitalocean.com/v2/apps/{self.event_collector.app_id}",
-                headers=self.event_collector.headers,
-                json={"spec": current_spec},
-            )
-            response.raise_for_status()
-            
-            # Wait for update to complete
-            await self.event_collector.wait_for_app_ready()
             
             # Wait for user confirmation
             details = {
-                "API Service": "Deployed and running",
-                "Frontend Service": "Deployed and running",
-                "Event Collector": "Configuration updated with production settings"
+                "API Service": "Deployed and running"
             }
             
-            continue_deploy, destroy = await confirm_stage("Stage 3: Frontend Deployment and Finalization", details)
+            continue_deploy, destroy = await confirm_stage("Stage 3: API Service Deployment", details)
             if continue_deploy:
                 logger.info("Stage 3 completed successfully!")
                 return True
@@ -559,23 +510,72 @@ class DeploymentManager:
             
     async def cleanup_stage3(self):
         """Clean up Stage 3 resources"""
-        cleanup_tasks = []
-        
         if self.api_service:
-            cleanup_tasks.append(self.api_service.cleanup())
-        if self.frontend_service:
-            cleanup_tasks.append(self.frontend_service.cleanup())
+            await self.api_service.cleanup()
             
-        if cleanup_tasks:
-            await asyncio.gather(*cleanup_tasks)
+    async def stage4_deploy_frontend(self) -> bool:
+        """Stage 4: Deploy frontend service"""
+        try:
+            logger.info("Starting Stage 4: Frontend Service Deployment")
+            
+            # Create log source with proper error handling
+            frontend_logs_token = self.betterstack.create_source("frontend")
+            if not frontend_logs_token:
+                raise ValueError("Failed to create frontend log source")
+                
+            logger.info("Successfully created frontend log source")
+            
+            # Initialize frontend service manager
+            self.frontend_service = FrontendService(
+                self.do_token,
+                self.project_name
+            )
+            
+            # Deploy frontend service
+            logger.info("Deploying frontend service...")
+            await self.frontend_service.deploy(
+                branch="main",
+                logs_token=frontend_logs_token,
+                project_id=self.project_id
+            )
+            
+            # Wait for user confirmation
+            details = {
+                "Frontend Service": "Deployed and running"
+            }
+            
+            continue_deploy, destroy = await confirm_stage("Stage 4: Frontend Service Deployment", details)
+            if continue_deploy:
+                logger.info("Stage 4 completed successfully!")
+                return True
+            else:
+                if destroy:
+                    logger.warning("User requested infrastructure destruction after Stage 4")
+                else:
+                    logger.warning("User aborted deployment after Stage 4")
+                await self.cleanup_stage4()
+                await self.cleanup_stage3()
+                await self.cleanup_stage2()
+                await self.cleanup()
+                return False
+            
+        except Exception as e:
+            logger.error(f"Stage 4 failed: {str(e)}")
+            await self.cleanup_stage4()
+            return False
+            
+    async def cleanup_stage4(self):
+        """Clean up Stage 4 resources"""
+        if self.frontend_service:
+            await self.frontend_service.cleanup()
             
     async def cleanup(self):
         """Clean up all resources on failure"""
         logger.info("Cleaning up resources...")
-        cleanup_tasks = [
-            self.postgres.cleanup(),
-            self.redis.cleanup(),
-        ]
+        cleanup_tasks = [self.redis.cleanup()]
+        
+        if self.postgres:
+            cleanup_tasks.append(self.postgres.cleanup())
         
         if self.event_collector:
             cleanup_tasks.append(self.event_collector.cleanup())
@@ -597,15 +597,46 @@ async def main():
     """Main deployment function"""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Deploy DVM Dashboard production environment')
-    parser.add_argument('--stage', type=int, choices=[1, 2, 3], help='Start deployment from a specific stage (1-3)')
+    parser.add_argument('--stage', type=int, choices=[1, 2, 3, 4], help='Start deployment from a specific stage (1-4)')
+    
+    # Add PostgreSQL configuration arguments
+    parser.add_argument('--postgres-host', help='PostgreSQL host (required for stage 3)')
+    parser.add_argument('--postgres-port', type=int, help='PostgreSQL port (required for stage 3)')
+    parser.add_argument('--postgres-db', help='PostgreSQL database name (required for stage 3)')
+    parser.add_argument('--postgres-user', help='PostgreSQL user (required for stage 3)')
+    parser.add_argument('--postgres-password', help='PostgreSQL password (required for stage 3)')
+    
     args = parser.parse_args()
     
     # Setup signal handlers
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(shutdown(s)))
+    
+    # Validate PostgreSQL configuration if starting at stage 3
+    postgres_config = None
+    if args.stage == 3:
+        required_postgres_args = [
+            ('postgres_host', 'PostgreSQL host'),
+            ('postgres_port', 'PostgreSQL port'),
+            ('postgres_db', 'PostgreSQL database'),
+            ('postgres_user', 'PostgreSQL user'),
+            ('postgres_password', 'PostgreSQL password')
+        ]
         
-    deployment = DeploymentManager()
+        missing_args = [desc for arg, desc in required_postgres_args if not getattr(args, arg.replace('-', '_'))]
+        if missing_args:
+            parser.error(f"The following arguments are required when starting at stage 3: {', '.join(missing_args)}")
+            
+        postgres_config = {
+            "host": args.postgres_host,
+            "port": args.postgres_port,
+            "database": args.postgres_db,
+            "user": args.postgres_user,
+            "password": args.postgres_password
+        }
+        
+    deployment = DeploymentManager(postgres_config)
     try:
         start_stage = args.stage if args.stage else 1
         logger.info(f"Starting deployment from stage {start_stage}")
@@ -626,13 +657,49 @@ async def main():
         else:
             logger.info("Skipping Stage 2 (Backend Services)")
             
-        # Stage 3: Frontend and Finalization
-        if start_stage <= 3:
-            if not await deployment.stage3_deploy_frontend_and_finalize():
-                logger.error("Deployment failed at Stage 3")
-                sys.exit(1)
-            
-        logger.info("Deployment completed successfully!")
+            # Stage 3: API Service
+            if start_stage <= 3:
+                try:
+                    if not await deployment.stage3_deploy_api():
+                        logger.error("Deployment failed at Stage 3")
+                        sys.exit(1)
+                except Exception as e:
+                    logger.error("Stage 3 failed with detailed error:")
+                    if hasattr(e, "response") and e.response is not None:
+                        try:
+                            error_detail = e.response.json()
+                            logger.error(f"API Response: {error_detail}")
+                            if "error" in error_detail:
+                                logger.error(f"Error message: {error_detail['error'].get('message', '')}")
+                                logger.error(f"Error code: {error_detail['error'].get('code', '')}")
+                        except:
+                            logger.error(f"Raw response: {e.response.text}")
+                    else:
+                        logger.error(str(e))
+                    sys.exit(1)
+                    
+            # Stage 4: Frontend Service
+            if start_stage <= 4:
+                try:
+                    if not await deployment.stage4_deploy_frontend():
+                        logger.error("Deployment failed at Stage 4")
+                        sys.exit(1)
+                except Exception as e:
+                    logger.error("Stage 4 failed with detailed error:")
+                    if hasattr(e, "response") and e.response is not None:
+                        try:
+                            error_detail = e.response.json()
+                            logger.error(f"API Response: {error_detail}")
+                            if "error" in error_detail:
+                                logger.error(f"Error message: {error_detail['error'].get('message', '')}")
+                                logger.error(f"Error code: {error_detail['error'].get('code', '')}")
+                        except:
+                            logger.error(f"Raw response: {e.response.text}")
+                    else:
+                        logger.error(str(e))
+                    sys.exit(1)
+                    
+            logger.info("Deployment completed successfully!")
         
     except Exception as e:
         logger.error(f"Deployment failed: {str(e)}")
