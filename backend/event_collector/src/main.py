@@ -191,7 +191,7 @@ async def get_historical_data_urls(historical_months: Optional[int] = None) -> l
     sorted_files = sorted(files, key=sort_key, reverse=True)  # Sort newest first
     
     # If historical_months is set, limit to most recent X months
-    if historical_months is not None:
+    if historical_months is not None and historical_months > 0:
         sorted_files = sorted_files[:historical_months]
         
     # Re-sort chronologically for processing
