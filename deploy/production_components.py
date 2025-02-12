@@ -542,7 +542,7 @@ class ApiService(AppPlatformService):
                     },
                     "source_dir": ".",
                     "instance_count": 1,
-                    "instance_size_slug": "basic-xxs",
+                    "instance_size_slug": "apps-s-1vcpu-2gb",
                     "dockerfile_path": "api/Dockerfile",
                     "http_port": 8000,
                     "health_check": {
