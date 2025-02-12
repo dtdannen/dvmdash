@@ -3,6 +3,8 @@ import sys
 import nostr_sdk
 import json
 import os
+import re
+from datetime import datetime
 from pathlib import Path
 import loguru
 from nostr_sdk import (
@@ -127,6 +129,65 @@ def get_relevant_kinds() -> list[Kind]:
 RELEVANT_KINDS = get_relevant_kinds()
 
 
+def parse_filename_date(filename: str) -> tuple[int, int]:
+    """Parse year and month from filename like dvm_data_2024_nov.json or dvm_data_2024_nov_15.json"""
+    pattern = r'dvm_data_(\d{4})_([a-zA-Z]+)(?:_\d+)?\.json'
+    match = re.match(pattern, filename)
+    if not match:
+        raise ValueError(f"Invalid filename format: {filename}")
+    
+    year = int(match.group(1))
+    month_str = match.group(2).lower()
+    
+    # Convert month name to number
+    month_map = {
+        'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+        'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+    }
+    
+    month = month_map.get(month_str[:3])
+    if month is None:
+        raise ValueError(f"Invalid month in filename: {filename}")
+        
+    return year, month
+
+async def get_historical_data_urls() -> list[str]:
+    """Get all historical data files from CDN, sorted by date"""
+    base_url = 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com'
+    
+    # For now, we'll use a list of known files since we can't list bucket contents directly
+    # This will be replaced with actual bucket listing when available
+    files = []
+    
+    # Generate possible filenames for the last few years
+    years = range(2023, 2026)  # 2023-2025
+    months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    
+    async with aiohttp.ClientSession() as session:
+        for year in years:
+            for month in months:
+                filename = f'dvm_data_{year}_{month}.json'
+                url = f'{base_url}/{filename}'
+                
+                try:
+                    # Just check if file exists with HEAD request
+                    async with session.head(url) as response:
+                        if response.status == 200:
+                            files.append(filename)
+                except Exception:
+                    continue  # Skip if file doesn't exist
+    
+    # Sort files by date
+    def sort_key(filename):
+        try:
+            year, month = parse_filename_date(filename)
+            return year * 100 + month  # This creates a sortable integer like 202401
+        except ValueError:
+            return float('inf')  # Put invalid filenames at the end
+            
+    sorted_files = sorted(files, key=sort_key)
+    return [f'{base_url}/{filename}' for filename in sorted_files]
+
 class TestDataLoader:
     """
     Loads test data from a MongoDB JSON export file and simulates real-time event ingestion
@@ -136,7 +197,7 @@ class TestDataLoader:
     def __init__(
         self,
         redis_client,
-        urls: list[str],
+        urls: Optional[list[str]] = None,
         batch_size: int = 10000,
         delay_between_batches: float = 0.05,
         deduplicator=None,
@@ -144,6 +205,7 @@ class TestDataLoader:
     ):
         self.redis = redis_client
         self.urls = urls
+        self._urls_initialized = False
         self.batch_size = batch_size
         self.delay_between_batches = delay_between_batches
         self.deduplicator = deduplicator
@@ -186,8 +248,16 @@ class TestDataLoader:
             f"Failed to download file from {url} after {max_retries} attempts"
         )
 
+    async def _initialize_urls(self):
+        """Initialize URLs if not provided"""
+        if not self._urls_initialized:
+            if not self.urls:
+                self.urls = await get_historical_data_urls()
+            self._urls_initialized = True
+
     async def process_events(self) -> None:
         """Process events from all URLs sequentially."""
+        await self._initialize_urls()
         for url in self.urls:
             logger.info(f"Starting to process events from {url}")
             temp_path = None
@@ -668,40 +738,16 @@ def parse_args():
     )
     # Test data arguments
     parser.add_argument(
-        "--test-data",
+        "--historical-data",
         action="store_true",
-        help="Load events from test data urls instead of connecting to relays",
-        default=(os.getenv("USE_TEST_DATA", "false").lower() == "true"),
+        help="Load events from historical data files instead of connecting to relays",
+        default=(os.getenv("LOAD_HISTORICAL_DATA", "false").lower() == "true"),
     )
     parser.add_argument(
         "--test-data-urls",
         type=str,
-        default=(
-            os.getenv(
-                "TEST_DATA_URLS",
-                (
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_aug.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_sep.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_oct.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_nov.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2023_dec.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jan.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_feb.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_mar.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_apr.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_may.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jun.json,"
-                    # "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_jul.json,"
-                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_aug.json,"
-                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_sep.json,"
-                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_oct.json,"
-                    #"https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_nov.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2024_dec.json,"
-                    "https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvm_data_2025_jan_1_to_30.json"
-                ),
-            )
-        ),
-        help="Path to test data JSON file",
+        default=os.getenv("TEST_DATA_URLS", ""),
+        help="Optional comma-separated list of specific test data URLs. If not provided, will automatically discover and sort all available monthly data files.",
     )
     parser.add_argument(
         "--batch-size",
@@ -724,8 +770,8 @@ def parse_args():
 
 
 async def main(args):
-    if args.test_data:
-        logger.info(f"Test data flag is {args.test_data} Running test data loader...")
+    if args.historical_data:
+        logger.info(f"Historical data flag is {args.historical_data}, loading historical data...")
         # Initialize Redis and deduplicator
         redis_client = redis.from_url(
             REDIS_URL,
@@ -736,16 +782,17 @@ async def main(args):
         )
         deduplicator = EventDeduplicator(redis_client)
 
+        # Initialize URLs - either from args or discover automatically
+        urls = None
         if args.test_data_urls:
-            # Split URLs and process them
-            urls = [
-                url.strip() for url in args.test_data_urls.split(",") if url.strip()
-            ]
+            urls = [url.strip() for url in args.test_data_urls.split(",") if url.strip()]
             if not urls:
-                logger.error("No valid URLs provided in TEST_DATA_URLS")
-                return
+                logger.warning("No valid URLs provided in TEST_DATA_URLS, will discover automatically")
 
-            logger.info(f"Loading test data from URLs: {urls}")
+            if urls:
+                logger.info(f"Using provided test data URLs: {urls}")
+            else:
+                logger.info("Will automatically discover and sort available monthly data files")
             try:
                 loader = TestDataLoader(
                     redis_client=redis_client,
@@ -842,8 +889,8 @@ if __name__ == "__main__":
 
     try:
         loop = asyncio.get_event_loop()
-        if args.test_data:
-            # Run test data loader
+        if args.historical_data:
+            # Run historical data loader
             loop.run_until_complete(main(args))
         elif not args.start_listening:
             logger.info(

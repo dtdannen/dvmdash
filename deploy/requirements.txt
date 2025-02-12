@@ -1,0 +1,6 @@
+aioconsole==0.7.1
+asyncpg==0.29.0
+loguru==0.7.2
+python-dotenv==1.0.0
+redis==5.0.1
+requests==2.31.0
