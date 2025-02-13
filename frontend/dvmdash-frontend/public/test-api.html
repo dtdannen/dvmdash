@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <style>
+        pre { background: #f5f5f5; padding: 10px; }
+        .error { color: red; }
+        .success { color: green; }
+        .loading {
+            display: inline-block;
+            padding: 10px;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            margin: 10px 0;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+        .dots::after {
+            content: '';
+            animation: dots 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Test</h1>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            const url = '/api/proxy?path=stats/global/latest&timeRange=30d';
+            
+            resultDiv.innerHTML = `
+                <p>Testing API endpoint: ${url}</p>
+                <div class="loading">
+                    Loading<span class="dots"></span><br>
+                    (This may take up to 15 seconds...)
+                </div>
+            `;
+            
+            try {
+                console.log('Fetching:', url);
+                const startTime = Date.now();
+
+                // Set up fetch with a longer timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                const endTime = Date.now();
+                const duration = (endTime - startTime) / 1000;
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                resultDiv.innerHTML = `
+                    <p>Testing API endpoint: ${url}</p>
+                    <h2 class="success">Success! (took ${duration.toFixed(1)} seconds)</h2>
+                    <p>Status: ${response.status}</p>
+                    <p>Headers:</p>
+                    <pre>${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}</pre>
+                    <p>Data:</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <p>Testing API endpoint: ${url}</p>
+                    <h2 class="error">Error</h2>
+                    <p>Message: ${error.name === 'AbortError' ? 'Request timed out after 15 seconds' : error.message}</p>
+                    <p>Stack:</p>
+                    <pre class="error">${error.stack}</pre>
+                `;
+            }
+        }
+
+        testAPI();
+    </script>
+</body>
+</html>

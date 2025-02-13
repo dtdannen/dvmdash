@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API Fetch</title>
+</head>
+<body>
+    <h1>Testing API Fetch</h1>
+    <pre id="result">Loading...</pre>
+
+    <script>
+        async function testFetch() {
+            const url = 'https://dvmdash-prod-api-lh4pf.ondigitalocean.app/api/stats/global/latest?timeRange=30d';
+            
+            try {
+                console.log('Fetching:', url);
+                
+                // Try with no-cors mode first
+                console.log('Attempting fetch with no-cors mode...');
+                try {
+                    const response1 = await fetch(url, {
+                        mode: 'no-cors',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Origin': 'http://localhost:3000'
+                        }
+                    });
+                    console.log('no-cors response type:', response1.type);
+                    console.log('no-cors response status:', response1.status);
+                    document.getElementById('result').textContent = 'Got opaque response with no-cors mode';
+                } catch (error1) {
+                    console.log('no-cors attempt failed:', error1);
+                    
+                    // If first attempt fails, try with explicit origin
+                    console.log('Attempting fetch with explicit origin...');
+                    const response2 = await fetch(url, {
+                        mode: 'cors',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Origin': 'http://localhost:3000'
+                        }
+                    });
+                    
+                    console.log('Response status:', response2.status);
+                    console.log('Response headers:', Object.fromEntries(response2.headers.entries()));
+                    
+                    const data = await response2.json();
+                    console.log('Data:', data);
+                    
+                    document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                console.error('All fetch attempts failed:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        testFetch();
+    </script>
+</body>
+</html>

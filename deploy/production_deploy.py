@@ -533,11 +533,16 @@ class DeploymentManager:
             
             # Deploy frontend service
             logger.info("Deploying frontend service...")
-            await self.frontend_service.deploy(
-                branch="main",
-                logs_token=frontend_logs_token,
-                project_id=self.project_id
-            )
+            try:
+                await self.frontend_service.deploy(
+                    branch="main",
+                    logs_token=frontend_logs_token,
+                    project_id=self.project_id
+                )
+            except Exception as deploy_error:
+                logger.error(f"Frontend deployment failed: {str(deploy_error)}")
+                logger.info("Skipping cleanup to allow inspection of build errors in DigitalOcean console")
+                return False
             
             # Wait for user confirmation
             details = {
@@ -551,17 +556,16 @@ class DeploymentManager:
             else:
                 if destroy:
                     logger.warning("User requested infrastructure destruction after Stage 4")
+                    await self.cleanup_stage4()
+                    await self.cleanup_stage3()
+                    await self.cleanup_stage2()
+                    await self.cleanup()
                 else:
                     logger.warning("User aborted deployment after Stage 4")
-                await self.cleanup_stage4()
-                await self.cleanup_stage3()
-                await self.cleanup_stage2()
-                await self.cleanup()
                 return False
             
         except Exception as e:
             logger.error(f"Stage 4 failed: {str(e)}")
-            await self.cleanup_stage4()
             return False
             
     async def cleanup_stage4(self):
@@ -585,8 +589,8 @@ class DeploymentManager:
             cleanup_tasks.append(self.monthly_archiver.cleanup())
         if self.api_service:
             cleanup_tasks.append(self.api_service.cleanup())
-        if self.frontend_service:
-            cleanup_tasks.append(self.frontend_service.cleanup())
+        #if self.frontend_service:
+        #    cleanup_tasks.append(self.frontend_service.cleanup())
             
         await asyncio.gather(*cleanup_tasks)
         
@@ -657,49 +661,49 @@ async def main():
         else:
             logger.info("Skipping Stage 2 (Backend Services)")
             
-            # Stage 3: API Service
-            if start_stage <= 3:
-                try:
-                    if not await deployment.stage3_deploy_api():
-                        logger.error("Deployment failed at Stage 3")
-                        sys.exit(1)
-                except Exception as e:
-                    logger.error("Stage 3 failed with detailed error:")
-                    if hasattr(e, "response") and e.response is not None:
-                        try:
-                            error_detail = e.response.json()
-                            logger.error(f"API Response: {error_detail}")
-                            if "error" in error_detail:
-                                logger.error(f"Error message: {error_detail['error'].get('message', '')}")
-                                logger.error(f"Error code: {error_detail['error'].get('code', '')}")
-                        except:
-                            logger.error(f"Raw response: {e.response.text}")
-                    else:
-                        logger.error(str(e))
+        # Stage 3: API Service
+        if start_stage <= 3:
+            try:
+                if not await deployment.stage3_deploy_api():
+                    logger.error("Deployment failed at Stage 3")
                     sys.exit(1)
-                    
-            # Stage 4: Frontend Service
-            if start_stage <= 4:
-                try:
-                    if not await deployment.stage4_deploy_frontend():
-                        logger.error("Deployment failed at Stage 4")
-                        sys.exit(1)
-                except Exception as e:
-                    logger.error("Stage 4 failed with detailed error:")
-                    if hasattr(e, "response") and e.response is not None:
-                        try:
-                            error_detail = e.response.json()
-                            logger.error(f"API Response: {error_detail}")
-                            if "error" in error_detail:
-                                logger.error(f"Error message: {error_detail['error'].get('message', '')}")
-                                logger.error(f"Error code: {error_detail['error'].get('code', '')}")
-                        except:
-                            logger.error(f"Raw response: {e.response.text}")
-                    else:
-                        logger.error(str(e))
+            except Exception as e:
+                logger.error("Stage 3 failed with detailed error:")
+                if hasattr(e, "response") and e.response is not None:
+                    try:
+                        error_detail = e.response.json()
+                        logger.error(f"API Response: {error_detail}")
+                        if "error" in error_detail:
+                            logger.error(f"Error message: {error_detail['error'].get('message', '')}")
+                            logger.error(f"Error code: {error_detail['error'].get('code', '')}")
+                    except:
+                        logger.error(f"Raw response: {e.response.text}")
+                else:
+                    logger.error(str(e))
+                sys.exit(1)
+                
+        # Stage 4: Frontend Service
+        if start_stage <= 4:
+            try:
+                if not await deployment.stage4_deploy_frontend():
+                    logger.error("Deployment failed at Stage 4")
                     sys.exit(1)
-                    
-            logger.info("Deployment completed successfully!")
+            except Exception as e:
+                logger.error("Stage 4 failed with detailed error:")
+                if hasattr(e, "response") and e.response is not None:
+                    try:
+                        error_detail = e.response.json()
+                        logger.error(f"API Response: {error_detail}")
+                        if "error" in error_detail:
+                            logger.error(f"Error message: {error_detail['error'].get('message', '')}")
+                            logger.error(f"Error code: {error_detail['error'].get('code', '')}")
+                    except:
+                        logger.error(f"Raw response: {e.response.text}")
+                else:
+                    logger.error(str(e))
+                sys.exit(1)
+                
+        logger.info("Deployment completed successfully!")
         
     except Exception as e:
         logger.error(f"Deployment failed: {str(e)}")

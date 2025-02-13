@@ -3,7 +3,43 @@ import { TimeWindow, TimeWindowStats } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+const fetcher = async (url: string) => {
+  try {
+    console.log('Fetching:', url)
+    const res = await fetch(url, {
+      mode: 'cors',
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (!res.ok) {
+      console.error('API Error:', {
+        url,
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries(res.headers.entries())
+      })
+      throw new Error(`API error: ${res.status} ${res.statusText}`)
+    }
+
+    const data = await res.json()
+    console.log('API Success:', {
+      url,
+      status: res.status,
+      headers: Object.fromEntries(res.headers.entries()),
+      data
+    })
+    return data
+  } catch (error) {
+    console.error('API Request Failed:', {
+      url,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    throw error
+  }
+}
 
 export interface DVMTimeSeriesData {
   time: string
@@ -41,7 +77,7 @@ export interface KindStats {
 
 export function useDVMStats(dvmId: string, timeRange: TimeWindow) {
   const { data, error, isLoading } = useSWR<DVMStats>(
-    `${API_BASE}/api/stats/dvm/${dvmId}?timeRange=${timeRange}`,
+    `${API_BASE}/api/stats/dvm/${dvmId}${timeRange ? `?timeRange=${timeRange}` : ''}`,
     fetcher,
     {
       refreshInterval: 1000, // Update every second
@@ -62,7 +98,7 @@ export function useDVMStats(dvmId: string, timeRange: TimeWindow) {
 
 export function useKindStats(kindId: number, timeRange: TimeWindow) {
   const { data, error, isLoading } = useSWR<KindStats>(
-    `${API_BASE}/api/stats/kind/${kindId}?timeRange=${timeRange}`,
+    `${API_BASE}/api/stats/kind/${kindId}${timeRange ? `?timeRange=${timeRange}` : ''}`,
     fetcher,
     {
       refreshInterval: 1000, // Update every second
@@ -83,7 +119,7 @@ export function useKindStats(kindId: number, timeRange: TimeWindow) {
 
 export function useTimeWindowStats(timeRange: TimeWindow) {
   const { data, error, isLoading } = useSWR<TimeWindowStats>(
-    timeRange ? `${API_BASE}/api/stats/global/latest?timeRange=${timeRange}` : null,
+    timeRange ? `${API_BASE}/api/stats/global/latest${timeRange ? `?timeRange=${timeRange}` : ''}` : null,
     fetcher,
     {
       refreshInterval: 1000, // Update every second
@@ -104,7 +140,7 @@ export function useTimeWindowStats(timeRange: TimeWindow) {
 
 export function useDVMList(limit: number = 100, offset: number = 0, timeRange?: TimeWindow) {
   const { data, error, isLoading } = useSWR(
-    `${API_BASE}/api/dvms?limit=${limit}&offset=${offset}${timeRange ? `&timeRange=${timeRange}` : ''}`,
+    `${API_BASE}/api/dvms${timeRange ? `?timeRange=${timeRange}&` : '?'}limit=${limit}&offset=${offset}`,
     fetcher,
     {
       refreshInterval: 1000,
@@ -121,7 +157,7 @@ export function useDVMList(limit: number = 100, offset: number = 0, timeRange?: 
 
 export function useKindList(limit: number = 100, offset: number = 0, timeRange?: TimeWindow) {
   const { data, error, isLoading } = useSWR(
-    `${API_BASE}/api/kinds?limit=${limit}&offset=${offset}${timeRange ? `&timeRange=${timeRange}` : ''}`,
+    `${API_BASE}/api/kinds${timeRange ? `?timeRange=${timeRange}&` : '?'}limit=${limit}&offset=${offset}`,
     fetcher,
     {
       refreshInterval: 1000,

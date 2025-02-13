@@ -470,17 +470,17 @@ export function Dashboard() {
   )
 
   // Transform time series data for charts
-  const jobCountData = stats.time_series.map((point: TimeSeriesData) => ({
+  const jobCountData = stats?.time_series?.map((point: TimeSeriesData) => ({
     time: point.time,
     requests: point.total_requests,
     responses: point.total_responses
-  }))
+  })) || []
 
-  const actorCountData = stats.time_series.map((point: TimeSeriesData) => ({
+  const actorCountData = stats?.time_series?.map((point: TimeSeriesData) => ({
     time: point.time,
     users: point.unique_users,
     agents: point.unique_dvms
-  }))
+  })) || []
 
   return (
     <div className="min-h-screen bg-background">

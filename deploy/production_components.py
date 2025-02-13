@@ -550,12 +550,6 @@ class ApiService(AppPlatformService):
                         "initial_delay_seconds": 10,
                         "period_seconds": 30
                     },
-                    "routes": [
-                        {
-                            "path": "/api",
-                            "preserve_path_prefix": True,
-                        }
-                    ],
                     "envs": [
                         {
                             "key": "FRONTEND_URL",
@@ -653,7 +647,7 @@ class FrontendService(AppPlatformService):
                     "envs": [
                         {
                             "key": "NEXT_PUBLIC_API_URL",
-                            "value": "${_self.HOSTNAME}/api",
+                            "value": "https://dvmdash-prod-api-lh4pf.ondigitalocean.app",
                         },
                         {
                             "key": "NODE_ENV",
@@ -695,38 +689,6 @@ class FrontendService(AppPlatformService):
             ]
             
         try:
-            # First validate the app spec
-            logger.info("Validating app specification...")
-            validate_response = requests.post(
-                "https://api.digitalocean.com/v2/apps/validate",
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
-                json={"spec": app_spec},
-            )
-            
-            try:
-                if validate_response.status_code != 200:
-                    logger.error(f"Validation response status: {validate_response.status_code}")
-                    logger.error(f"Raw response: {validate_response.text}")
-                    try:
-                        error_data = validate_response.json()
-                        logger.error(f"Validation response JSON: {error_data}")
-                        if "error" in error_data:
-                            logger.error(f"Error message: {error_data['error']['message']}")
-                            logger.error(f"Error code: {error_data['error'].get('code', 'no code')}")
-                        if "validation_errors" in error_data:
-                            for error in error_data["validation_errors"]:
-                                logger.error(f"- {error}")
-                    except Exception as e:
-                        logger.error(f"Failed to parse validation response as JSON: {str(e)}")
-                    raise ValueError(f"App specification validation failed with status {validate_response.status_code}")
-            except Exception as e:
-                logger.error(f"Validation request failed: {str(e)}")
-                raise
-            
             # Deploy the app
             logger.info("Creating app deployment...")
             deploy_payload = {"spec": app_spec}
@@ -739,14 +701,23 @@ class FrontendService(AppPlatformService):
                 json=deploy_payload,
             )
             
-            if response.status_code != 201:
-                error_data = response.json()
+            response_data = response.json()
+            logger.info(f"Deployment response status: {response.status_code}")
+            logger.info(f"Full response data: {response_data}")
+            
+            if response.status_code not in [200, 201]:
+                error_data = response_data
                 logger.error(f"Deployment failed with status {response.status_code}:")
                 if "message" in error_data:
                     logger.error(f"Error message: {error_data['message']}")
                 if "error" in error_data:
                     logger.error(f"Error details: {error_data['error']}")
                 raise ValueError(f"Failed to create app: {error_data.get('message', 'Unknown error')}")
+                
+            if "app" not in response_data:
+                logger.error("Response data does not contain 'app' key")
+                logger.error(f"Full response data: {response_data}")
+                raise ValueError("Invalid response format: missing 'app' data")
             
             app_data = response.json()["app"]
             self.app_id = app_data["id"]
