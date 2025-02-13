@@ -643,7 +643,7 @@ class FrontendService(AppPlatformService):
                     "routes": [
                         {
                             "path": "/",
-                            "preserve_path_prefix": false
+                            "preserve_path_prefix": False
                         }
                     ],
                     "domains": [
