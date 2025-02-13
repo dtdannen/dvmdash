@@ -652,6 +652,10 @@ class FrontendService(AppPlatformService):
                             "value": "https://dvmdash-prod-api-lh4pf.ondigitalocean.app",
                         },
                         {
+                            "key": "APP_DOMAIN",
+                            "value": "${APP_DOMAIN}",
+                        },
+                        {
                             "key": "NODE_ENV",
                             "value": "production"
                         },
@@ -731,6 +735,10 @@ class FrontendService(AppPlatformService):
             
             app_data = response.json()["app"]
             self.app_id = app_data["id"]
+            
+            # Get the assigned URL
+            app_url = app_data.get("default_ingress", "")
+            logger.info(f"Frontend assigned URL: {app_url}")
             
             # Monitor deployment progress
             logger.info("Monitoring deployment progress...")

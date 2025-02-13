@@ -48,4 +48,5 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["npm", "start"]
+COPY env-check.js ./env-check.js
+CMD ["node", "env-check.js"]
