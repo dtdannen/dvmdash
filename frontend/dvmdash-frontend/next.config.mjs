@@ -4,21 +4,22 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: [],
   },
-  webpack: (config) => {
-    config.resolve = {
-      ...config.resolve,
-      preferRelative: true,
-      modules: [
-        ...config.resolve.modules || [],
-        'frontend/dvmdash-frontend',
-        'node_modules'
-      ],
-      alias: {
-        ...config.resolve.alias,
-        '@/components': './components',
-        '@/lib': './lib'
-      }
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+    // Add the directory containing your components to the module resolution paths
+    config.resolve.modules = [
+      ...config.resolve.modules || [],
+      './components',
+      './lib',
+      'node_modules'
+    ];
+
+    // Add path aliases
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@/components': './components',
+      '@/lib': './lib'
     };
+
     return config;
   }
 };

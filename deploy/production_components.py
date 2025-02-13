@@ -633,6 +633,7 @@ class FrontendService(AppPlatformService):
                     "source_dir": "frontend/dvmdash-frontend",
                     "instance_count": 1,
                     "instance_size_slug": "apps-s-1vcpu-2gb",
+                    "dockerfile_path": "frontend/dvmdash-frontend/Dockerfile",
                     "http_port": 3000,
                     "health_check": {
                         "http_path": "/",
