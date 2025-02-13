@@ -542,7 +542,7 @@ class ApiService(AppPlatformService):
                     },
                     "source_dir": ".",
                     "instance_count": 1,
-                    "instance_size_slug": "apps-s-1vcpu-2gb",
+                    "instance_size_slug": "apps-s-1vcpu-1gb",
                     "dockerfile_path": "api/Dockerfile",
                     "http_port": 8000,
                     "health_check": {
@@ -632,7 +632,7 @@ class FrontendService(AppPlatformService):
                     },
                     "source_dir": "frontend/dvmdash-frontend",
                     "instance_count": 1,
-                    "instance_size_slug": "apps-s-1vcpu-2gb",
+                    "instance_size_slug": "apps-s-1vcpu-1gb",
                     "dockerfile_path": "frontend/dvmdash-frontend/Dockerfile",
                     "http_port": 3000,
                     "health_check": {
@@ -644,13 +644,6 @@ class FrontendService(AppPlatformService):
                         {
                             "path": "/",
                             "preserve_path_prefix": False
-                        }
-                    ],
-                    "domains": [
-                        {
-                            "domain": "stats.dvmdash.live",
-                            "type": "ALIAS",
-                            "zone": "dvmdash.live"
                         }
                     ],
                     "envs": [
