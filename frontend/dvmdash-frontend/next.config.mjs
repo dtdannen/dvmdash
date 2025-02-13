@@ -2,11 +2,17 @@
 const nextConfig = {
   output: 'standalone',
   experimental: {
-    appDir: true,
     serverComponentsExternalPackages: [],
   },
   webpack: (config) => {
-    config.resolve.preferRelative = true;
+    config.resolve = {
+      ...config.resolve,
+      preferRelative: true,
+      alias: {
+        ...config.resolve.alias,
+        '@/components': '/workspace/frontend/dvmdash-frontend/components'
+      }
+    };
     return config;
   }
 };
