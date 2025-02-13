@@ -8,9 +8,15 @@ const nextConfig = {
     config.resolve = {
       ...config.resolve,
       preferRelative: true,
+      modules: [
+        ...config.resolve.modules || [],
+        'frontend/dvmdash-frontend',
+        'node_modules'
+      ],
       alias: {
         ...config.resolve.alias,
-        '@/components': '/workspace/frontend/dvmdash-frontend/components'
+        '@/components': './components',
+        '@/lib': './lib'
       }
     };
     return config;
