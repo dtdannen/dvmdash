@@ -553,7 +553,7 @@ class ApiService(AppPlatformService):
                     "envs": [
                         {
                             "key": "FRONTEND_URL",
-                            "value": "${_self.HOSTNAME}",
+                            "value": "${APP_URL}",
                         },
                         {
                             "key": "POSTGRES_USER",
@@ -643,6 +643,14 @@ class FrontendService(AppPlatformService):
                     "routes": [
                         {
                             "path": "/",
+                            "preserve_path_prefix": false
+                        }
+                    ],
+                    "domains": [
+                        {
+                            "domain": "stats.dvmdash.live",
+                            "type": "ALIAS",
+                            "zone": "dvmdash.live"
                         }
                     ],
                     "envs": [
@@ -674,6 +682,14 @@ class FrontendService(AppPlatformService):
                             "scope": "BUILD_TIME"
                         }
                     ],
+                    "log_destinations": [
+                        {
+                            "name": "betterstack",
+                            "logtail": {
+                                "token": logs_token,
+                            },
+                        }
+                    ] if logs_token else [],
                 }
             ],
         }
