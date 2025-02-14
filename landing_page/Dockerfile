@@ -24,7 +24,8 @@ ENV PORT=3000
 # Copy necessary files from builder
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# Create public directory (even if empty)
+RUN mkdir -p ./public
 
 # Expose port
 EXPOSE 3000
