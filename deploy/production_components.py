@@ -124,7 +124,7 @@ class EventCollector(AppPlatformService):
         super().__init__(do_token, project_name, "event-collector")
         self.redis_config = redis_config
         
-    async def deploy(self, branch: str = "main", logs_token: Optional[str] = None, project_id: Optional[str] = None):
+    async def deploy(self, branch: str = "main", logs_token: Optional[str] = None, project_id: Optional[str] = None, frontend_url: Optional[str] = None):
         """Deploy Event Collector to App Platform"""
         logger.info(f"Deploying {self.name_prefix}...")
         
@@ -161,6 +161,10 @@ class EventCollector(AppPlatformService):
                         {
                             "key": "TEST_DATA_BATCH_DELAY",
                             "value": "0.0001",
+                        },
+                        {
+                            "key": "START_LISTENING",
+                            "value": "true",
                         },
                     ],
                 }
@@ -553,7 +557,7 @@ class ApiService(AppPlatformService):
                     "envs": [
                         {
                             "key": "FRONTEND_URL",
-                            "value": "${APP_URL}",
+                            "value": frontend_url or "${APP_DOMAIN}",
                         },
                         {
                             "key": "POSTGRES_USER",
@@ -609,13 +613,208 @@ class ApiService(AppPlatformService):
             await self.cleanup()
             raise
 
+class LandingPageService(AppPlatformService):
+    """Manages Landing Page service deployment"""
+    
+    def __init__(self, do_token: str, project_name: str):
+        super().__init__(do_token, project_name, "landing-page")
+        self.app_url = None
+
+    async def get_app_url(self) -> str:
+        """Get the app's URL after deployment"""
+        if not self.app_id:
+            raise ValueError("No landing page app exists yet")
+            
+        try:
+            response = requests.get(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            app_data = response.json()["app"]
+            return f"https://{app_data.get('default_ingress', '')}"
+        except Exception as e:
+            logger.error(f"Failed to get landing page URL: {str(e)}")
+            raise
+        
+    async def deploy(self, branch: str = "main", logs_token: Optional[str] = None, project_id: Optional[str] = None) -> str:
+        """Deploy Landing Page to App Platform"""
+        logger.info(f"Deploying {self.name_prefix}...")
+        
+        app_spec = {
+            "name": f"{self.project_name}-{self.name_prefix}",
+            "region": "nyc",
+            "services": [
+                {
+                    "name": "landing-page",
+                    "github": {
+                        "repo": "dtdannen/dvmdash",
+                        "branch": branch,
+                        "deploy_on_push": False,
+                    },
+                    "source_dir": "landing_page",
+                    "instance_count": 1,
+                    "instance_size_slug": "apps-s-1vcpu-1gb",
+                    "dockerfile_path": "landing_page/Dockerfile",
+                    "http_port": 3000,
+                    "health_check": {
+                        "http_path": "/",
+                        "initial_delay_seconds": 10,
+                        "period_seconds": 30
+                    },
+                    "routes": [
+                        {
+                            "path": "/",
+                            "preserve_path_prefix": False
+                        }
+                    ],
+                    "envs": [
+                        {
+                            "key": "NODE_ENV",
+                            "value": "production"
+                        },
+                        {
+                            "key": "PORT",
+                            "value": "3000"
+                        },
+                        {
+                            "key": "NPM_CONFIG_PRODUCTION",
+                            "value": "true",
+                            "scope": "BUILD_TIME"
+                        },
+                        {
+                            "key": "NEXT_TELEMETRY_DISABLED",
+                            "value": "1",
+                            "scope": "BUILD_TIME"
+                        },
+                        {
+                            "key": "NEXT_SHARP_PATH",
+                            "value": "/workspace/node_modules/sharp",
+                            "scope": "BUILD_TIME"
+                        }
+                    ]
+                }
+            ],
+        }
+        
+        # Add logging configuration if token provided
+        if logs_token:
+            app_spec["services"][0]["log_destinations"] = [
+                {
+                    "name": "betterstack",
+                    "logtail": {
+                        "token": logs_token,
+                    },
+                }
+            ]
+            
+        try:
+            # Deploy the app
+            logger.info("Creating app deployment...")
+            deploy_payload = {"spec": app_spec}
+            if project_id:
+                deploy_payload["project_id"] = project_id
+                
+            response = requests.post(
+                "https://api.digitalocean.com/v2/apps",
+                headers=self.headers,
+                json=deploy_payload,
+            )
+            
+            response_data = response.json()
+            logger.info(f"Deployment response status: {response.status_code}")
+            logger.info(f"Full response data: {response_data}")
+            
+            if response.status_code not in [200, 201]:
+                error_data = response_data
+                logger.error(f"Deployment failed with status {response.status_code}:")
+                if "message" in error_data:
+                    logger.error(f"Error message: {error_data['message']}")
+                if "error" in error_data:
+                    logger.error(f"Error details: {error_data['error']}")
+                raise ValueError(f"Failed to create app: {error_data.get('message', 'Unknown error')}")
+                
+            if "app" not in response_data:
+                logger.error("Response data does not contain 'app' key")
+                logger.error(f"Full response data: {response_data}")
+                raise ValueError("Invalid response format: missing 'app' data")
+            
+            app_data = response.json()["app"]
+            self.app_id = app_data["id"]
+            
+            # Get and store the assigned URL
+            self.app_url = await self.get_app_url()
+            logger.info(f"Landing page assigned URL: {self.app_url}")
+            
+            # Monitor deployment progress
+            logger.info("Monitoring deployment progress...")
+            while True:
+                status = requests.get(
+                    f"https://api.digitalocean.com/v2/apps/{self.app_id}/deployments",
+                    headers=self.headers,
+                ).json()
+                
+                if "deployments" not in status or not status["deployments"]:
+                    await asyncio.sleep(10)
+                    continue
+                
+                latest_deployment = status["deployments"][0]
+                phase = latest_deployment.get("phase", "")
+                logger.info(f"Deployment phase: {phase}")
+                
+                if phase == "ACTIVE":
+                    logger.info("Deployment completed successfully!")
+                    break
+                elif phase in ["ERROR", "FAILED", "CANCELED"]:
+                    logger.error(f"Deployment failed in phase {phase}")
+                    if "progress" in latest_deployment:
+                        for step in latest_deployment["progress"].get("steps", []):
+                            if step.get("status") == "ERROR":
+                                logger.error(f"Step '{step.get('name')}' failed: {step.get('message')}")
+                    raise ValueError(f"Deployment failed in phase {phase}")
+                
+                await asyncio.sleep(10)
+            
+        except Exception as e:
+            logger.error(f"Failed to deploy {self.name_prefix}")
+            if hasattr(e, "response") and e.response is not None:
+                try:
+                    error_detail = e.response.json()
+                    logger.error(f"API Response: {error_detail}")
+                    if "error" in error_detail:
+                        logger.error(f"Error message: {error_detail['error'].get('message', '')}")
+                        logger.error(f"Error code: {error_detail['error'].get('code', '')}")
+                except:
+                    logger.error(f"Raw response: {e.response.text}")
+            await self.cleanup()
+            raise ValueError(f"Deployment failed: {str(e)}")
+
+
 class FrontendService(AppPlatformService):
     """Manages Frontend service deployment"""
     
     def __init__(self, do_token: str, project_name: str):
         super().__init__(do_token, project_name, "frontend")
+        self.app_url = None
+
+    async def get_app_url(self) -> str:
+        """Get the app's URL after deployment"""
+        if not self.app_id:
+            raise ValueError("No frontend app exists yet")
+            
+        try:
+            response = requests.get(
+                f"https://api.digitalocean.com/v2/apps/{self.app_id}",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            app_data = response.json()["app"]
+            return f"https://{app_data.get('default_ingress', '')}"
+        except Exception as e:
+            logger.error(f"Failed to get frontend URL: {str(e)}")
+            raise
         
-    async def deploy(self, branch: str = "main", logs_token: Optional[str] = None, project_id: Optional[str] = None):
+    async def deploy(self, branch: str = "main", logs_token: Optional[str] = None, project_id: Optional[str] = None) -> str:
         """Deploy Frontend to App Platform"""
         logger.info(f"Deploying {self.name_prefix}...")
         
@@ -736,9 +935,9 @@ class FrontendService(AppPlatformService):
             app_data = response.json()["app"]
             self.app_id = app_data["id"]
             
-            # Get the assigned URL
-            app_url = app_data.get("default_ingress", "")
-            logger.info(f"Frontend assigned URL: {app_url}")
+            # Get and store the assigned URL
+            self.app_url = await self.get_app_url()
+            logger.info(f"Frontend assigned URL: {self.app_url}")
             
             # Monitor deployment progress
             logger.info("Monitoring deployment progress...")

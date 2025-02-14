@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+README.md
+.env*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store

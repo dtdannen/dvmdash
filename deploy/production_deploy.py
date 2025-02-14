@@ -457,63 +457,7 @@ class DeploymentManager:
         if cleanup_tasks:
             await asyncio.gather(*cleanup_tasks)
             
-    async def stage3_deploy_api(self) -> bool:
-        """Stage 3: Deploy API service"""
-        try:
-            logger.info("Starting Stage 3: API Service Deployment")
-            
-            # Create log source with proper error handling
-            api_logs_token = self.betterstack.create_source("api")
-            if not api_logs_token:
-                raise ValueError("Failed to create api log source")
-                
-            logger.info("Successfully created api log source")
-            
-            # Initialize API service manager
-            self.api_service = ApiService(
-                self.do_token,
-                self.project_name,
-                self.postgres_config
-            )
-            
-            # Deploy API service
-            logger.info("Deploying API service...")
-            await self.api_service.deploy(
-                branch="main",
-                logs_token=api_logs_token,
-                project_id=self.project_id
-            )
-            
-            # Wait for user confirmation
-            details = {
-                "API Service": "Deployed and running"
-            }
-            
-            continue_deploy, destroy = await confirm_stage("Stage 3: API Service Deployment", details)
-            if continue_deploy:
-                logger.info("Stage 3 completed successfully!")
-                return True
-            else:
-                if destroy:
-                    logger.warning("User requested infrastructure destruction after Stage 3")
-                else:
-                    logger.warning("User aborted deployment after Stage 3")
-                await self.cleanup_stage3()
-                await self.cleanup_stage2()
-                await self.cleanup()
-                return False
-            
-        except Exception as e:
-            logger.error(f"Stage 3 failed: {str(e)}")
-            await self.cleanup_stage3()
-            return False
-            
-    async def cleanup_stage3(self):
-        """Clean up Stage 3 resources"""
-        if self.api_service:
-            await self.api_service.cleanup()
-            
-    async def stage4_deploy_frontend(self) -> bool:
+    async def stage3_deploy_frontend(self) -> bool:
         """Stage 4: Deploy frontend service"""
         try:
             logger.info("Starting Stage 4: Frontend Service Deployment")
@@ -549,7 +493,73 @@ class DeploymentManager:
                 "Frontend Service": "Deployed and running"
             }
             
-            continue_deploy, destroy = await confirm_stage("Stage 4: Frontend Service Deployment", details)
+            continue_deploy, destroy = await confirm_stage("Stage 3: Frontend Service Deployment", details)
+            if continue_deploy:
+                logger.info("Stage 3 completed successfully!")
+                return True
+            else:
+                if destroy:
+                    logger.warning("User requested infrastructure destruction after Stage 3")
+                    await self.cleanup_stage3()
+                    await self.cleanup_stage2()
+                    await self.cleanup()
+                else:
+                    logger.warning("User aborted deployment after Stage 3")
+                return False
+            
+        except Exception as e:
+            logger.error(f"Stage 3 failed: {str(e)}")
+            return False
+            
+    async def cleanup_stage3(self):
+        """Clean up Stage 3 resources"""
+        if self.frontend_service:
+            await self.frontend_service.cleanup()
+
+    async def stage4_deploy_api(self) -> bool:
+        """Stage 4: Deploy API service"""
+        try:
+            logger.info("Starting Stage 4: API Service Deployment")
+            
+            # Create log source with proper error handling
+            api_logs_token = self.betterstack.create_source("api")
+            if not api_logs_token:
+                raise ValueError("Failed to create api log source")
+                
+            logger.info("Successfully created api log source")
+            
+            # Get frontend URL
+            frontend_url = None
+            if self.frontend_service:
+                try:
+                    frontend_url = await self.frontend_service.get_app_url()
+                    logger.info(f"Using frontend URL: {frontend_url}")
+                except Exception as e:
+                    logger.warning(f"Failed to get frontend URL: {str(e)}")
+            
+            # Initialize API service manager
+            self.api_service = ApiService(
+                self.do_token,
+                self.project_name,
+                self.postgres_config
+            )
+            
+            # Deploy API service
+            logger.info("Deploying API service...")
+            await self.api_service.deploy(
+                branch="main",
+                logs_token=api_logs_token,
+                project_id=self.project_id,
+                frontend_url=frontend_url
+            )
+            
+            # Wait for user confirmation
+            details = {
+                "API Service": "Deployed and running",
+                "CORS Configuration": f"Using frontend URL: {frontend_url or '${APP_DOMAIN}'}"
+            }
+            
+            continue_deploy, destroy = await confirm_stage("Stage 4: API Service Deployment", details)
             if continue_deploy:
                 logger.info("Stage 4 completed successfully!")
                 return True
@@ -566,12 +576,13 @@ class DeploymentManager:
             
         except Exception as e:
             logger.error(f"Stage 4 failed: {str(e)}")
+            await self.cleanup_stage4()
             return False
             
     async def cleanup_stage4(self):
         """Clean up Stage 4 resources"""
-        if self.frontend_service:
-            await self.frontend_service.cleanup()
+        if self.api_service:
+            await self.api_service.cleanup()
             
     async def cleanup(self):
         """Clean up all resources on failure"""
@@ -661,10 +672,10 @@ async def main():
         else:
             logger.info("Skipping Stage 2 (Backend Services)")
             
-        # Stage 3: API Service
+        # Stage 3: Frontend Service
         if start_stage <= 3:
             try:
-                if not await deployment.stage3_deploy_api():
+                if not await deployment.stage3_deploy_frontend():
                     logger.error("Deployment failed at Stage 3")
                     sys.exit(1)
             except Exception as e:
@@ -682,10 +693,10 @@ async def main():
                     logger.error(str(e))
                 sys.exit(1)
                 
-        # Stage 4: Frontend Service
+        # Stage 4: API Service
         if start_stage <= 4:
             try:
-                if not await deployment.stage4_deploy_frontend():
+                if not await deployment.stage4_deploy_api():
                     logger.error("Deployment failed at Stage 4")
                     sys.exit(1)
             except Exception as e:
