@@ -3,16 +3,16 @@
 DVMDash is a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
 
 
-A version of the website is running here:
+A version of the stats app is running here:
 
-https://dvmdash.live/
+https://stats.dvmdash.live/
 
-## Run locally
+## Run stats app locally
 
 Install docker compose on your system. Then call docker compose up
 
 ```commandline
-docker compose --profile all up -d
+docker compose --profile all up
 ```
 
 It takes a minute or two for all the containers to get up and running.
@@ -21,16 +21,13 @@ It takes a minute or two for all the containers to get up and running.
 docker compose ps
 ```
 
-By default, it's set to load historical data from last month and the current month, this requires a few GB of data. To turn this off, set `LOAD_HISTORICAL_DATA=false` in the `docker-compose.yml` file under the section `event_collector`. Once it's done pulling historical data, it will start listening to relays for more recent events.
-
-Run the frontend by:
-
-```commandline
-cd frontend/dvmdash-frontend/
-npm run dev
-```
-
 Now you should be able to navigate to http://localhost:3000/ and see data from the last 30 days.
+
+
+By default, it's set to pull dvm events from relays over the last 20 days (although many relays don't keep the events that long, so you may just see data from the last day or two). If you want to use historical data from last month and the current month, set `LOAD_HISTORICAL_DATA=true` in the `docker-compose.yml` file under the section `event_collector`. Once it's done pulling historical data, it will start listening to relays for more recent events. Keep in mind this requires a few GB of data. The historical data available is up until February 11th, 2025
+
+Event after all the containers boot up, if there's some delay in getting events from relays, the frontend may say there's an error loading stats. If you wait until relay events come in, it should auto update.
+
 
 ### Old Instructions Below
 
