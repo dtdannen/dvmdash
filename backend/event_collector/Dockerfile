@@ -32,5 +32,6 @@ ENV RELAYS="wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live
 ENV START_LISTENING=true
 ENV LOG_LEVEL=DEBUG
 ENV DAYS_LOOKBACK=7
+ENV NOSTR_LOG_LEVEL=INFO
 
 CMD ["python", "-u", "backend/event_collector/src/main.py"]
