@@ -24,10 +24,6 @@ class MultipleMonthBatch(Exception):
     pass
 
 
-print("Environment variables:")
-for key, value in os.environ.items():
-    print(f"{key}={value}")
-
 NOSTR_EPOCH = datetime(
     2020, 11, 7, tzinfo=timezone.utc
 )  # need a minimum date for DVM activity; apparently this is the day Nostr was first published
