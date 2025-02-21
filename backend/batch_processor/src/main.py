@@ -626,7 +626,7 @@ class BatchProcessor:
                 continue
 
         if len(filtered_events) > 0:
-            logger.info(
+            logger.debug(
                 f"BP-{self.unique_id[:6]} Dropped {len(filtered_events)} old events out of {len(events)} total events"
             )
 
@@ -1305,9 +1305,9 @@ class BatchProcessor:
         header = (
             "Timestamp            | Queue  | Δjobs req/res | Δusers | ΔDVMs | Δkinds"
         )
-        logger.info("\n" + "=" * len(header))
-        logger.info(header)
-        logger.info("=" * len(header))
+        logger.debug("\n" + "=" * len(header))
+        logger.debug(header)
+        logger.debug("=" * len(header))
 
         consecutive_errors = 0
         events_processed = 0

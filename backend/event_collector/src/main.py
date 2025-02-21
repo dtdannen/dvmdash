@@ -40,12 +40,13 @@ MAX_EVENT_SIZE_MB = 200  # Maximum event size in MB
 
 # Get log level from environment variable, default to INFO
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+NOSTR_LOG_LEVEL = os.getenv("NOSTR_LOG_LEVEL", "INFO").upper()
 
 # Simple logging setup that works well with Docker
 logger = loguru.logger
 logger.remove()  # Remove default handler
 logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
-nostr_sdk.init_logger(LogLevel.DEBUG)
+nostr_sdk.init_logger(getattr(LogLevel, NOSTR_LOG_LEVEL))
 
 
 RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
@@ -270,7 +271,7 @@ class HistoricalDataLoader:
         """Process events from all URLs sequentially."""
         await self._initialize_urls()
         for url in self.urls:
-            logger.info(f"Starting to process events from {url}")
+            logger.debug(f"Starting to process events from {url}")
             temp_path = None
 
             try:
@@ -315,7 +316,7 @@ class HistoricalDataLoader:
                         )
                         return
 
-                logger.info(f"Completed processing events from {url}")
+                logger.debug(f"Completed processing events from {url}")
 
             except Exception as e:
                 logger.error(f"Error processing URL {url}: {e}")
@@ -335,7 +336,7 @@ class HistoricalDataLoader:
 
         async def process_url(url: str, max_retries: int = 3):
             async with semaphore:
-                logger.warning(f"Starting to process events from {url}")
+                logger.info(f"Starting to process events from {url}")
                 temp_path = None
 
                 for attempt in range(max_retries):
@@ -343,7 +344,7 @@ class HistoricalDataLoader:
                         temp_path = await self.download_file(url)
                         async for batch in self._read_batches(temp_path):
                             await self._process_batch(batch)
-                        logger.info(f"Successfully processed {url}")
+                        logger.debug(f"Successfully processed {url}")
                         break
                     except Exception as e:
                         if attempt == max_retries - 1:
@@ -379,12 +380,12 @@ class HistoricalDataLoader:
 
     async def _process_batch(self, batch: list[Dict]) -> None:
         """Process a batch of events more efficiently."""
-        logger.info(f"Processing batch of {len(batch)} events...")
+        logger.debug(f"Processing batch of {len(batch)} events...")
         start_time = time.time()
 
         # Convert RELEVANT_KINDS to a set of integers for faster lookup
         relevant_kinds_set = {k.as_u16() for k in RELEVANT_KINDS}
-        logger.info("relevant_kinds_set", relevant_kinds_set)
+        logger.debug("relevant_kinds_set", relevant_kinds_set)
 
         # First pass - fast filtering of relevant events
         potentially_relevant = [
@@ -392,7 +393,7 @@ class HistoricalDataLoader:
         ]
 
         if not potentially_relevant:
-            logger.info(f"No relevant events found in batch of {len(batch)}")
+            logger.debug(f"No relevant events found in batch of {len(batch)}")
             return
 
         # Chunk the work for concurrent processing
@@ -426,7 +427,7 @@ class HistoricalDataLoader:
             return relevant, duplicates
 
         # Process chunks concurrently
-        logger.info(f"Processing {len(chunks)} chunks concurrently...")
+        logger.debug(f"Processing {len(chunks)} chunks concurrently...")
         tasks = [process_chunk(chunk) for chunk in chunks]
         results = await asyncio.gather(*tasks)
 
@@ -461,7 +462,7 @@ class HistoricalDataLoader:
             self.events_processed += len(relevant_events)
             self.events_duplicate += total_duplicates
             self.batches_processed += 1
-            logger.info(
+            logger.debug(
                 f"Processed batch of {len(relevant_events)} events and ignored {total_duplicates} duplicates"
             )
             await self._print_stats()
@@ -478,7 +479,7 @@ class HistoricalDataLoader:
         try:
             import ijson  # Import here to keep it optional
 
-            logger.info("Starting streaming JSON processing...")
+            logger.debug("Starting streaming JSON processing...")
             current_batch = []
 
             with open(filepath, "rb") as f:  # Open in binary mode for ijson
@@ -523,12 +524,12 @@ class HistoricalDataLoader:
             header = (
                 f"{'Time':^12}|{'Processed':^15}|{'Duplicates':^15}|{'Batches':^10}"
             )
-            logger.info(header)
-            logger.info("=" * len(header))
+            logger.debug(header)
+            logger.debug("=" * len(header))
             self.last_header_time = current_time
 
         current_time_str = time.strftime("%H:%M:%S")
-        logger.info(
+        logger.debug(
             f"{current_time_str:^12}|{self.events_processed:^15d}|"
             f"{self.events_duplicate:^15d}|{self.batches_processed:^10d}"
         )
@@ -579,7 +580,7 @@ class EventDeduplicator:
                 pipe.execute()
 
             new_size = self._get_current_size()
-            logger.info(
+            logger.debug(
                 f"Cleaned up {len(oldest_events)} events. New size: {new_size:,}"
             )
             return len(oldest_events), new_size
@@ -608,7 +609,7 @@ class EventDeduplicator:
                 if is_new and self._needs_cleanup():
                     removed, new_size = self._cleanup_oldest_events()
                     if removed > 0:
-                        logger.info(
+                        logger.debug(
                             f"Cleanup triggered. Removed {removed:,} events. New size: {new_size:,}"
                         )
 
@@ -666,12 +667,12 @@ class NotificationHandler(HandleNotification):
             or current_time - self.last_header_time > 60
         ):
             header = f"{'Time':^12}|{'Processed':^15}|{'Duplicates':^15}"
-            logger.info(header)
-            logger.info("=" * len(header))
+            logger.debug(header)
+            logger.debug("=" * len(header))
             self.last_header_time = current_time
 
         current_time_str = time.strftime("%H:%M:%S")
-        logger.info(
+        logger.debug(
             f"{current_time_str:^12}|{self.events_processed:^15d}|{self.events_duplicate:^15d}"
         )
 

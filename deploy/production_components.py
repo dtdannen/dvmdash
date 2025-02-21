@@ -166,6 +166,10 @@ class EventCollector(AppPlatformService):
                             "key": "START_LISTENING",
                             "value": "true",
                         },
+                        {
+                            "key": "NOSTR_LOG_LEVEL",
+                            "value": "INFO",
+                        },
                     ],
                 }
             ],
