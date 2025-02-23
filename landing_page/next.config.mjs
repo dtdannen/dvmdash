@@ -4,7 +4,17 @@ const nextConfig = {
   async redirects() {
     return [
       {
-        source: '/:path+',
+        source: '/metrics',
+        destination: 'https://stats.dvmdash.live',
+        permanent: true
+      },
+      {
+        source: '/debug',
+        destination: '/',
+        permanent: true
+      },
+      {
+        source: '/playground',
         destination: '/',
         permanent: true
       }
