@@ -11,6 +11,8 @@ from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
 
+from admin_routes import router as admin_router
+
 
 class DVMTimeSeriesData(BaseModel):
     time: str
@@ -111,6 +113,9 @@ class KindListResponse(BaseModel):
 
 
 app = FastAPI(title="DVMDash API")
+
+# Include admin routes
+app.include_router(admin_router)
 
 # Add CORS middleware
 app.add_middleware(
