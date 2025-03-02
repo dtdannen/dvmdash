@@ -47,6 +47,23 @@ export interface DVMTimeSeriesData {
   total_feedback: number
 }
 
+export interface DVMProfileData {
+  name?: string
+  display_name?: string
+  about?: string
+  picture?: string
+  banner?: string
+  website?: string
+  lud16?: string
+  nip05?: string
+  encryptionSupported?: boolean
+  cashuAccepted?: boolean
+  nip90Params?: Record<string, {
+    required: boolean
+    values?: string[]
+  }>
+}
+
 export interface DVMStats {
   dvm_id: string
   timestamp: string
@@ -54,7 +71,9 @@ export interface DVMStats {
   period_end: string
   total_responses: number
   total_feedback: number
+  supported_kinds?: number[]
   time_series: DVMTimeSeriesData[]
+  profile?: DVMProfileData
 }
 
 export interface KindTimeSeriesData {
@@ -167,6 +186,23 @@ export function useKindList(limit: number = 100, offset: number = 0, timeRange?:
 
   return {
     kindList: data,
+    isLoading,
+    isError: error
+  };
+}
+
+export function useDVMProfile(dvmId: string) {
+  const { data, error, isLoading } = useSWR<DVMProfileData>(
+    `${API_BASE}/api/dvm-profile/${dvmId}`,
+    fetcher,
+    {
+      refreshInterval: 30000, // Update every 30 seconds
+      onError: (err) => console.error('SWR Error:', err)
+    }
+  );
+
+  return {
+    profile: data || null,
     isLoading,
     isError: error
   };

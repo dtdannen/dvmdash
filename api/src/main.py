@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 import os
 import asyncpg
+import json
 from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
@@ -18,12 +19,27 @@ class DVMTimeSeriesData(BaseModel):
     total_feedback: int
 
 
+class DVMProfileData(BaseModel):
+    name: Optional[str] = None
+    display_name: Optional[str] = None
+    about: Optional[str] = None
+    picture: Optional[str] = None
+    banner: Optional[str] = None
+    website: Optional[str] = None
+    lud16: Optional[str] = None
+    nip05: Optional[str] = None
+    encryptionSupported: Optional[bool] = None
+    cashuAccepted: Optional[bool] = None
+    nip90Params: Optional[dict] = None
+
+
 class DVMStatsResponse(BaseModel):
     dvm_id: str
     timestamp: datetime
     total_responses: int
     total_feedback: int
     time_series: List[DVMTimeSeriesData]
+    profile: Optional[DVMProfileData] = None
 
 
 class DVMListItem(BaseModel):
@@ -334,6 +350,65 @@ async def list_dvms(
         return {"dvms": [dict(row) for row in rows]}
 
 
+@app.get("/api/dvm-profile/{dvm_id}", response_model=DVMProfileData)
+async def get_dvm_profile(
+    dvm_id: str = Path(..., description="DVM ID"),
+):
+    """Get profile data for a DVM from NIP-89 metadata events"""
+    print(f"[DVM Profile] Getting profile for DVM {dvm_id}")
+
+    async with app.state.pool.acquire() as conn:
+        # First check if DVM exists
+        dvm_check = await conn.fetchrow(
+            "SELECT id, is_active FROM dvms WHERE id = $1", dvm_id
+        )
+        if not dvm_check:
+            print(f"[DVM Profile] DVM {dvm_id} not found")
+            raise HTTPException(status_code=404, detail=f"DVM {dvm_id} not found")
+        
+        # Get profile data from dvm_profiles table
+        profile_query = """
+            SELECT 
+                content
+            FROM dvm_profiles 
+            WHERE dvm_id = $1
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """
+        
+        profile_row = await conn.fetchrow(profile_query, dvm_id)
+        
+        if not profile_row:
+            print(f"[DVM Profile] No profile found for {dvm_id}")
+            # Return empty profile if no data exists
+            return DVMProfileData()
+        
+        try:
+            # Parse the content JSON
+            profile_data = json.loads(profile_row["content"])
+            
+            # Extract profile fields
+            profile = DVMProfileData(
+                name=profile_data.get("name"),
+                display_name=profile_data.get("display_name"),
+                about=profile_data.get("about"),
+                picture=profile_data.get("picture"),
+                banner=profile_data.get("banner"),
+                website=profile_data.get("website"),
+                lud16=profile_data.get("lud16"),
+                nip05=profile_data.get("nip05"),
+                encryptionSupported=profile_data.get("encryptionSupported"),
+                cashuAccepted=profile_data.get("cashuAccepted"),
+                nip90Params=profile_data.get("nip90Params")
+            )
+            
+            return profile
+            
+        except Exception as e:
+            print(f"[DVM Profile] Error parsing profile data: {e}")
+            return DVMProfileData()
+
+
 @app.get("/api/stats/dvm/{dvm_id}", response_model=DVMStatsResponse)
 async def get_dvm_stats(
     dvm_id: str = Path(..., description="DVM ID"),
@@ -453,7 +528,43 @@ async def get_dvm_stats(
         time_series = [dict(row) for row in timeseries_rows]
         print(f"[DVM Stats] Found {len(time_series)} time series data points")
 
-        result = {**dict(stats), "time_series": time_series}
+        # Get profile data
+        profile_query = """
+            SELECT 
+                content
+            FROM dvm_profiles 
+            WHERE dvm_id = $1
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """
+        
+        profile_row = await conn.fetchrow(profile_query, dvm_id)
+        profile = None
+        
+        if profile_row:
+            try:
+                # Parse the content JSON
+                profile_data = json.loads(profile_row["content"])
+                
+                # Extract profile fields
+                profile = {
+                    "name": profile_data.get("name"),
+                    "display_name": profile_data.get("display_name"),
+                    "about": profile_data.get("about"),
+                    "picture": profile_data.get("picture"),
+                    "banner": profile_data.get("banner"),
+                    "website": profile_data.get("website"),
+                    "lud16": profile_data.get("lud16"),
+                    "nip05": profile_data.get("nip05"),
+                    "encryptionSupported": profile_data.get("encryptionSupported"),
+                    "cashuAccepted": profile_data.get("cashuAccepted"),
+                    "nip90Params": profile_data.get("nip90Params")
+                }
+            except Exception as e:
+                print(f"[DVM Stats] Error parsing profile data: {e}")
+                profile = None
+
+        result = {**dict(stats), "time_series": time_series, "profile": profile}
         print(f"[DVM Stats] Returning result with {len(result['time_series'])} time series points")
         return result
 

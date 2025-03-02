@@ -25,6 +25,7 @@ import yaml
 import redis
 import tempfile
 import aiohttp
+import asyncpg
 from redis import Redis
 from typing import Optional, Tuple, AsyncIterator, Dict
 
@@ -214,6 +215,7 @@ class HistoricalDataLoader:
         delay_between_batches: float = 0.05,
         deduplicator=None,
         max_batches: Optional[int] = None,
+        notification_handler=None,
     ):
         self.redis = redis_client
         self.urls = urls
@@ -222,6 +224,7 @@ class HistoricalDataLoader:
         self.delay_between_batches = delay_between_batches
         self.deduplicator = deduplicator
         self.max_batches = max_batches
+        self.notification_handler = notification_handler
         self.events_processed = 0
         self.events_duplicate = 0
         self.batches_processed = 0
@@ -293,6 +296,10 @@ class HistoricalDataLoader:
                                 )
 
                             if not is_duplicate:
+                                # Special handling for NIP-89 metadata events (kind 31990)
+                                if int(event["kind"]) == 31990 and self.notification_handler:
+                                    await self.notification_handler.handle_profile_event(event)
+                                
                                 # Add to processing queue if not duplicate
                                 self.redis.rpush("dvmdash_events", json.dumps(event))
                                 batch_processed += 1
@@ -647,7 +654,11 @@ class NotificationHandler(HandleNotification):
                 is_duplicate = self.deduplicator.check_duplicate(event_id)
 
                 if not is_duplicate:
-                    # Only add to processing queue if not duplicate
+                    # Special handling for NIP-89 metadata events (kind 31990)
+                    if event.kind().as_u16() == 31990:
+                        await self.handle_profile_event(event_json)
+                    
+                    # Add to processing queue for all events
                     self.redis.rpush("dvmdash_events", json.dumps(event_json))
                     self.events_processed += 1
                 else:
@@ -658,6 +669,65 @@ class NotificationHandler(HandleNotification):
             except Exception as e:
                 logger.error(f"Error processing event: {e}")
                 logger.error(traceback.format_exc())
+    
+    async def handle_profile_event(self, event_json):
+        """Handle NIP-89 metadata events (kind 31990)"""
+        try:
+            # Extract the pubkey (DVM ID)
+            dvm_id = event_json.get("pubkey")
+            if not dvm_id:
+                logger.error(f"Missing pubkey in NIP-89 event: {event_json['id']}")
+                return
+            
+            # Extract the content
+            content = event_json.get("content", "{}")
+            
+            # Connect to PostgreSQL
+            conn = await asyncpg.connect(
+                user=os.getenv("POSTGRES_USER", "devuser"),
+                password=os.getenv("POSTGRES_PASSWORD", "devpass"),
+                database=os.getenv("POSTGRES_DB", "dvmdash_pipeline"),
+                host=os.getenv("POSTGRES_HOST", "postgres_pipeline"),
+                port=int(os.getenv("POSTGRES_PORT", "5432")),
+            )
+            
+            try:
+                # Check if DVM exists in dvms table
+                dvm_exists = await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM dvms WHERE id = $1)", dvm_id
+                )
+                
+                if not dvm_exists:
+                    # Create DVM entry if it doesn't exist
+                    await conn.execute(
+                        """
+                        INSERT INTO dvms (id, last_seen, is_active) 
+                        VALUES ($1, NOW(), true)
+                        ON CONFLICT (id) DO UPDATE SET 
+                            last_seen = NOW(),
+                            is_active = true
+                        """,
+                        dvm_id
+                    )
+                
+                # Insert profile data
+                await conn.execute(
+                    """
+                    INSERT INTO dvm_profiles (dvm_id, event_id, content)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (event_id) DO NOTHING
+                    """,
+                    dvm_id, event_json["id"], content
+                )
+                
+                logger.info(f"Processed NIP-89 profile for DVM {dvm_id}")
+                
+            finally:
+                await conn.close()
+                
+        except Exception as e:
+            logger.error(f"Error processing NIP-89 profile event: {e}")
+            logger.error(traceback.format_exc())
 
     async def print_stats(self):
         current_time = time.time()
@@ -777,6 +847,9 @@ async def process_historical_data(args):
         health_check_interval=30,
     )
     deduplicator = EventDeduplicator(redis_client)
+    
+    # Create a notification handler for processing profile events
+    notification_handler = NotificationHandler()
 
     # Initialize URLs - either from args or discover automatically
     urls = None
@@ -807,6 +880,7 @@ async def process_historical_data(args):
             delay_between_batches=args.batch_delay,
             deduplicator=deduplicator,
             max_batches=args.max_batches,
+            notification_handler=notification_handler,
         )
         logger.info("Created historical data loader, now about to run process events parallel")
         await loader.process_events_parallel(max_concurrent=1)

@@ -51,6 +51,23 @@ export interface DVMTimeSeriesData {
   total_feedback: number;
 }
 
+export interface DVMProfileData {
+  name?: string;
+  display_name?: string;
+  about?: string;
+  picture?: string;
+  banner?: string;
+  website?: string;
+  lud16?: string;
+  nip05?: string;
+  encryptionSupported?: boolean;
+  cashuAccepted?: boolean;
+  nip90Params?: Record<string, {
+    required: boolean;
+    values?: string[];
+  }>;
+}
+
 export interface DVMStats {
   dvm_id: string;
   timestamp: Date;
@@ -60,6 +77,7 @@ export interface DVMStats {
   total_feedback: number;
   supported_kinds: number[];
   time_series: DVMTimeSeriesData[];
+  profile?: DVMProfileData;
 }
 
 export interface DVMListItem {

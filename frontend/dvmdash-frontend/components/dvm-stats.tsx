@@ -3,11 +3,12 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
-import { useDVMStats } from '@/lib/api'
+import { useDVMStats, useDVMProfile } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock } from 'lucide-react'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock, Check, X, Globe, Wallet } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -388,6 +389,111 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
             </CardContent>
           </Card>
         </div>
+
+        {stats.profile && (
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle>DVM Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex flex-col items-center space-y-3">
+                  <Avatar className="h-24 w-24">
+                    {stats.profile.picture ? (
+                      <AvatarImage src={stats.profile.picture} alt={stats.profile.name || stats.profile.display_name || dvmId} />
+                    ) : null}
+                    <AvatarFallback>
+                      <Bot className="h-12 w-12" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <h3 className="font-semibold text-lg">
+                    {stats.profile.name || stats.profile.display_name || dvmId.substring(0, 8) + '...'}
+                  </h3>
+                  {stats.profile.nip05 && (
+                    <div className="text-xs text-muted-foreground">
+                      {stats.profile.nip05}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-1">
+                  {stats.profile.about && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium mb-1">About</h4>
+                      <p className="text-sm text-muted-foreground">{stats.profile.about}</p>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Features</h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <span className="text-sm mr-2">Encryption:</span>
+                          {stats.profile.encryptionSupported ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <X className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                        <div className="flex items-center">
+                          <span className="text-sm mr-2">Cashu:</span>
+                          {stats.profile.cashuAccepted ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <X className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {stats.profile.nip90Params && Object.keys(stats.profile.nip90Params).length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">NIP-90 Parameters</h4>
+                        <div className="space-y-2">
+                          {Object.entries(stats.profile.nip90Params).map(([param, details]) => (
+                            <div key={param} className="text-sm">
+                              <span className="font-medium">{param}:</span>{' '}
+                              {details.values ? details.values.join(', ') : 'Not specified'}
+                              {details.required && (
+                                <span className="ml-2 text-xs bg-muted px-1 py-0.5 rounded">Required</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {stats.profile.website && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium mb-1">Website</h4>
+                      <a 
+                        href={stats.profile.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-500 hover:underline flex items-center"
+                      >
+                        <Globe className="h-3 w-3 mr-1" />
+                        {stats.profile.website}
+                      </a>
+                    </div>
+                  )}
+                  
+                  {stats.profile.lud16 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium mb-1">Lightning Address</h4>
+                      <div className="text-sm flex items-center">
+                        <Wallet className="h-3 w-3 mr-1" />
+                        {stats.profile.lud16}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="mt-8">
           <CardHeader className="flex flex-row items-center justify-between">
