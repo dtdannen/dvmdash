@@ -98,7 +98,21 @@ class RelayConfigManager:
             collectors = redis_client.smembers('dvmdash:collectors:active')
             outdated = []
             
+            # Get current time in seconds
+            current_time = int(time.time())
+            # Consider collectors active if they've sent a heartbeat in the last 5 minutes
+            active_threshold = current_time - (5 * 60)
+            
             for collector_id in collectors:
+                heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
+                
+                # Skip collectors that haven't sent a heartbeat recently
+                if not heartbeat or int(heartbeat) < active_threshold:
+                    # Remove from active set if heartbeat is too old
+                    if heartbeat and int(heartbeat) < active_threshold:
+                        redis_client.srem('dvmdash:collectors:active', collector_id)
+                    continue
+                
                 collector_version = redis_client.get(f'dvmdash:collector:{collector_id}:config_version')
                 if not collector_version or int(collector_version) != int(current_version):
                     outdated.append(collector_id)
@@ -121,7 +135,20 @@ class RelayConfigManager:
             with redis_client.pipeline() as pipe:
                 # Get current configuration
                 relays_config = RelayConfigManager.get_all_relays(redis_client)
-                collectors = list(redis_client.smembers('dvmdash:collectors:active'))
+                all_collectors = list(redis_client.smembers('dvmdash:collectors:active'))
+                
+                # Filter out collectors that haven't sent a heartbeat recently
+                current_time = int(time.time())
+                active_threshold = current_time - (5 * 60)
+                collectors = []
+                
+                for collector_id in all_collectors:
+                    heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
+                    if heartbeat and int(heartbeat) >= active_threshold:
+                        collectors.append(collector_id)
+                    elif heartbeat:
+                        # Remove from active set if heartbeat is too old
+                        redis_client.srem('dvmdash:collectors:active', collector_id)
                 
                 if not collectors:
                     logger.warning("No active collectors found")

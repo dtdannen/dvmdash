@@ -1,18 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-import redis
 import docker
 import os
+import json
+import time
 from datetime import datetime
 
-from .relay_config import RelayConfigManager
+from relay_config import RelayConfigManager
 
 router = APIRouter(prefix="/api/admin")
-
-# Environment variables
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-redis_client = redis.from_url(REDIS_URL)
 
 # Models
 class RelayConfig(BaseModel):
@@ -39,17 +36,31 @@ class SystemStatus(BaseModel):
     last_change: Optional[int] = None
 
 @router.get("/relays", response_model=List[RelayInfo])
-async def get_relays():
+async def get_relays(request: Request):
     """Get all configured relays with their settings and metrics"""
     try:
+        redis_client = request.app.state.redis
         relays = RelayConfigManager.get_all_relays(redis_client)
         result = []
+        
+        # Get current time in seconds
+        current_time = int(time.time())
+        # Consider collectors active if they've sent a heartbeat in the last 5 minutes
+        active_threshold = current_time - (5 * 60)
         
         for url, config in relays.items():
             # Get metrics from all collectors for this relay
             metrics = {}
             collectors = redis_client.smembers('dvmdash:collectors:active')
             for collector_id in collectors:
+                # Skip collectors that haven't sent a heartbeat recently
+                heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
+                if not heartbeat or int(heartbeat) < active_threshold:
+                    # Remove from active set if heartbeat is too old
+                    if heartbeat and int(heartbeat) < active_threshold:
+                        redis_client.srem('dvmdash:collectors:active', collector_id)
+                    continue
+                
                 metrics_key = f'dvmdash:collector:{collector_id}:metrics:{url}'
                 collector_metrics = redis_client.hgetall(metrics_key)
                 if collector_metrics:
@@ -68,8 +79,9 @@ async def get_relays():
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/relays")
-async def add_relay(relay: RelayConfig):
+async def add_relay(relay: RelayConfig, request: Request):
     """Add a new relay to the configuration"""
+    redis_client = request.app.state.redis
     success = RelayConfigManager.add_relay(redis_client, relay.url, relay.activity)
     if success:
         # Trigger relay redistribution
@@ -78,11 +90,12 @@ async def add_relay(relay: RelayConfig):
     raise HTTPException(status_code=400, detail="Relay already exists")
 
 @router.put("/relays/{relay_url}/activity")
-async def update_relay_activity(relay_url: str, activity: str):
+async def update_relay_activity(relay_url: str, activity: str, request: Request):
     """Update a relay's activity level"""
     if activity not in ["high", "normal"]:
         raise HTTPException(status_code=400, detail="Invalid activity level")
     
+    redis_client = request.app.state.redis
     success = RelayConfigManager.update_relay_activity(redis_client, relay_url, activity)
     if success:
         # Trigger relay redistribution
@@ -91,8 +104,9 @@ async def update_relay_activity(relay_url: str, activity: str):
     raise HTTPException(status_code=404, detail="Relay not found")
 
 @router.delete("/relays/{relay_url}")
-async def remove_relay(relay_url: str):
+async def remove_relay(relay_url: str, request: Request):
     """Remove a relay from the configuration"""
+    redis_client = request.app.state.redis
     success = RelayConfigManager.remove_relay(redis_client, relay_url)
     if success:
         # Trigger relay redistribution
@@ -101,22 +115,43 @@ async def remove_relay(relay_url: str):
     raise HTTPException(status_code=404, detail="Relay not found")
 
 @router.get("/status", response_model=SystemStatus)
-async def get_system_status():
+async def get_system_status(request: Request):
     """Get overall system status including collectors and configuration"""
     try:
+        redis_client = request.app.state.redis
         collectors = redis_client.smembers('dvmdash:collectors:active')
         collector_info = []
+        
+        # Get current time in seconds
+        current_time = int(time.time())
+        # Consider collectors active if they've sent a heartbeat in the last 5 minutes
+        active_threshold = current_time - (5 * 60)
         
         for collector_id in collectors:
             heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
             config_version = redis_client.get(f'dvmdash:collector:{collector_id}:config_version')
-            relays = redis_client.get(f'dvmdash:collector:{collector_id}:relays')
+            relays_json = redis_client.get(f'dvmdash:collector:{collector_id}:relays')
+            
+            # Skip collectors that haven't sent a heartbeat recently
+            if not heartbeat or int(heartbeat) < active_threshold:
+                # Remove from active set if heartbeat is too old
+                if heartbeat and int(heartbeat) < active_threshold:
+                    redis_client.srem('dvmdash:collectors:active', collector_id)
+                continue
+            
+            relays_list = []
+            if relays_json:
+                try:
+                    relays_dict = json.loads(relays_json)
+                    relays_list = list(relays_dict.keys())
+                except json.JSONDecodeError:
+                    print(f"Error decoding relays JSON for collector {collector_id}: {relays_json}")
             
             collector_info.append(CollectorInfo(
                 id=collector_id,
                 last_heartbeat=int(heartbeat) if heartbeat else None,
                 config_version=int(config_version) if config_version else None,
-                relays=list(relays.keys()) if relays else []
+                relays=relays_list
             ))
         
         config_version = redis_client.get('dvmdash:settings:config_version')
@@ -133,7 +168,7 @@ async def get_system_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/collectors/reboot")
-async def reboot_collectors():
+async def reboot_collectors(request: Request):
     """Reboot all event collectors"""
     try:
         # For local development, use Docker API

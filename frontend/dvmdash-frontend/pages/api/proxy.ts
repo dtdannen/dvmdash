@@ -11,7 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const apiUrl = `https://dvmdash-prod-api-lh4pf.ondigitalocean.app/api/${path}${timeRange ? `?timeRange=${timeRange}` : ''}`
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/${path}${timeRange ? `?timeRange=${timeRange}` : ''}`
     console.log('Proxying request to:', apiUrl)
     
     const response = await fetch(apiUrl, {

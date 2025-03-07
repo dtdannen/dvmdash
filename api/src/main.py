@@ -7,11 +7,13 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 import os
 import asyncpg
+import redis
 from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
 
 from admin_routes import router as admin_router
+from relay_config import RelayConfigManager
 
 
 class DVMTimeSeriesData(BaseModel):
@@ -151,6 +153,29 @@ async def get_db_pool():
 @app.on_event("startup")
 async def startup():
     app.state.pool = await get_db_pool()
+    
+    # Initialize Redis connection
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    app.state.redis = redis.from_url(redis_url)
+    
+    # Initialize relays in Redis if none exist
+    relays = RelayConfigManager.get_all_relays(app.state.redis)
+    if not relays:
+        print("No relays found in Redis. Initializing default relays...")
+        default_relays_str = os.getenv("DEFAULT_RELAYS", "wss://relay.damus.io,wss://relay.primal.net")
+        default_relays = [url.strip() for url in default_relays_str.split(",") if url.strip()]
+        
+        for relay_url in default_relays:
+            # Add relay with normal activity level
+            success = RelayConfigManager.add_relay(app.state.redis, relay_url, "normal")
+            if success:
+                print(f"Added relay: {relay_url}")
+            else:
+                print(f"Failed to add relay: {relay_url}")
+        
+        # Distribute relays across collectors
+        RelayConfigManager.distribute_relays(app.state.redis)
+        print("Relays distributed across collectors")
 
 
 @app.on_event("shutdown")

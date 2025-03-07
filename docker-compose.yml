@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres_pipeline:
     image: postgres:16
@@ -45,7 +43,6 @@ services:
       - START_LISTENING=true
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
-      - RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
       - DAYS_LOOKBACK=20
       - NOSTR_LOG_LEVEL=INFO
     healthcheck:
@@ -62,6 +59,7 @@ services:
       redis:
         condition: service_healthy
     deploy:
+      replicas: 3
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -169,6 +167,7 @@ services:
       - POSTGRES_PASSWORD=devpass
       - POSTGRES_DB=dvmdash_pipeline
       - POSTGRES_HOST=postgres_pipeline
+      - DEFAULT_RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
     depends_on:
       postgres_pipeline:
         condition: service_healthy
@@ -244,7 +243,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api:8000
     depends_on:
       - api
     healthcheck:

@@ -196,3 +196,4 @@ metrics/run_20250121_090510/performance.png
 metrics/run_20250121_090510/plot_data.json
 metrics/run_20250121_090510/run_info.json
 metrics/run_20250121_090510/run_info.md
+frontend/dvmdash-frontend/.env.development
