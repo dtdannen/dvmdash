@@ -187,7 +187,7 @@ class NotificationHandler(HandleNotification):
                 else:
                     self.events_duplicate += 1
 
-                await self.print_stats()
+                #await self.print_stats()
 
             except Exception as e:
                 logger.error(f"Error processing event: {e}")
@@ -222,13 +222,21 @@ async def nostr_client(collector_manager: CollectorManager, relay_manager: Relay
 
     # Get assigned relays from Redis
     relays = await relay_manager.get_assigned_relays()
+    
+    # Validate that we have relays to connect to
     if not relays:
-        logger.warning("No relays assigned, using default relay")
-        relays = DEFAULT_RELAYS
+        # This should not happen since get_assigned_relays should throw an exception if no relays are assigned
+        # But just in case, let's handle it explicitly
+        error_msg = f"No relays assigned to collector {relay_manager.collector_id}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
+    # Add all assigned relays
     for relay in relays:
         logger.info(f"Adding relay: {relay}")
         await client.add_relay(relay)
+    
+    # Connect to all relays
     await client.connect()
 
     days_timestamp = Timestamp.from_secs(
@@ -251,18 +259,56 @@ async def listen_to_relays(args, collector_manager: CollectorManager, relay_mana
     reconnect_interval = 240  # Reconnect every 4 minutes
     next_reconnect = time.time() + reconnect_interval
 
-    # Register collector
+    # Register collector (which will trigger relay distribution)
     await collector_manager.register()
-    await relay_manager.sync_config_version()
+    
+    # Wait a moment for relay distribution to take effect
+    await asyncio.sleep(2)
 
     while True:
         client = None
         handle_notifications_task = None
         try:
             logger.info(f"Connecting to relays (next reconnect at {time.strftime('%H:%M:%S', time.localtime(next_reconnect))})")
-            client, notification_handler, handle_notifications_task = await nostr_client(
-                collector_manager, relay_manager, args.days_lookback
-            )
+            
+            # Try to connect with multiple retries
+            max_retries = 5
+            retry_count = 0
+            retry_delay = 2  # Start with 2 seconds
+            
+            while retry_count < max_retries:
+                try:
+                    # Check if we need to request relay distribution
+                    if retry_count > 0:
+                        logger.info(f"Retry {retry_count}/{max_retries}: Requesting relay distribution...")
+                        # Request relay distribution from coordinator
+                        relay_manager.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
+                        relay_manager.redis.set('dvmdash:settings:last_change', int(time.time()))
+                        
+                        # Wait for distribution to take effect
+                        await asyncio.sleep(retry_delay)
+                    
+                    # Try to get client
+                    client, notification_handler, handle_notifications_task = await nostr_client(
+                        collector_manager, relay_manager, args.days_lookback
+                    )
+                    
+                    # If we get here, we successfully connected
+                    logger.info("Successfully connected to relays")
+                    break
+                    
+                except ValueError as e:
+                    # This could be due to no relays being assigned
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed to connect after {max_retries} retries: {e}")
+                        raise  # Re-raise to be caught by outer exception handler
+                    
+                    logger.error(f"Error getting assigned relays (retry {retry_count}/{max_retries}): {e}")
+                    # Increase delay exponentially
+                    retry_delay = min(30, retry_delay * 2)  # Cap at 30 seconds
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
 
             # Check reconnect time while allowing notifications to process
             try:

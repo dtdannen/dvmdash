@@ -32,6 +32,19 @@ services:
       retries: 5
       start_period: 120s
 
+  redis_init:
+    build:
+      context: .
+      dockerfile: ./infrastructure/redis_init/Dockerfile
+    profiles: ["core", "all"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DEFAULT_RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: "no"  # Run once and exit
+
   event_collector:
     build:
       context: .
@@ -58,6 +71,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      redis_init:
+        condition: service_completed_successfully
     deploy:
       replicas: 3
       restart_policy:
@@ -86,6 +101,11 @@ services:
       - DAILY_CLEANUP_INTERVAL_SECONDS=15  # use 24*60*60 (24 hours) for production
       - MONTHLY_CLEANUP_BUFFER_DAYS=3
       - BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS=15
+      # Coordinator settings
+      - RELAY_DISTRIBUTION_INTERVAL_SECONDS=30  # Check for relay distribution needs every 30 seconds
+      - HEALTH_CHECK_INTERVAL_SECONDS=60  # Check collector health every 60 seconds
+      - RELAY_CHECK_INTERVAL_SECONDS=5  # Check for relay changes every 5 seconds
+      - COLLECTOR_TIMEOUT_SECONDS=300  # Consider collectors stale after 5 minutes of no heartbeat
     volumes:
       - ./backend/monthly_archiver:/app/backend/monthly_archiver
       - ./backend/shared:/app/backend/shared
@@ -101,6 +121,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      redis_init:
+        condition: service_completed_successfully
     healthcheck:
       test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
       interval: 30s
@@ -143,6 +165,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      redis_init:
+        condition: service_completed_successfully
     healthcheck:
       test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
       interval: 30s
@@ -171,6 +195,8 @@ services:
     depends_on:
       postgres_pipeline:
         condition: service_healthy
+      redis_init:
+        condition: service_completed_successfully
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/docs" ]
       interval: 30s

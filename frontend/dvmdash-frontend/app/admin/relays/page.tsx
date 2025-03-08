@@ -5,7 +5,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Switch } from "../../components/ui/switch";
 import { Alert, AlertDescription } from "../../components/ui/alert";
-import { Loader2Icon as ReloadIcon, AlertTriangleIcon } from "lucide-react";
+import { Loader2Icon as ReloadIcon, AlertTriangleIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
 interface Relay {
   url: string;
@@ -40,6 +40,8 @@ export default function RelaysPage() {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [redisState, setRedisState] = useState<any>(null);
 
   // Fetch relays and system status
   const fetchData = async () => {
@@ -160,6 +162,59 @@ export default function RelaysPage() {
     }
   };
 
+  const addCollector = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/admin/collectors", {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to add collector");
+      }
+
+      await fetchData();
+    } catch (err) {
+      setError("Failed to add collector");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeCollector = async (collectorId: string) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/admin/collectors/${encodeURIComponent(collectorId)}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to remove collector");
+      }
+
+      await fetchData();
+    } catch (err) {
+      setError("Failed to remove collector");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRedisState = async () => {
+    try {
+      const res = await fetch("/api/admin/debug/redis");
+      if (!res.ok) {
+        throw new Error("Failed to fetch Redis state");
+      }
+      const data = await res.json();
+      setRedisState(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-8">Relay Management</h1>
@@ -261,27 +316,44 @@ export default function RelaysPage() {
       {/* Collectors Status */}
       {systemStatus && (
         <div className="mt-8 bg-white rounded-lg shadow">
-          <div className="px-4 py-3 border-b">
+          <div className="px-4 py-3 border-b flex justify-between items-center">
             <h2 className="text-lg font-semibold">Event Collectors</h2>
+            <Button onClick={addCollector} disabled={loading}>
+              {loading ? (
+                <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Add Collector"
+              )}
+            </Button>
           </div>
           <div className="divide-y">
             {systemStatus.collectors.map((collector) => (
               <div key={collector.id} className="px-4 py-4">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      collector.last_heartbeat &&
-                      Date.now() / 1000 - collector.last_heartbeat < 120
-                        ? "bg-green-500"
-                        : "bg-red-500"
-                    }`}
-                  />
-                  <span className="font-mono">{collector.id}</span>
-                  {systemStatus?.outdated_collectors?.includes(collector.id) && (
-                    <span className="text-yellow-600 text-sm">
-                      (Needs Reboot)
-                    </span>
-                  )}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        collector.last_heartbeat &&
+                        Date.now() / 1000 - collector.last_heartbeat < 120
+                          ? "bg-green-500"
+                          : "bg-red-500"
+                      }`}
+                    />
+                    <span className="font-mono">{collector.id}</span>
+                    {systemStatus?.outdated_collectors?.includes(collector.id) && (
+                      <span className="text-yellow-600 text-sm">
+                        (Needs Reboot)
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => removeCollector(collector.id)}
+                    disabled={loading}
+                  >
+                    Remove
+                  </Button>
                 </div>
                 <div className="mt-1 text-sm text-gray-500">
                   Last heartbeat:{" "}
@@ -297,6 +369,30 @@ export default function RelaysPage() {
           </div>
         </div>
       )}
+
+      {/* Debug Panel */}
+      <div className="mt-8">
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            setShowDebugPanel(!showDebugPanel);
+            if (!showDebugPanel) fetchRedisState();
+          }}
+          className="flex items-center gap-2"
+        >
+          {showDebugPanel ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />}
+          {showDebugPanel ? "Hide" : "Show"} Debug Panel
+        </Button>
+        
+        {showDebugPanel && (
+          <div className="mt-4 bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Redis State</h3>
+            <div className="overflow-auto max-h-96">
+              <pre className="text-xs">{JSON.stringify(redisState, null, 2)}</pre>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

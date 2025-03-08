@@ -2,6 +2,7 @@ import uuid
 import time
 import json
 import asyncio
+import traceback
 from typing import Dict, List, Optional
 from redis import Redis
 import logging
@@ -14,7 +15,7 @@ class CollectorManager:
     def __init__(self, redis_client: Redis):
         self.redis = redis_client
         self.collector_id = str(uuid.uuid4())
-        self.heartbeat_interval = 60  # seconds
+        self.heartbeat_interval = 5  # seconds
         self._heartbeat_task = None
         
     async def register(self):
@@ -23,6 +24,11 @@ class CollectorManager:
         self.redis.sadd('dvmdash:collectors:active', self.collector_id)
         await self._update_heartbeat()
         self._start_heartbeat()
+        
+        # Set a flag for the coordinator to distribute relays
+        logger.info(f"Requesting relay distribution for new collector {self.collector_id}")
+        self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
+        self.redis.set('dvmdash:settings:last_change', int(time.time()))
         
     def _start_heartbeat(self):
         """Start the heartbeat background task"""
@@ -41,11 +47,32 @@ class CollectorManager:
                 
     async def _update_heartbeat(self):
         """Update collector heartbeat timestamp"""
+        current_time = int(time.time())
+        
+        # Update heartbeat in Redis
         self.redis.set(
             f'dvmdash:collector:{self.collector_id}:heartbeat',
-            int(time.time()),
+            current_time,
             ex=self.heartbeat_interval * 2
         )
+        
+        # Also update in the collectors hash for the admin UI
+        with self.redis.pipeline() as pipe:
+            # Get current collector data
+            collector_data = self.redis.hgetall(f'collectors:{self.collector_id}')
+            if not collector_data:
+                collector_data = {}
+            
+            # Update heartbeat
+            collector_data['heartbeat'] = str(current_time)
+            
+            # Save back to Redis
+            for key, value in collector_data.items():
+                pipe.hset(f'collectors:{self.collector_id}', key, value)
+            
+            pipe.execute()
+        
+        logger.debug(f"Updated heartbeat for collector {self.collector_id} to {current_time}")
         
     async def shutdown(self):
         """Clean up collector registration on shutdown"""
@@ -176,15 +203,48 @@ class RelayManager:
         """
         Distribute relays across active collectors.
         Rules:
-        1. Maximum 2 high-activity relays per collector
+        1. Maximum 3 relays per collector
         2. Try to distribute high-activity relays evenly
         3. Distribute remaining relays evenly
         """
         try:
+            logger.info("Starting relay distribution...")
             with redis_client.pipeline() as pipe:
                 # Get current configuration
                 relays_config = RelayManager.get_all_relays(redis_client)
+                logger.info(f"Found {len(relays_config)} relays in configuration")
+                
+                # If no relays are configured, check if we need to initialize from config
+                if not relays_config:
+                    logger.warning("No relays found in Redis, checking if we need to initialize from config")
+                    # Try to get relays from config:relays (without dvmdash: prefix)
+                    config_relays = redis_client.get('config:relays')
+                    if config_relays:
+                        try:
+                            relays_dict = json.loads(config_relays)
+                            logger.info(f"Found {len(relays_dict)} relays in config:relays, copying to dvmdash:settings:relays")
+                            # Copy to dvmdash:settings:relays
+                            redis_client.set('dvmdash:settings:relays', config_relays)
+                            relays_config = relays_dict
+                        except json.JSONDecodeError:
+                            logger.error(f"Error decoding config:relays: {config_relays}")
+                
+                # If still no relays, create a default configuration
+                if not relays_config:
+                    logger.warning("No relays found, creating default configuration")
+                    default_relays = {
+                        "wss://relay.damus.io": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
+                        "wss://relay.primal.net": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
+                        "wss://relay.dvmdash.live": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
+                        "wss://relay.f7z.xyz": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
+                        "wss://relayable.org": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"}
+                    }
+                    redis_client.set('dvmdash:settings:relays', json.dumps(default_relays))
+                    relays_config = default_relays
+                    logger.info(f"Created default relay configuration with {len(default_relays)} relays")
+                
                 collectors = list(redis_client.smembers('dvmdash:collectors:active'))
+                logger.info(f"Found {len(collectors)} active collectors")
                 
                 if not collectors:
                     logger.warning("No active collectors found")
@@ -198,14 +258,17 @@ class RelayManager:
                         high_activity.append(relay_url)
                     else:
                         normal_activity.append(relay_url)
+                
+                logger.info(f"Found {len(high_activity)} high-activity relays and {len(normal_activity)} normal relays")
 
                 # Calculate distribution
                 assignments = {c: [] for c in collectors}
+                max_relays_per_collector = 3  # Maximum number of relays per collector
                 
-                # First distribute high-activity relays (max 2 per collector)
+                # First distribute high-activity relays
                 collector_index = 0
                 for relay in high_activity:
-                    while len(assignments[collectors[collector_index]]) >= 2:
+                    while len(assignments[collectors[collector_index]]) >= max_relays_per_collector:
                         collector_index = (collector_index + 1) % len(collectors)
                     assignments[collectors[collector_index]].append(relay)
                     collector_index = (collector_index + 1) % len(collectors)
@@ -213,21 +276,50 @@ class RelayManager:
                 # Then distribute normal relays
                 collector_index = 0
                 for relay in normal_activity:
+                    # Skip collectors that already have the maximum number of relays
+                    while len(assignments[collectors[collector_index]]) >= max_relays_per_collector:
+                        collector_index = (collector_index + 1) % len(collectors)
+                        # If we've checked all collectors and they're all at max capacity,
+                        # some relays won't be assigned, which is fine
+                        if all(len(assignments[c]) >= max_relays_per_collector for c in collectors):
+                            logger.info("All collectors at maximum relay capacity, some relays will remain unassigned")
+                            break
+                    
+                    # If all collectors are at max capacity, stop assigning relays
+                    if all(len(assignments[c]) >= max_relays_per_collector for c in collectors):
+                        logger.info(f"Relay {relay} will remain unassigned")
+                        continue
+                        
                     assignments[collectors[collector_index]].append(relay)
                     collector_index = (collector_index + 1) % len(collectors)
 
                 # Update Redis with new assignments
                 for collector_id, relays in assignments.items():
+                    relay_dict = {r: relays_config[r] for r in relays}
+                    relay_json = json.dumps(relay_dict)
+                    
+                    # Update in dvmdash:collector:{id}:relays
                     pipe.set(
                         f'dvmdash:collector:{collector_id}:relays',
-                        json.dumps({r: relays_config[r] for r in relays})
+                        relay_json
                     )
+                    
+                    # Also update in the collectors hash for the admin UI
+                    pipe.hset(
+                        f'collectors:{collector_id}',
+                        'relays',
+                        relay_json
+                    )
+                    
+                    logger.info(f"Assigned {len(relays)} relays to collector {collector_id}")
                 
                 pipe.execute()
+                logger.info("Relay distribution completed successfully")
                 return True
 
         except Exception as e:
             logger.error(f"Error distributing relays: {e}")
+            logger.error(traceback.format_exc())
             return False
         
     async def get_assigned_relays(self) -> List[str]:
@@ -236,10 +328,41 @@ class RelayManager:
         
         # Only check Redis if enough time has passed
         if current_time - self._last_config_check >= self.config_check_interval:
+            # Try to get relays from dvmdash:collector:{id}:relays
             assigned = self.redis.get(f'dvmdash:collector:{self.collector_id}:relays')
             if assigned:
-                self._assigned_relays = json.loads(assigned)
+                try:
+                    self._assigned_relays = json.loads(assigned)
+                    logger.info(f"Found {len(self._assigned_relays)} relays assigned to collector {self.collector_id}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error decoding relays JSON: {assigned}")
+            
+            # If no relays assigned, request relay distribution from coordinator
+            if not self._assigned_relays:
+                logger.warning(f"No relays assigned to collector {self.collector_id}, requesting relay distribution")
+                
+                # Request relay distribution from coordinator
+                self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
+                self.redis.set('dvmdash:settings:last_change', int(time.time()))
+                
+                # Wait a moment for distribution to take effect
+                await asyncio.sleep(3)  # Wait a bit longer to give coordinator time to respond
+                
+                # Try again
+                assigned = self.redis.get(f'dvmdash:collector:{self.collector_id}:relays')
+                if assigned:
+                    try:
+                        self._assigned_relays = json.loads(assigned)
+                        logger.info(f"Found {len(self._assigned_relays)} relays assigned to collector {self.collector_id} after distribution")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding relays JSON after distribution: {assigned}")
+                
             self._last_config_check = current_time
+            
+        if not self._assigned_relays:
+            # If we still don't have relays, raise exception
+            logger.error(f"Empty relay assignment for collector {self.collector_id}")
+            raise ValueError(f"Empty relay assignment for collector {self.collector_id}")
             
         return list(self._assigned_relays.keys())
     
@@ -250,16 +373,40 @@ class RelayManager:
         # Update collector-specific metrics
         metrics_key = f'dvmdash:collector:{self.collector_id}:metrics:{relay_url}'
         pipe = self.redis.pipeline()
+        
+        # Update in dvmdash:collector:{id}:metrics:{relay_url}
         pipe.hset(metrics_key, 'last_event', current_time)
         pipe.hincrby(metrics_key, 'event_count', 1)
         pipe.expire(metrics_key, self.metrics_retention)
+        
+        # Also update in the collectors hash for the admin UI
+        metrics_key_alt = f'collectors:{self.collector_id}:metrics:{relay_url}'
+        pipe.hset(metrics_key_alt, 'last_event', str(current_time))
+        pipe.hincrby(metrics_key_alt, 'event_count', 1)
+        
         pipe.execute()
         
+        logger.debug(f"Updated metrics for relay {relay_url} on collector {self.collector_id}")
+        
     async def sync_config_version(self):
-        """Update the collector's config version to match current settings"""
+        """Update the collector's config version to match current settings and request relay distribution"""
         current_version = self.redis.get('dvmdash:settings:config_version')
         if current_version:
+            # Update in dvmdash:collector:{id}:config_version
             self.redis.set(
                 f'dvmdash:collector:{self.collector_id}:config_version',
                 current_version
             )
+            
+            # Also update in the collectors hash for the admin UI
+            self.redis.hset(
+                f'collectors:{self.collector_id}',
+                'config_version',
+                current_version
+            )
+            
+            logger.info(f"Updated config version for collector {self.collector_id} to {current_version}")
+            
+            # Request relay distribution from coordinator
+            self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
+            self.redis.set('dvmdash:settings:last_change', int(time.time()))

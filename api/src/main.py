@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import os
 import asyncpg
 import redis
+import time
 from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
@@ -150,6 +151,32 @@ async def get_db_pool():
     )
 
 
+def clean_stale_collectors(redis_client):
+    """Remove stale collectors from Redis"""
+    current_time = int(time.time())
+    # Increase the threshold to 30 minutes to give collectors more time to start up
+    active_threshold = current_time - (30 * 60)
+    
+    collectors = redis_client.smembers('dvmdash:collectors:active')
+    removed_count = 0
+    
+    for collector_id in collectors:
+        heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
+        # Only remove collectors that have a heartbeat older than the threshold
+        # Don't remove collectors that haven't sent a heartbeat yet (they might be starting up)
+        if heartbeat and int(heartbeat) < active_threshold:
+            print(f"Removing stale collector: {collector_id}")
+            # Remove from active set
+            redis_client.srem('dvmdash:collectors:active', collector_id)
+            # Clean up all collector keys
+            for key in redis_client.keys(f'dvmdash:collector:{collector_id}:*'):
+                redis_client.delete(key)
+            removed_count += 1
+    
+    if removed_count > 0:
+        print(f"Cleaned up {removed_count} stale collectors")
+    return removed_count
+
 @app.on_event("startup")
 async def startup():
     app.state.pool = await get_db_pool()
@@ -157,6 +184,9 @@ async def startup():
     # Initialize Redis connection
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
     app.state.redis = redis.from_url(redis_url)
+    
+    # Clean up stale collectors
+    clean_stale_collectors(app.state.redis)
     
     # Initialize relays in Redis if none exist
     relays = RelayConfigManager.get_all_relays(app.state.redis)

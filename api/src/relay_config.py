@@ -98,21 +98,9 @@ class RelayConfigManager:
             collectors = redis_client.smembers('dvmdash:collectors:active')
             outdated = []
             
-            # Get current time in seconds
-            current_time = int(time.time())
-            # Consider collectors active if they've sent a heartbeat in the last 5 minutes
-            active_threshold = current_time - (5 * 60)
-            
             for collector_id in collectors:
-                heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
-                
-                # Skip collectors that haven't sent a heartbeat recently
-                if not heartbeat or int(heartbeat) < active_threshold:
-                    # Remove from active set if heartbeat is too old
-                    if heartbeat and int(heartbeat) < active_threshold:
-                        redis_client.srem('dvmdash:collectors:active', collector_id)
-                    continue
-                
+                # Check if collector is outdated based on config version
+                # Include all collectors, even if they haven't sent a heartbeat yet
                 collector_version = redis_client.get(f'dvmdash:collector:{collector_id}:config_version')
                 if not collector_version or int(collector_version) != int(current_version):
                     outdated.append(collector_id)
@@ -127,7 +115,7 @@ class RelayConfigManager:
         """
         Distribute relays across active collectors.
         Rules:
-        1. Maximum 2 high-activity relays per collector
+        1. Maximum 3 relays per collector
         2. Try to distribute high-activity relays evenly
         3. Distribute remaining relays evenly
         """
@@ -137,16 +125,19 @@ class RelayConfigManager:
                 relays_config = RelayConfigManager.get_all_relays(redis_client)
                 all_collectors = list(redis_client.smembers('dvmdash:collectors:active'))
                 
-                # Filter out collectors that haven't sent a heartbeat recently
+                # Include all collectors in the active set, even if they haven't sent a heartbeat yet
+                # Only remove collectors with very old heartbeats (30+ minutes)
                 current_time = int(time.time())
-                active_threshold = current_time - (5 * 60)
+                active_threshold = current_time - (30 * 60)
                 collectors = []
                 
                 for collector_id in all_collectors:
                     heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
-                    if heartbeat and int(heartbeat) >= active_threshold:
+                    # Include collectors without heartbeats (they might be starting up)
+                    # Only remove collectors with heartbeats older than 30 minutes
+                    if not heartbeat or int(heartbeat) >= active_threshold:
                         collectors.append(collector_id)
-                    elif heartbeat:
+                    else:
                         # Remove from active set if heartbeat is too old
                         redis_client.srem('dvmdash:collectors:active', collector_id)
                 
@@ -165,11 +156,12 @@ class RelayConfigManager:
 
                 # Calculate distribution
                 assignments = {c: [] for c in collectors}
+                max_relays_per_collector = 3  # Maximum number of relays per collector
                 
-                # First distribute high-activity relays (max 2 per collector)
+                # First distribute high-activity relays
                 collector_index = 0
                 for relay in high_activity:
-                    while len(assignments[collectors[collector_index]]) >= 2:
+                    while len(assignments[collectors[collector_index]]) >= max_relays_per_collector:
                         collector_index = (collector_index + 1) % len(collectors)
                     assignments[collectors[collector_index]].append(relay)
                     collector_index = (collector_index + 1) % len(collectors)
@@ -177,6 +169,20 @@ class RelayConfigManager:
                 # Then distribute normal relays
                 collector_index = 0
                 for relay in normal_activity:
+                    # Skip collectors that already have the maximum number of relays
+                    while len(assignments[collectors[collector_index]]) >= max_relays_per_collector:
+                        collector_index = (collector_index + 1) % len(collectors)
+                        # If we've checked all collectors and they're all at max capacity,
+                        # some relays won't be assigned, which is fine
+                        if all(len(assignments[c]) >= max_relays_per_collector for c in collectors):
+                            logger.info("All collectors at maximum relay capacity, some relays will remain unassigned")
+                            break
+                    
+                    # If all collectors are at max capacity, stop assigning relays
+                    if all(len(assignments[c]) >= max_relays_per_collector for c in collectors):
+                        logger.info(f"Relay {relay} will remain unassigned")
+                        continue
+                        
                     assignments[collectors[collector_index]].append(relay)
                     collector_index = (collector_index + 1) % len(collectors)
 

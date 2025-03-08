@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import docker
 import os
 import json
@@ -10,6 +10,18 @@ from datetime import datetime
 from relay_config import RelayConfigManager
 
 router = APIRouter(prefix="/api/admin")
+
+# Helper function to request relay distribution from the coordinator
+def request_relay_distribution(redis_client):
+    """
+    Set a flag in Redis to request relay distribution from the coordinator.
+    This is more robust than directly triggering distribution from the API.
+    """
+    # Set the last_change timestamp to trigger redistribution
+    redis_client.set('dvmdash:settings:last_change', int(time.time()))
+    # Optionally set a specific flag if needed
+    redis_client.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
+    return True
 
 # Models
 class RelayConfig(BaseModel):
@@ -53,14 +65,7 @@ async def get_relays(request: Request):
             metrics = {}
             collectors = redis_client.smembers('dvmdash:collectors:active')
             for collector_id in collectors:
-                # Skip collectors that haven't sent a heartbeat recently
-                heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
-                if not heartbeat or int(heartbeat) < active_threshold:
-                    # Remove from active set if heartbeat is too old
-                    if heartbeat and int(heartbeat) < active_threshold:
-                        redis_client.srem('dvmdash:collectors:active', collector_id)
-                    continue
-                
+                # Include metrics from all collectors, even if they haven't sent a heartbeat yet
                 metrics_key = f'dvmdash:collector:{collector_id}:metrics:{url}'
                 collector_metrics = redis_client.hgetall(metrics_key)
                 if collector_metrics:
@@ -84,8 +89,8 @@ async def add_relay(relay: RelayConfig, request: Request):
     redis_client = request.app.state.redis
     success = RelayConfigManager.add_relay(redis_client, relay.url, relay.activity)
     if success:
-        # Trigger relay redistribution
-        RelayConfigManager.distribute_relays(redis_client)
+        # Request relay redistribution from coordinator
+        request_relay_distribution(redis_client)
         return {"status": "success"}
     raise HTTPException(status_code=400, detail="Relay already exists")
 
@@ -98,8 +103,8 @@ async def update_relay_activity(relay_url: str, activity: str, request: Request)
     redis_client = request.app.state.redis
     success = RelayConfigManager.update_relay_activity(redis_client, relay_url, activity)
     if success:
-        # Trigger relay redistribution
-        RelayConfigManager.distribute_relays(redis_client)
+        # Request relay redistribution from coordinator
+        request_relay_distribution(redis_client)
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Relay not found")
 
@@ -109,8 +114,8 @@ async def remove_relay(relay_url: str, request: Request):
     redis_client = request.app.state.redis
     success = RelayConfigManager.remove_relay(redis_client, relay_url)
     if success:
-        # Trigger relay redistribution
-        RelayConfigManager.distribute_relays(redis_client)
+        # Request relay redistribution from coordinator
+        request_relay_distribution(redis_client)
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Relay not found")
 
@@ -132,12 +137,8 @@ async def get_system_status(request: Request):
             config_version = redis_client.get(f'dvmdash:collector:{collector_id}:config_version')
             relays_json = redis_client.get(f'dvmdash:collector:{collector_id}:relays')
             
-            # Skip collectors that haven't sent a heartbeat recently
-            if not heartbeat or int(heartbeat) < active_threshold:
-                # Remove from active set if heartbeat is too old
-                if heartbeat and int(heartbeat) < active_threshold:
-                    redis_client.srem('dvmdash:collectors:active', collector_id)
-                continue
+            # Include all collectors in the active set, even if they haven't sent a heartbeat yet
+            # This ensures newly started collectors are visible in the admin page
             
             relays_list = []
             if relays_json:
@@ -185,5 +186,83 @@ async def reboot_collectors(request: Request):
             await restart_event_collectors()
             
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/collectors")
+async def add_collector(request: Request):
+    """Add a new event collector instance"""
+    try:
+        # For local development, use Docker API
+        if os.getenv("ENVIRONMENT") == "development":
+            client = docker.from_env()
+            container = client.containers.run(
+                "dvmdash-event-collector",
+                detach=True,
+                environment={"START_LISTENING": "true"},
+                labels={"com.docker.compose.service": "event_collector"}
+            )
+            return {"status": "success", "container_id": container.id}
+        else:
+            # For production, use DigitalOcean API
+            from deploy.production_deploy import add_event_collector
+            result = await add_event_collector()
+            return {"status": "success", "details": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/collectors/{collector_id}")
+async def remove_collector(collector_id: str, request: Request):
+    """Remove a specific event collector"""
+    try:
+        redis_client = request.app.state.redis
+        
+        # Remove from active set
+        redis_client.srem('dvmdash:collectors:active', collector_id)
+        
+        # Clean up all collector keys
+        for key in redis_client.keys(f'dvmdash:collector:{collector_id}:*'):
+            redis_client.delete(key)
+            
+        # Request relay redistribution from coordinator
+        request_relay_distribution(redis_client)
+        
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/debug/redis")
+async def get_redis_debug(request: Request):
+    """Get Redis state for debugging"""
+    try:
+        redis_client = request.app.state.redis
+        result: Dict[str, Any] = {
+            "collectors": {},
+            "config": {}
+        }
+        
+        # Get collector information
+        collectors = redis_client.smembers('dvmdash:collectors:active')
+        for collector_id in collectors:
+            result["collectors"][collector_id] = {
+                "heartbeat": redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat'),
+                "config_version": redis_client.get(f'dvmdash:collector:{collector_id}:config_version'),
+                "relays": json.loads(redis_client.get(f'dvmdash:collector:{collector_id}:relays') or '{}')
+            }
+            
+            # Get metrics for each relay
+            result["collectors"][collector_id]["metrics"] = {}
+            for relay_url in result["collectors"][collector_id]["relays"].keys():
+                metrics_key = f'dvmdash:collector:{collector_id}:metrics:{relay_url}'
+                metrics = redis_client.hgetall(metrics_key)
+                if metrics:
+                    result["collectors"][collector_id]["metrics"][relay_url] = metrics
+        
+        # Get configuration
+        result["config"]["relays"] = json.loads(redis_client.get('dvmdash:settings:relays') or '{}')
+        result["config"]["config_version"] = redis_client.get('dvmdash:settings:config_version')
+        result["config"]["last_change"] = redis_client.get('dvmdash:settings:last_change')
+        
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

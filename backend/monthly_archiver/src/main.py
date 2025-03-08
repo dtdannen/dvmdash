@@ -18,6 +18,9 @@ from redis import Redis
 from util import ArchiverRedisLock
 import uuid
 
+# Import the new coordinator components
+from coordinator import CoordinatorManager
+
 
 # custom exception called MultipleMonthBatch
 class MultipleMonthBatch(Exception):
@@ -613,9 +616,61 @@ class MonthlyArchiver:
                 await asyncio.sleep(min(30, 2**consecutive_errors))
 
 
+class SystemCoordinator:
+    """
+    Main system coordinator that manages both the monthly archiver and the general coordinator.
+    This class is responsible for running both components in parallel.
+    """
+    
+    def __init__(self, redis_url: str, metrics_pool: asyncpg.Pool):
+        self.redis_url = redis_url
+        self.metrics_pool = metrics_pool
+        self.redis = redis.from_url(redis_url)
+        
+        # Initialize both components
+        self.monthly_archiver = MonthlyArchiver(
+            redis_url=redis_url,
+            metrics_pool=metrics_pool,
+        )
+        
+        self.coordinator = CoordinatorManager(
+            redis_client=self.redis,
+            metrics_pool=metrics_pool,
+        )
+        
+        logger.info("System Coordinator initialized with both archiver and coordinator components")
+    
+    async def run(self):
+        """Run both the monthly archiver and the coordinator in parallel"""
+        try:
+            # Create tasks for both components
+            archiver_task = asyncio.create_task(
+                self.monthly_archiver.process_forever(),
+                name="monthly_archiver"
+            )
+            
+            coordinator_task = asyncio.create_task(
+                self.coordinator.process_forever(),
+                name="coordinator"
+            )
+            
+            logger.info("Started both archiver and coordinator tasks")
+            
+            # Wait for both tasks to complete (they should run forever)
+            await asyncio.gather(archiver_task, coordinator_task)
+            
+        except asyncio.CancelledError:
+            logger.info("System Coordinator received cancellation request")
+            raise
+        except Exception as e:
+            logger.error(f"Error in System Coordinator: {e}")
+            logger.error(traceback.format_exc())
+            raise
+
+
 async def main():
-    """Initialize and run the batch processor."""
-    logger.info("Starting monthly archiver...")
+    """Initialize and run the system coordinator."""
+    logger.info("Starting system coordinator (monthly archiver + relay coordinator)...")
 
     try:
         # Initialize metrics database connection pool
@@ -633,17 +688,18 @@ async def main():
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         logger.info(f"Connecting to Redis at {redis_url}")
 
-        monthly_archiver = MonthlyArchiver(
+        # Create and run the system coordinator
+        system_coordinator = SystemCoordinator(
             redis_url=redis_url,
             metrics_pool=metrics_pool,
         )
-
-        await monthly_archiver.process_forever()
+        
+        await system_coordinator.run()
 
     except KeyboardInterrupt:
         logger.info("Received shutdown signal, cleaning up...")
     except Exception as e:
-        logger.exception("Fatal error in batch processor")
+        logger.exception("Fatal error in system coordinator")
         sys.exit(1)
     finally:
         logger.info("Closing database connections...")
