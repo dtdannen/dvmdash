@@ -203,9 +203,9 @@ async def startup():
             else:
                 print(f"Failed to add relay: {relay_url}")
         
-        # Distribute relays across collectors
-        RelayConfigManager.distribute_relays(app.state.redis)
-        print("Relays distributed across collectors")
+        # Request relay distribution from coordinator
+        RelayConfigManager.request_relay_distribution(app.state.redis)
+        print("Requested relay distribution from coordinator")
 
 
 @app.on_event("shutdown")

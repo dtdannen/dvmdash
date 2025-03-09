@@ -407,6 +407,25 @@ class EventCollectorCoordinatorManager:
                 # Health check logging
                 if current_time - last_health_log >= 60:
                     logger.info(f"Health check - Coordinator running normally")
+                    
+                    # Log relay assignments
+                    try:
+                        collectors = await self.relay_coordinator.get_active_collectors()
+                        logger.info(f"Current relay assignments for {len(collectors)} active collectors:")
+                        
+                        for collector_id in collectors:
+                            # Ensure collector_id is a string for Redis key
+                            collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
+                            
+                            relays_json = self.redis.get(f'dvmdash:collector:{collector_id_str}:relays')
+                            relays = json.loads(relays_json) if relays_json else {}
+                            
+                            logger.info(f"  Collector {collector_id_str}: {len(relays)} relays assigned")
+                            for relay_url in relays.keys():
+                                logger.info(f"    - {relay_url}")
+                    except Exception as e:
+                        logger.error(f"Error logging relay assignments: {e}")
+                    
                     last_health_log = current_time
                 
                 # Small sleep to prevent tight loop

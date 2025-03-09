@@ -279,14 +279,47 @@ export default function RelaysPage() {
                 <div className="mt-1 text-sm text-gray-500">
                   Added {new Date(relay.added_at * 1000).toLocaleString()} by {relay.added_by}
                 </div>
+                
+                {/* Show collectors assigned to this relay */}
+                {systemStatus && (
+                  <div className="mt-2 text-sm">
+                    <div className="text-gray-500">
+                      {/* Find collectors that have this relay in their relays list */}
+                      {(() => {
+                        const assignedCollectors = systemStatus.collectors.filter(
+                          collector => collector.relays.includes(relay.url)
+                        );
+                        
+                        return (
+                          <>
+                            Assigned to collectors: {assignedCollectors.length}
+                            {assignedCollectors.length > 0 && (
+                              <div className="mt-1">
+                                {assignedCollectors.map(collector => (
+                                  <div key={collector.id} className="text-gray-400 text-xs">
+                                    Collected by {collector.id.slice(0, 8)}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Show metrics if available */}
                 {relay.metrics && (
                   <div className="mt-2 text-sm">
-                    {Object.entries(relay.metrics).map(([collector, metrics]) => (
-                      <div key={collector} className="text-gray-600">
-                        Collector {collector.slice(0, 8)}: {metrics.event_count} events, 
-                        last at {new Date(parseInt(metrics.last_event) * 1000).toLocaleString()}
-                      </div>
-                    ))}
+                    <div className="mt-2">
+                      {Object.entries(relay.metrics).map(([collector, metrics]) => (
+                        <div key={collector} className="text-gray-600">
+                          Collector {collector.slice(0, 8)}: {metrics.event_count} events, 
+                          last at {new Date(parseInt(metrics.last_event) * 1000).toLocaleString()}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -363,6 +396,15 @@ export default function RelaysPage() {
                 </div>
                 <div className="mt-1 text-sm text-gray-500">
                   Assigned relays: {collector.relays.length}
+                  {collector.relays.length > 0 && (
+                    <div className="mt-1">
+                      {collector.relays.map((relay, index) => (
+                        <div key={index} className="text-gray-400 text-xs">
+                          Listening to {relay}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

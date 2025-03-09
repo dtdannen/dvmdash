@@ -11,17 +11,7 @@ from relay_config import RelayConfigManager
 
 router = APIRouter(prefix="/api/admin")
 
-# Helper function to request relay distribution from the coordinator
-def request_relay_distribution(redis_client):
-    """
-    Set a flag in Redis to request relay distribution from the coordinator.
-    This is more robust than directly triggering distribution from the API.
-    """
-    # Set the last_change timestamp to trigger redistribution
-    redis_client.set('dvmdash:settings:last_change', int(time.time()))
-    # Optionally set a specific flag if needed
-    redis_client.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
-    return True
+# Use RelayConfigManager to request relay distribution from the coordinator
 
 # Models
 class RelayConfig(BaseModel):
@@ -65,8 +55,11 @@ async def get_relays(request: Request):
             metrics = {}
             collectors = redis_client.smembers('dvmdash:collectors:active')
             for collector_id in collectors:
+                # Ensure collector_id is a string for Redis key
+                collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
+                
                 # Include metrics from all collectors, even if they haven't sent a heartbeat yet
-                metrics_key = f'dvmdash:collector:{collector_id}:metrics:{url}'
+                metrics_key = f'dvmdash:collector:{collector_id_str}:metrics:{url}'
                 collector_metrics = redis_client.hgetall(metrics_key)
                 if collector_metrics:
                     metrics[collector_id] = collector_metrics
@@ -90,7 +83,7 @@ async def add_relay(relay: RelayConfig, request: Request):
     success = RelayConfigManager.add_relay(redis_client, relay.url, relay.activity)
     if success:
         # Request relay redistribution from coordinator
-        request_relay_distribution(redis_client)
+        RelayConfigManager.request_relay_distribution(redis_client)
         return {"status": "success"}
     raise HTTPException(status_code=400, detail="Relay already exists")
 
@@ -104,7 +97,7 @@ async def update_relay_activity(relay_url: str, activity: str, request: Request)
     success = RelayConfigManager.update_relay_activity(redis_client, relay_url, activity)
     if success:
         # Request relay redistribution from coordinator
-        request_relay_distribution(redis_client)
+        RelayConfigManager.request_relay_distribution(redis_client)
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Relay not found")
 
@@ -115,7 +108,7 @@ async def remove_relay(relay_url: str, request: Request):
     success = RelayConfigManager.remove_relay(redis_client, relay_url)
     if success:
         # Request relay redistribution from coordinator
-        request_relay_distribution(redis_client)
+        RelayConfigManager.request_relay_distribution(redis_client)
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Relay not found")
 
@@ -133,9 +126,12 @@ async def get_system_status(request: Request):
         active_threshold = current_time - (5 * 60)
         
         for collector_id in collectors:
-            heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
-            config_version = redis_client.get(f'dvmdash:collector:{collector_id}:config_version')
-            relays_json = redis_client.get(f'dvmdash:collector:{collector_id}:relays')
+            # Ensure collector_id is a string for Redis key
+            collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
+            
+            heartbeat = redis_client.get(f'dvmdash:collector:{collector_id_str}:heartbeat')
+            config_version = redis_client.get(f'dvmdash:collector:{collector_id_str}:config_version')
+            relays_json = redis_client.get(f'dvmdash:collector:{collector_id_str}:relays')
             
             # Include all collectors in the active set, even if they haven't sent a heartbeat yet
             # This ensures newly started collectors are visible in the admin page
@@ -225,7 +221,7 @@ async def remove_collector(collector_id: str, request: Request):
             redis_client.delete(key)
             
         # Request relay redistribution from coordinator
-        request_relay_distribution(redis_client)
+        RelayConfigManager.request_relay_distribution(redis_client)
         
         return {"status": "success"}
     except Exception as e:
@@ -244,16 +240,19 @@ async def get_redis_debug(request: Request):
         # Get collector information
         collectors = redis_client.smembers('dvmdash:collectors:active')
         for collector_id in collectors:
+            # Ensure collector_id is a string for Redis key
+            collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
+            
             result["collectors"][collector_id] = {
-                "heartbeat": redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat'),
-                "config_version": redis_client.get(f'dvmdash:collector:{collector_id}:config_version'),
-                "relays": json.loads(redis_client.get(f'dvmdash:collector:{collector_id}:relays') or '{}')
+                "heartbeat": redis_client.get(f'dvmdash:collector:{collector_id_str}:heartbeat'),
+                "config_version": redis_client.get(f'dvmdash:collector:{collector_id_str}:config_version'),
+                "relays": json.loads(redis_client.get(f'dvmdash:collector:{collector_id_str}:relays') or '{}')
             }
             
             # Get metrics for each relay
             result["collectors"][collector_id]["metrics"] = {}
             for relay_url in result["collectors"][collector_id]["relays"].keys():
-                metrics_key = f'dvmdash:collector:{collector_id}:metrics:{relay_url}'
+                metrics_key = f'dvmdash:collector:{collector_id_str}:metrics:{relay_url}'
                 metrics = redis_client.hgetall(metrics_key)
                 if metrics:
                     result["collectors"][collector_id]["metrics"][relay_url] = metrics
