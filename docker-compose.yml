@@ -32,19 +32,6 @@ services:
       retries: 5
       start_period: 120s
 
-  redis_init:
-    build:
-      context: .
-      dockerfile: ./infrastructure/redis_init/Dockerfile
-    profiles: ["core", "all"]
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - DEFAULT_RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: "no"  # Run once and exit
-
   event_collector:
     build:
       context: .
@@ -71,8 +58,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      redis_init:
-        condition: service_completed_successfully
+      coordinator:
+        condition: service_healthy
     deploy:
       replicas: 3
       restart_policy:
@@ -86,10 +73,10 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  monthly_archiver:
+  coordinator:
     build:
       context: .
-      dockerfile: ./backend/monthly_archiver/Dockerfile
+      dockerfile: ./backend/coordinator/Dockerfile
     profiles: ["all"]
     environment:
       - REDIS_URL=redis://redis:6379/0
@@ -101,15 +88,15 @@ services:
       - DAILY_CLEANUP_INTERVAL_SECONDS=15  # use 24*60*60 (24 hours) for production
       - MONTHLY_CLEANUP_BUFFER_DAYS=3
       - BATCH_PROCESSOR_GRACE_PERIOD_BEFORE_UPDATE_SECONDS=15
-      # Coordinator settings
+      # Event Collector Coordinator settings
       - RELAY_DISTRIBUTION_INTERVAL_SECONDS=30  # Check for relay distribution needs every 30 seconds
       - HEALTH_CHECK_INTERVAL_SECONDS=60  # Check collector health every 60 seconds
       - RELAY_CHECK_INTERVAL_SECONDS=5  # Check for relay changes every 5 seconds
       - COLLECTOR_TIMEOUT_SECONDS=300  # Consider collectors stale after 5 minutes of no heartbeat
     volumes:
-      - ./backend/monthly_archiver:/app/backend/monthly_archiver
+      - ./backend/coordinator:/app/backend/coordinator
       - ./backend/shared:/app/backend/shared
-      - monthly_archiver_logs:/app/logs
+      - coordinator_logs:/app/logs
     deploy:
       restart_policy:
         condition: on-failure
@@ -121,10 +108,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      redis_init:
-        condition: service_completed_successfully
     healthcheck:
-      test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
+      test: [ "CMD", "python", "-c", "import os, redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -165,10 +150,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      redis_init:
-        condition: service_completed_successfully
+      coordinator:
+        condition: service_healthy
     healthcheck:
-      test: [ "CMD", "python", "-c", "import redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
+      test: [ "CMD", "python", "-c", "import os, redis; redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379/0')).ping()" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -195,44 +180,14 @@ services:
     depends_on:
       postgres_pipeline:
         condition: service_healthy
-      redis_init:
-        condition: service_completed_successfully
+      coordinator:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/docs" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
-#  grafana:
-#    image: grafana/grafana:latest
-#    profiles: ["all"]
-#    container_name: grafana
-#    restart: unless-stopped
-#    environment:
-#      - TERM=linux
-#      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-polystat-panel
-#      # Add these environment variables for Postgres connection
-#      - GF_DATABASE_TYPE=postgres
-#      - GF_DATABASE_HOST=postgres_pipeline
-#      - GF_DATABASE_NAME=dvmdash_pipeline
-#      - GF_DATABASE_USER=devuser
-#      - GF_DATABASE_PASSWORD=devpass
-#    ports:
-#      - '3001:3000'
-#    volumes:
-#      - 'grafana_storage:/var/lib/grafana'
-#      # Add a provisioning volume for automatic datasource configuration
-#      - './grafana/provisioning:/etc/grafana/provisioning'
-#    depends_on:
-#      postgres_pipeline:
-#        condition: service_healthy
-#    healthcheck:
-#      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1" ]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 10s
 
 #  nostr_relay:
 #    build:
@@ -285,6 +240,5 @@ volumes:
   redis_data:
   event_collector_logs:
   batch_processor_logs:
-  monthly_archiver_logs:
-  grafana_storage: { }
+  coordinator_logs:
   nostr_relay_data:

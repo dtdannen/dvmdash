@@ -19,7 +19,7 @@ from util import ArchiverRedisLock
 import uuid
 
 # Import the new coordinator components
-from coordinator import CoordinatorManager
+from coordinator import EventCollectorCoordinatorManager
 
 
 # custom exception called MultipleMonthBatch
@@ -633,7 +633,7 @@ class SystemCoordinator:
             metrics_pool=metrics_pool,
         )
         
-        self.coordinator = CoordinatorManager(
+        self.collector_coordinator = EventCollectorCoordinatorManager(
             redis_client=self.redis,
             metrics_pool=metrics_pool,
         )
@@ -650,7 +650,7 @@ class SystemCoordinator:
             )
             
             coordinator_task = asyncio.create_task(
-                self.coordinator.process_forever(),
+                self.collector_coordinator.process_forever(),
                 name="coordinator"
             )
             

@@ -20,15 +20,23 @@ class CollectorManager:
         
     async def register(self):
         """Register this collector instance in Redis"""
+        current_time = int(time.time())
         logger.info(f"Registering collector {self.collector_id}")
+        
+        # Add to active set
         self.redis.sadd('dvmdash:collectors:active', self.collector_id)
+        
+        # Store registration time in collectors hash
+        self.redis.hset(f'collectors:{self.collector_id}', 'registered_at', current_time)
+        
+        # Start heartbeat
         await self._update_heartbeat()
         self._start_heartbeat()
         
         # Set a flag for the coordinator to distribute relays
         logger.info(f"Requesting relay distribution for new collector {self.collector_id}")
         self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
-        self.redis.set('dvmdash:settings:last_change', int(time.time()))
+        self.redis.set('dvmdash:settings:last_change', current_time)
         
     def _start_heartbeat(self):
         """Start the heartbeat background task"""
@@ -50,10 +58,12 @@ class CollectorManager:
         current_time = int(time.time())
         
         # Update heartbeat in Redis
+        # Use a longer expiration time (120 seconds) to ensure heartbeats don't expire between health checks
+        # This prevents false "no heartbeat" detections when the coordinator checks every 60 seconds
         self.redis.set(
             f'dvmdash:collector:{self.collector_id}:heartbeat',
             current_time,
-            ex=self.heartbeat_interval * 2
+            ex=120  # 2 minutes, longer than the health check interval (60 seconds)
         )
         
         # Also update in the collectors hash for the admin UI
