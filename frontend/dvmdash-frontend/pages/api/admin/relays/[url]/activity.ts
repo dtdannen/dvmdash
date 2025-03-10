@@ -11,7 +11,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-  const apiUrl = `${API_BASE}/api/admin/relays/${encodeURIComponent(url)}/activity`
+  // Make sure the URL is properly encoded for the API
+  const decodedUrl = decodeURIComponent(url);
+  const encodedUrl = encodeURIComponent(decodedUrl);
+  const apiUrl = `${API_BASE}/api/admin/relays/${encodedUrl}/activity`
   
   try {
     console.log(`Proxying PUT request to: ${apiUrl}`)
@@ -28,10 +31,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!response.ok) {
       console.error('Proxy error:', {
         status: response.status,
-        statusText: response.statusText
+        statusText: response.statusText,
+        url: apiUrl
       })
+      
+      // Try to get more detailed error information from the response
+      let errorDetail;
+      try {
+        const errorData = await response.json();
+        errorDetail = errorData.detail || errorData.message || response.statusText;
+      } catch (e) {
+        errorDetail = response.statusText;
+      }
+      
       return res.status(response.status).json({ 
-        message: `Error from API: ${response.statusText}` 
+        message: `Error from API: ${errorDetail}`,
+        url: apiUrl
       })
     }
     

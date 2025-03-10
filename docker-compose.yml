@@ -177,6 +177,9 @@ services:
       - POSTGRES_DB=dvmdash_pipeline
       - POSTGRES_HOST=postgres_pipeline
       - DEFAULT_RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
+      - ENVIRONMENT=development
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres_pipeline:
         condition: service_healthy

@@ -1,29 +1,33 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'DELETE') {
+  if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
-  const { url } = req.query
-  if (!url || Array.isArray(url)) {
-    return res.status(400).json({ message: 'Invalid relay URL' })
+  const { url, activity } = req.body
+  if (!url) {
+    return res.status(400).json({ message: 'Relay URL is required' })
+  }
+  if (!activity || (activity !== 'high' && activity !== 'normal')) {
+    return res.status(400).json({ message: 'Activity must be "high" or "normal"' })
   }
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-  // Make sure the URL is properly encoded for the API
-  const decodedUrl = decodeURIComponent(url);
-  const encodedUrl = encodeURIComponent(decodedUrl);
-  const apiUrl = `${API_BASE}/api/admin/relays/${encodedUrl}`
+  // Try to normalize the URL to avoid encoding issues
+  const normalizedUrl = url.replace(/:/g, '%3A').replace(/\//g, '%2F')
+  const apiUrl = `${API_BASE}/api/admin/relays/${normalizedUrl}/activity`
   
   try {
-    console.log(`Proxying DELETE request to: ${apiUrl}`)
+    console.log(`Proxying PUT request to: ${apiUrl}`)
     
     const response = await fetch(apiUrl, {
-      method: 'DELETE',
+      method: 'PUT',
       headers: {
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ activity })
     })
     
     if (!response.ok) {

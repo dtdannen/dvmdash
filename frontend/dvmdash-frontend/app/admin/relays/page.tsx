@@ -35,6 +35,13 @@ interface SystemStatus {
 }
 
 export default function RelaysPage() {
+  // Helper function to determine status color based on collector heartbeat
+  const getStatusColor = (collector: CollectorInfo) => {
+    return collector.last_heartbeat && 
+           Date.now() / 1000 - collector.last_heartbeat < 120 
+           ? "bg-green-500" 
+           : "bg-red-500";
+  };
   const [newRelayUrl, setNewRelayUrl] = useState("");
   const [relays, setRelays] = useState<Relay[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
@@ -101,20 +108,36 @@ export default function RelaysPage() {
     try {
       setLoading(true);
       const newActivity = currentActivity === "high" ? "normal" : "high";
-      const res = await fetch(`/api/admin/relays/${encodeURIComponent(url)}/activity`, {
-        method: "PUT",
+      
+      // Use our new API endpoint that accepts the relay URL in the request body
+      const res = await fetch("/api/admin/relays/update-activity", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activity: newActivity }),
+        body: JSON.stringify({ 
+          url: url,
+          activity: newActivity 
+        }),
       });
 
       if (!res.ok) {
-        throw new Error("Failed to update relay");
+        // Try to get more detailed error information
+        let errorMessage = "Failed to update relay";
+        try {
+          const errorData = await res.json();
+          if (errorData.message) {
+            errorMessage = `${errorMessage}: ${errorData.message}`;
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the default message
+        }
+        throw new Error(errorMessage);
       }
 
       await fetchData();
     } catch (err) {
-      setError("Failed to update relay");
-      console.error(err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to update relay";
+      setError(errorMessage);
+      console.error("Update relay error:", err);
     } finally {
       setLoading(false);
     }
@@ -123,18 +146,34 @@ export default function RelaysPage() {
   const removeRelay = async (url: string) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/relays/${encodeURIComponent(url)}`, {
-        method: "DELETE",
+      // Use our new API endpoint that accepts the relay URL in the request body
+      const res = await fetch("/api/admin/relays/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
       });
 
       if (!res.ok) {
-        throw new Error("Failed to remove relay");
+        // Try to get more detailed error information
+        let errorMessage = "Failed to remove relay";
+        try {
+          const errorData = await res.json();
+          if (errorData.message) {
+            errorMessage = `${errorMessage}: ${errorData.message}`;
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the default message
+        }
+        throw new Error(errorMessage);
       }
 
       await fetchData();
     } catch (err) {
-      setError("Failed to remove relay");
-      console.error(err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to remove relay";
+      setError(errorMessage);
+      console.error("Remove relay error:", err);
     } finally {
       setLoading(false);
     }
@@ -156,26 +195,6 @@ export default function RelaysPage() {
       await fetchData();
     } catch (err) {
       setError("Failed to reboot collectors");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addCollector = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/admin/collectors", {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to add collector");
-      }
-
-      await fetchData();
-    } catch (err) {
-      setError("Failed to add collector");
       console.error(err);
     } finally {
       setLoading(false);
@@ -284,27 +303,18 @@ export default function RelaysPage() {
                 {systemStatus && (
                   <div className="mt-2 text-sm">
                     <div className="text-gray-500">
-                      {/* Find collectors that have this relay in their relays list */}
-                      {(() => {
-                        const assignedCollectors = systemStatus.collectors.filter(
-                          collector => collector.relays.includes(relay.url)
-                        );
-                        
-                        return (
-                          <>
-                            Assigned to collectors: {assignedCollectors.length}
-                            {assignedCollectors.length > 0 && (
-                              <div className="mt-1">
-                                {assignedCollectors.map(collector => (
-                                  <div key={collector.id} className="text-gray-400 text-xs">
-                                    Collected by {collector.id.slice(0, 8)}
-                                  </div>
-                                ))}
+                      <div>
+                        Assigned to collectors: {systemStatus.collectors.filter(c => c.relays.includes(relay.url)).length}
+                        {systemStatus.collectors.filter(c => c.relays.includes(relay.url)).length > 0 && (
+                          <div className="mt-1">
+                            {systemStatus.collectors.filter(c => c.relays.includes(relay.url)).map(collector => (
+                              <div key={collector.id} className="text-gray-400 text-xs">
+                                Collected by {collector.id.slice(0, 8)}
                               </div>
-                            )}
-                          </>
-                        );
-                      })()}
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -349,29 +359,23 @@ export default function RelaysPage() {
       {/* Collectors Status */}
       {systemStatus && (
         <div className="mt-8 bg-white rounded-lg shadow">
-          <div className="px-4 py-3 border-b flex justify-between items-center">
+          <div className="px-4 py-3 border-b">
             <h2 className="text-lg font-semibold">Event Collectors</h2>
-            <Button onClick={addCollector} disabled={loading}>
-              {loading ? (
-                <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Add Collector"
-              )}
-            </Button>
+            <p className="text-sm text-gray-500 mt-1">
+              The number of event collectors is configured at startup in the docker-compose.yml file, under event_collector -> deploy -> replicas
+            </p>
           </div>
           <div className="divide-y">
             {systemStatus.collectors.map((collector) => (
               <div key={collector.id} className="px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        collector.last_heartbeat &&
-                        Date.now() / 1000 - collector.last_heartbeat < 120
-                          ? "bg-green-500"
-                          : "bg-red-500"
-                      }`}
-                    />
+                    {collector.last_heartbeat && 
+                     Date.now() / 1000 - collector.last_heartbeat < 120 ? (
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    )}
                     <span className="font-mono">{collector.id}</span>
                     {systemStatus?.outdated_collectors?.includes(collector.id) && (
                       <span className="text-yellow-600 text-sm">

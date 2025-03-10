@@ -51,10 +51,27 @@ class RelayConfigManager:
                 current = pipe.get('dvmdash:settings:relays').execute()[0]
                 relays = json.loads(current) if current else {}
                 
-                if relay_url not in relays:
+                # Try to find the relay URL in the relays dictionary
+                # First try exact match
+                if relay_url in relays:
+                    matched_url = relay_url
+                else:
+                    # Try to normalize URLs for comparison
+                    # This handles cases where the URL might be encoded differently
+                    normalized_input = relay_url.lower().replace('%3A', ':')
+                    matched_url = None
+                    for url in relays.keys():
+                        normalized_url = url.lower().replace('%3A', ':')
+                        if normalized_url == normalized_input:
+                            matched_url = url
+                            break
+                
+                if not matched_url:
+                    logger.error(f"Relay not found for activity update: {relay_url}")
                     return False
                 
-                relays[relay_url]["activity"] = activity
+                logger.info(f"Updating relay activity: {matched_url} to {activity}")
+                relays[matched_url]["activity"] = activity
                 
                 pipe.set('dvmdash:settings:relays', json.dumps(relays))
                 pipe.incr('dvmdash:settings:config_version')
@@ -73,10 +90,27 @@ class RelayConfigManager:
                 current = pipe.get('dvmdash:settings:relays').execute()[0]
                 relays = json.loads(current) if current else {}
                 
-                if relay_url not in relays:
+                # Try to find the relay URL in the relays dictionary
+                # First try exact match
+                if relay_url in relays:
+                    matched_url = relay_url
+                else:
+                    # Try to normalize URLs for comparison
+                    # This handles cases where the URL might be encoded differently
+                    normalized_input = relay_url.lower().replace('%3A', ':')
+                    matched_url = None
+                    for url in relays.keys():
+                        normalized_url = url.lower().replace('%3A', ':')
+                        if normalized_url == normalized_input:
+                            matched_url = url
+                            break
+                
+                if not matched_url:
+                    logger.error(f"Relay not found: {relay_url}")
                     return False
                 
-                del relays[relay_url]
+                logger.info(f"Removing relay: {matched_url}")
+                del relays[matched_url]
                 
                 pipe.set('dvmdash:settings:relays', json.dumps(relays))
                 pipe.incr('dvmdash:settings:config_version')

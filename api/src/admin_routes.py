@@ -93,8 +93,15 @@ async def update_relay_activity(relay_url: str, activity: str, request: Request)
     if activity not in ["high", "normal"]:
         raise HTTPException(status_code=400, detail="Invalid activity level")
     
+    # Ensure the URL is properly decoded
+    decoded_url = relay_url
+    if '%' in relay_url:
+        import urllib.parse
+        decoded_url = urllib.parse.unquote(relay_url)
+    print(f"Updating relay activity: original={relay_url}, decoded={decoded_url}")
+    
     redis_client = request.app.state.redis
-    success = RelayConfigManager.update_relay_activity(redis_client, relay_url, activity)
+    success = RelayConfigManager.update_relay_activity(redis_client, decoded_url, activity)
     if success:
         # Request relay redistribution from coordinator
         RelayConfigManager.request_relay_distribution(redis_client)
@@ -104,8 +111,18 @@ async def update_relay_activity(relay_url: str, activity: str, request: Request)
 @router.delete("/relays/{relay_url}")
 async def remove_relay(relay_url: str, request: Request):
     """Remove a relay from the configuration"""
+    # Ensure the URL is properly decoded
+    # FastAPI already decodes URL parameters, but they might still be partially encoded
+    # Try to decode again to ensure we have the original URL
+    decoded_url = relay_url
+    if '%' in relay_url:
+        import urllib.parse
+        decoded_url = urllib.parse.unquote(relay_url)
+    print(f"Removing relay: original={relay_url}, decoded={decoded_url}")
+    
     redis_client = request.app.state.redis
-    success = RelayConfigManager.remove_relay(redis_client, relay_url)
+    success = RelayConfigManager.remove_relay(redis_client, decoded_url)
+    
     if success:
         # Request relay redistribution from coordinator
         RelayConfigManager.request_relay_distribution(redis_client)
@@ -190,21 +207,96 @@ async def add_collector(request: Request):
     """Add a new event collector instance"""
     try:
         # For local development, use Docker API
-        if os.getenv("ENVIRONMENT") == "development":
-            client = docker.from_env()
-            container = client.containers.run(
-                "dvmdash-event-collector",
-                detach=True,
-                environment={"START_LISTENING": "true"},
-                labels={"com.docker.compose.service": "event_collector"}
-            )
-            return {"status": "success", "container_id": container.id}
+        environment_var = os.getenv("ENVIRONMENT")
+        print(f"ENVIRONMENT variable is set to: {environment_var}")
+        
+        if environment_var == "development":
+            print("Using Docker API for local development")
+            try:
+                # Check if Docker socket exists
+                socket_path = '/var/run/docker.sock'
+                if os.path.exists(socket_path):
+                    print(f"Docker socket exists at {socket_path}")
+                else:
+                    print(f"Docker socket NOT FOUND at {socket_path}")
+                    # List all files in /var/run to debug
+                    print(f"Files in /var/run: {os.listdir('/var/run')}")
+                
+                # Try to use the Docker socket directly
+                client = docker.DockerClient(base_url='unix:///var/run/docker.sock')
+                print("Docker client initialized successfully")
+                
+                # Check if we can access the Docker API
+                version = client.version()
+                print(f"Docker API version: {version.get('ApiVersion', 'unknown')}")
+                
+                # Get the network name from the current container
+                network_name = "dvmdash_default"  # Default network name
+                print(f"Using network: {network_name}")
+                
+                # List available networks to debug
+                networks = client.networks.list()
+                print(f"Available networks: {[n.name for n in networks]}")
+                
+                # Run the container with the same network
+                container = client.containers.run(
+                    "dvmdash-event-collector",
+                    detach=True,
+                    environment={
+                        "START_LISTENING": "true",
+                        "REDIS_URL": "redis://redis:6379/0",
+                        "LOG_LEVEL": "INFO"
+                    },
+                    network=network_name,
+                    labels={"com.docker.compose.service": "event_collector"}
+                )
+                print(f"Container created successfully with ID: {container.id}")
+                return {"status": "success", "container_id": container.id}
+            except Exception as docker_error:
+                print(f"Docker API error: {docker_error}")
+                print(f"Error type: {type(docker_error)}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                
+                # Try a simpler approach - use subprocess to run docker command
+                print("Trying alternative approach with subprocess")
+                import subprocess
+                try:
+                    cmd = [
+                        "docker", "run", "-d",
+                        "--network", "dvmdash_default",
+                        "-e", "START_LISTENING=true",
+                        "-e", "REDIS_URL=redis://redis:6379/0",
+                        "-e", "LOG_LEVEL=INFO",
+                        "--label", "com.docker.compose.service=event_collector",
+                        "dvmdash-event-collector"
+                    ]
+                    print(f"Running command: {' '.join(cmd)}")
+                    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    container_id = result.stdout.strip()
+                    print(f"Container created successfully with ID: {container_id}")
+                    return {"status": "success", "container_id": container_id}
+                except subprocess.CalledProcessError as e:
+                    print(f"Subprocess error: {e}")
+                    print(f"Stdout: {e.stdout}")
+                    print(f"Stderr: {e.stderr}")
+                    raise HTTPException(status_code=500, detail=f"Docker command error: {e.stderr}")
+                except Exception as e:
+                    print(f"Subprocess exception: {e}")
+                    raise HTTPException(status_code=500, detail=f"Subprocess error: {str(e)}")
+                
+                # If we get here, both approaches failed
+                raise HTTPException(status_code=500, detail=f"Docker API error: {str(docker_error)}")
         else:
+            print(f"Not in development mode, ENVIRONMENT={environment_var}")
             # For production, use DigitalOcean API
             from deploy.production_deploy import add_event_collector
             result = await add_event_collector()
             return {"status": "success", "details": result}
     except Exception as e:
+        print(f"Unhandled exception in add_collector: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/collectors/{collector_id}")

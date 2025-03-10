@@ -1,20 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'DELETE') {
+  if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
-  const { url } = req.query
-  if (!url || Array.isArray(url)) {
-    return res.status(400).json({ message: 'Invalid relay URL' })
+  const { url } = req.body
+  if (!url) {
+    return res.status(400).json({ message: 'Relay URL is required' })
   }
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-  // Make sure the URL is properly encoded for the API
-  const decodedUrl = decodeURIComponent(url);
-  const encodedUrl = encodeURIComponent(decodedUrl);
-  const apiUrl = `${API_BASE}/api/admin/relays/${encodedUrl}`
+  // Try to normalize the URL to avoid encoding issues
+  const normalizedUrl = url.replace(/:/g, '%3A').replace(/\//g, '%2F')
+  const apiUrl = `${API_BASE}/api/admin/relays/${normalizedUrl}`
   
   try {
     console.log(`Proxying DELETE request to: ${apiUrl}`)
