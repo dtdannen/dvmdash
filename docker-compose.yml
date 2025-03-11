@@ -238,6 +238,31 @@ services:
       retries: 3
       start_period: 10s
 
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    profiles: ["admin"]
+    ports:
+      - "3001:3000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=dvmdash_pipeline
+      - POSTGRES_HOST=postgres_pipeline
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres_pipeline:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 volumes:
   postgres_pipeline_data:
   redis_data:
