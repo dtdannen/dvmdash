@@ -7,9 +7,14 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 import os
 import asyncpg
+import redis
+import time
 from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
+
+from admin_routes import router as admin_router
+from relay_config import RelayConfigManager
 
 
 class DVMTimeSeriesData(BaseModel):
@@ -112,6 +117,9 @@ class KindListResponse(BaseModel):
 
 app = FastAPI(title="DVMDash API")
 
+# Include admin routes
+app.include_router(admin_router)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -143,9 +151,61 @@ async def get_db_pool():
     )
 
 
+def clean_stale_collectors(redis_client):
+    """Remove stale collectors from Redis"""
+    current_time = int(time.time())
+    # Increase the threshold to 30 minutes to give collectors more time to start up
+    active_threshold = current_time - (30 * 60)
+    
+    collectors = redis_client.smembers('dvmdash:collectors:active')
+    removed_count = 0
+    
+    for collector_id in collectors:
+        heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
+        # Only remove collectors that have a heartbeat older than the threshold
+        # Don't remove collectors that haven't sent a heartbeat yet (they might be starting up)
+        if heartbeat and int(heartbeat) < active_threshold:
+            print(f"Removing stale collector: {collector_id}")
+            # Remove from active set
+            redis_client.srem('dvmdash:collectors:active', collector_id)
+            # Clean up all collector keys
+            for key in redis_client.keys(f'dvmdash:collector:{collector_id}:*'):
+                redis_client.delete(key)
+            removed_count += 1
+    
+    if removed_count > 0:
+        print(f"Cleaned up {removed_count} stale collectors")
+    return removed_count
+
 @app.on_event("startup")
 async def startup():
     app.state.pool = await get_db_pool()
+    
+    # Initialize Redis connection
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    app.state.redis = redis.from_url(redis_url)
+    
+    # Clean up stale collectors
+    clean_stale_collectors(app.state.redis)
+    
+    # Initialize relays in Redis if none exist
+    relays = RelayConfigManager.get_all_relays(app.state.redis)
+    if not relays:
+        print("No relays found in Redis. Initializing default relays...")
+        default_relays_str = os.getenv("DEFAULT_RELAYS", "wss://relay.damus.io,wss://relay.primal.net")
+        default_relays = [url.strip() for url in default_relays_str.split(",") if url.strip()]
+        
+        for relay_url in default_relays:
+            # Add relay with normal activity level
+            success = RelayConfigManager.add_relay(app.state.redis, relay_url, "normal")
+            if success:
+                print(f"Added relay: {relay_url}")
+            else:
+                print(f"Failed to add relay: {relay_url}")
+        
+        # Request relay distribution from coordinator
+        RelayConfigManager.request_relay_distribution(app.state.redis)
+        print("Requested relay distribution from coordinator")
 
 
 @app.on_event("shutdown")
