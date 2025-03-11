@@ -26,7 +26,7 @@ Now you should be able to navigate to http://localhost:3000/ and see data from t
 
 By default, it's set to pull dvm events from relays over the last 20 days (although many relays don't keep the events that long, so you may just see data from the last day or two). If you want to use historical data from last month and the current month, set `LOAD_HISTORICAL_DATA=true` in the `docker-compose.yml` file under the section `event_collector`. Once it's done pulling historical data, it will start listening to relays for more recent events. Keep in mind this requires a few GB of data. The historical data available is up until February 11th, 2025
 
-Event after all the containers boot up, if there's some delay in getting events from relays, the frontend may say there's an error loading stats. If you wait until relay events come in, it should auto update.
+Even after all the containers boot up, if there's some delay in getting events from relays, the frontend may say there's an error loading stats. If you wait until relay events come in, it should auto update.
 
 
 ### Old Instructions Below
