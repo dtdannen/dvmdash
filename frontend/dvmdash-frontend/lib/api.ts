@@ -1,12 +1,43 @@
 import useSWR from 'swr'
 import { TimeWindow, TimeWindowStats } from './types'
 
+// Determine if we should use the proxy based on environment
+const useProxy = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_USE_API_PROXY === 'true'
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+/**
+ * Convert a direct API URL to a proxy URL if needed
+ * @param url The original API URL
+ * @returns The URL to use (either direct or proxied)
+ */
+const getProxyUrl = (url: string): string => {
+  // Only proxy if in browser and proxy is enabled
+  if (!useProxy) return url
+  
+  // Extract the path and query from the URL
+  const apiUrlObj = new URL(url)
+  const apiPath = apiUrlObj.pathname.replace(/^\/api\//, '')
+  
+  // Build the proxy URL with the path parameter
+  const proxyUrlObj = new URL('/api/proxy', window.location.origin)
+  proxyUrlObj.searchParams.set('path', apiPath)
+  
+  // Copy all query parameters from the original URL
+  apiUrlObj.searchParams.forEach((value, key) => {
+    proxyUrlObj.searchParams.set(key, value)
+  })
+  
+  console.log(`Proxying request: ${url} -> ${proxyUrlObj.toString()}`)
+  return proxyUrlObj.toString()
+}
 
 const fetcher = async (url: string) => {
   try {
-    console.log('Fetching:', url)
-    const res = await fetch(url, {
+    // Determine if we need to use the proxy
+    const fetchUrl = useProxy ? getProxyUrl(url) : url
+    
+    console.log('Fetching:', fetchUrl, useProxy ? `(proxied from ${url})` : '')
+    const res = await fetch(fetchUrl, {
       mode: 'cors',
       headers: {
         'Accept': 'application/json'

@@ -1,10 +1,8 @@
-// Print environment variables at startup
-const appDomain = process.env.APP_DOMAIN;
+// scripts/start.js
 console.log('Environment variables at startup:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log(`The app's domain is: ${appDomain}`);
-console.log('NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
-console.log('APP_URL:', process.env.APP_URL);
+console.log('REDIS_URL:', process.env.REDIS_URL);
+console.log('POSTGRES_HOST:', process.env.POSTGRES_HOST);
 
 // Start Next.js
 require('next/dist/server/lib/start-server').startServer({
