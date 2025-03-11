@@ -11,11 +11,9 @@ RUN apt-get update && apt-get install -y \
 COPY ./backend/coordinator/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the coordinator directory (current directory in DO context)
-COPY . /app/backend/coordinator
-
-# Copy the shared directory (one level up, then into backend/shared)
-COPY ../shared /app/backend/shared
+# Copy the backend directory
+COPY ./backend/coordinator /app/backend/coordinator
+COPY ./backend/shared /app/backend/shared
 
 # Create logs directory
 RUN mkdir -p /app/logs

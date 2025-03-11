@@ -76,7 +76,7 @@ services:
   coordinator:
     build:
       context: .
-      dockerfile: ./backend/coordinator/Dockerfile
+      dockerfile: ./backend/coordinator/Dockerfile.local
     profiles: ["all"]
     environment:
       - REDIS_URL=redis://redis:6379/0
