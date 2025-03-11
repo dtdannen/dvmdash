@@ -8,12 +8,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first to leverage Docker cache
-COPY ./backend/coordinator/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the backend directory
-COPY . /app/backend/coordinator
-COPY ../shared /app/backend/shared
+# Copy the source code
+COPY ./src /app/backend/coordinator/src
 
 # Create logs directory
 RUN mkdir -p /app/logs

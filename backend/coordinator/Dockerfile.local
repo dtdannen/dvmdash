@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the backend directory
 COPY ./backend/coordinator /app/backend/coordinator
-COPY ./backend/shared /app/backend/shared
 
 # Create logs directory
 RUN mkdir -p /app/logs
