@@ -243,20 +243,7 @@ export default function RelaysPage() {
         <Alert className="mb-6 bg-yellow-50">
           <AlertTriangleIcon className="h-4 w-4" />
           <AlertDescription>
-            Configuration changes pending. {systemStatus?.outdated_collectors?.length} collectors need to be rebooted.
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-4"
-              onClick={rebootCollectors}
-              disabled={loading}
-            >
-              {loading ? (
-                <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Reboot All"
-              )}
-            </Button>
+            Waiting for coordinator to redistribute relays to events...
           </AlertDescription>
         </Alert>
       )}
@@ -379,7 +366,7 @@ export default function RelaysPage() {
                     <span className="font-mono">{collector.id}</span>
                     {systemStatus?.outdated_collectors?.includes(collector.id) && (
                       <span className="text-yellow-600 text-sm">
-                        (Needs Reboot)
+                        (Waiting for coordinator to reassign relays...)
                       </span>
                     )}
                   </div>

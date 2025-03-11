@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 import docker
@@ -108,20 +108,13 @@ async def update_relay_activity(relay_url: str, activity: str, request: Request)
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Relay not found")
 
-@router.delete("/relays/{relay_url}")
-async def remove_relay(relay_url: str, request: Request):
-    """Remove a relay from the configuration"""
-    # Ensure the URL is properly decoded
-    # FastAPI already decodes URL parameters, but they might still be partially encoded
-    # Try to decode again to ensure we have the original URL
-    decoded_url = relay_url
-    if '%' in relay_url:
-        import urllib.parse
-        decoded_url = urllib.parse.unquote(relay_url)
-    print(f"Removing relay: original={relay_url}, decoded={decoded_url}")
+@router.delete("/relay")
+async def remove_relay_by_query(request: Request, url: str = Query(..., description="Relay URL to remove")):
+    """Remove a relay from the configuration using a query parameter"""
+    print(f"Removing relay by query parameter: {url}")
     
     redis_client = request.app.state.redis
-    success = RelayConfigManager.remove_relay(redis_client, decoded_url)
+    success = RelayConfigManager.remove_relay(redis_client, url)
     
     if success:
         # Request relay redistribution from coordinator

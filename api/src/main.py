@@ -14,7 +14,6 @@ from enum import Enum
 from fastapi import Query
 
 from admin_routes import router as admin_router
-from admin_routes_fix import router as admin_router_fix
 from relay_config import RelayConfigManager
 
 
@@ -120,8 +119,6 @@ app = FastAPI(title="DVMDash API")
 
 # Include admin routes
 app.include_router(admin_router)
-# Include fixed admin routes
-app.include_router(admin_router_fix)
 
 # Add CORS middleware
 app.add_middleware(

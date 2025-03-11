@@ -11,9 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-  // Try to normalize the URL to avoid encoding issues
-  const normalizedUrl = url.replace(/:/g, '%3A').replace(/\//g, '%2F')
-  const apiUrl = `${API_BASE}/api/admin/relays/${normalizedUrl}`
+  const apiUrl = `${API_BASE}/api/admin/relay?url=${encodeURIComponent(url)}`
   
   try {
     console.log(`Proxying DELETE request to: ${apiUrl}`)
