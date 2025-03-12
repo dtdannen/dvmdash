@@ -64,6 +64,12 @@ docker build -t admin-container ./admin
 docker run -p 3002:3000 --env-file ./admin/.env.production admin-container
 ```
 
+or if you don't want to use docker and you have your vars in .env.production
+
+```bash
+npm run dev:prod-env
+```
+
 This allows you to manage your production environment without exposing admin endpoints to the internet.
 
 ## Architecture

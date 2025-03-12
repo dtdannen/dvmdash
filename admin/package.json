@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:prod-env": "node scripts/dev-with-prod-env.js",
     "build": "next build",
     "start": "node scripts/start.js",
     "lint": "next lint"
