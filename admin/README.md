@@ -57,6 +57,13 @@ docker run -p 3001:3000 \
   dvmdash-admin
 ```
 
+or if you have a local .env.production file:
+
+```bash
+docker build -t admin-container ./admin
+docker run -p 3002:3000 --env-file ./admin/.env.production admin-container
+```
+
 This allows you to manage your production environment without exposing admin endpoints to the internet.
 
 ## Architecture

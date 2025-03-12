@@ -27,9 +27,9 @@ from collector_manager import CollectorManager, RelayManager
 from historical_processor import process_historical_data
 
 # print all the env variables to the console, to see what we start with:
-print("Environment variables:")
-for key, value in os.environ.items():
-    print(f"{key}={value}")
+# print("Environment variables:")
+# for key, value in os.environ.items():
+#     print(f"{key}={value}")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 

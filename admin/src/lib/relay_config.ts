@@ -173,7 +173,7 @@ export class RelayConfigManager {
       
       for (const collectorId of collectorsSet) {
         // Ensure collector_id is a string for Redis key
-        const collectorIdStr = typeof collectorId === 'string' ? collectorId : collectorId.toString();
+        const collectorIdStr = typeof collectorId === 'string' ? collectorId : (collectorId as any).toString();
         
         // Check if collector is outdated based on config version
         const collectorVersion = await redis.get(`dvmdash:collector:${collectorIdStr}:config_version`);

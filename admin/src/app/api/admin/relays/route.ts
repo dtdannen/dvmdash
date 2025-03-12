@@ -22,7 +22,7 @@ export async function GET() {
       const metrics: Record<string, Record<string, string>> = {};
       
       for (const collectorId of collectors) {
-        const collectorIdStr = typeof collectorId === 'string' ? collectorId : collectorId.toString();
+        const collectorIdStr = typeof collectorId === 'string' ? collectorId : (collectorId as any).toString();
         const metricsKey = `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}`;
         const collectorMetrics = await redis.hgetall(metricsKey);
         

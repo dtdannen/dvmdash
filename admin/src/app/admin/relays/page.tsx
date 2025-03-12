@@ -332,7 +332,7 @@ export default function RelaysPage() {
           <div className="px-4 py-3 border-b">
             <h2 className="text-lg font-semibold">Event Collectors</h2>
             <p className="text-sm text-gray-500 mt-1">
-              The number of event collectors is configured at startup in the docker-compose.yml file, under event_collector -> deploy -> replicas
+              The number of event collectors is configured at startup in the docker-compose.yml file, under event_collector {'->'} deploy {'->'} replicas
             </p>
           </div>
           <div className="divide-y">

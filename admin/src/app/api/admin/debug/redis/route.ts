@@ -13,7 +13,7 @@ export async function GET() {
     const collectors = await redis.smembers('dvmdash:collectors:active');
     for (const collectorId of collectors) {
       // Ensure collector_id is a string for Redis key
-      const collectorIdStr = typeof collectorId === 'string' ? collectorId : collectorId.toString();
+      const collectorIdStr = typeof collectorId === 'string' ? collectorId : (collectorId as any).toString();
       
       const heartbeat = await redis.get(`dvmdash:collector:${collectorIdStr}:heartbeat`);
       const configVersion = await redis.get(`dvmdash:collector:${collectorIdStr}:config_version`);
