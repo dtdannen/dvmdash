@@ -21,22 +21,35 @@ class CollectorManager:
     async def register(self):
         """Register this collector instance in Redis"""
         current_time = int(time.time())
-        logger.info(f"Registering collector {self.collector_id}")
+        logger.info(f"[REDIS_DEBUG] Starting registration for collector {self.collector_id}")
         
-        # Add to active set
-        self.redis.sadd('dvmdash:collectors:active', self.collector_id)
-        
-        # Store registration time in collectors hash
-        self.redis.hset(f'collectors:{self.collector_id}', 'registered_at', current_time)
-        
-        # Start heartbeat
-        await self._update_heartbeat()
-        self._start_heartbeat()
-        
-        # Set a flag for the coordinator to distribute relays
-        logger.info(f"Requesting relay distribution for new collector {self.collector_id}")
-        self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
-        self.redis.set('dvmdash:settings:last_change', current_time)
+        try:
+            # Add to active set
+            result = self.redis.sadd('dvmdash:collectors:active', self.collector_id)
+            logger.info(f"[REDIS_DEBUG] Added to active set: {result}")
+            
+            # Store registration time in collectors hash
+            result = self.redis.hset(f'collectors:{self.collector_id}', 'registered_at', current_time)
+            logger.info(f"[REDIS_DEBUG] Stored registration time: {result}")
+            
+            # Start heartbeat
+            logger.info(f"[REDIS_DEBUG] Starting heartbeat for {self.collector_id}")
+            await self._update_heartbeat()
+            self._start_heartbeat()
+            
+            # Set a flag for the coordinator to distribute relays
+            logger.info(f"[REDIS_DEBUG] Requesting relay distribution for new collector {self.collector_id}")
+            result1 = self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
+            result2 = self.redis.set('dvmdash:settings:last_change', current_time)
+            logger.info(f"[REDIS_DEBUG] Distribution request set: {result1}, last_change set: {result2}")
+            
+            # Verify registration
+            is_active = self.redis.sismember('dvmdash:collectors:active', self.collector_id)
+            logger.info(f"[REDIS_DEBUG] Verification - collector in active set: {is_active}")
+        except Exception as e:
+            logger.error(f"[REDIS_DEBUG] Error during collector registration: {e}")
+            logger.error(traceback.format_exc())
+            raise
         
     def _start_heartbeat(self):
         """Start the heartbeat background task"""
@@ -57,32 +70,44 @@ class CollectorManager:
         """Update collector heartbeat timestamp"""
         current_time = int(time.time())
         
-        # Update heartbeat in Redis
-        # Use a longer expiration time (120 seconds) to ensure heartbeats don't expire between health checks
-        # This prevents false "no heartbeat" detections when the coordinator checks every 60 seconds
-        self.redis.set(
-            f'dvmdash:collector:{self.collector_id}:heartbeat',
-            current_time,
-            ex=120  # 2 minutes, longer than the health check interval (60 seconds)
-        )
-        
-        # Also update in the collectors hash for the admin UI
-        with self.redis.pipeline() as pipe:
-            # Get current collector data
-            collector_data = self.redis.hgetall(f'collectors:{self.collector_id}')
-            if not collector_data:
-                collector_data = {}
+        try:
+            # Update heartbeat in Redis
+            # Use a longer expiration time (120 seconds) to ensure heartbeats don't expire between health checks
+            # This prevents false "no heartbeat" detections when the coordinator checks every 60 seconds
+            result = self.redis.set(
+                f'dvmdash:collector:{self.collector_id}:heartbeat',
+                current_time,
+                ex=120  # 2 minutes, longer than the health check interval (60 seconds)
+            )
+            logger.debug(f"[REDIS_DEBUG] Updated heartbeat key: {result}")
             
-            # Update heartbeat
-            collector_data['heartbeat'] = str(current_time)
+            # Also update in the collectors hash for the admin UI
+            with self.redis.pipeline() as pipe:
+                # Get current collector data
+                collector_data = self.redis.hgetall(f'collectors:{self.collector_id}')
+                if not collector_data:
+                    collector_data = {}
+                    logger.debug(f"[REDIS_DEBUG] No existing collector data found, creating new")
+                else:
+                    logger.debug(f"[REDIS_DEBUG] Found existing collector data: {collector_data}")
+                
+                # Update heartbeat
+                collector_data['heartbeat'] = str(current_time)
+                
+                # Save back to Redis
+                for key, value in collector_data.items():
+                    pipe.hset(f'collectors:{self.collector_id}', key, value)
+                
+                results = pipe.execute()
+                logger.debug(f"[REDIS_DEBUG] Heartbeat pipeline results: {results}")
             
-            # Save back to Redis
-            for key, value in collector_data.items():
-                pipe.hset(f'collectors:{self.collector_id}', key, value)
+            # Verify heartbeat was set
+            stored_heartbeat = self.redis.get(f'dvmdash:collector:{self.collector_id}:heartbeat')
+            logger.debug(f"[REDIS_DEBUG] Verification - stored heartbeat: {stored_heartbeat}")
             
-            pipe.execute()
-        
-        logger.debug(f"Updated heartbeat for collector {self.collector_id} to {current_time}")
+        except Exception as e:
+            logger.error(f"[REDIS_DEBUG] Error updating heartbeat: {e}")
+            logger.error(traceback.format_exc())
         
     async def shutdown(self):
         """Clean up collector registration on shutdown"""
@@ -336,45 +361,83 @@ class RelayManager:
         """Get list of relays assigned to this collector"""
         current_time = time.time()
         
-        # Only check Redis if enough time has passed
-        if current_time - self._last_config_check >= self.config_check_interval:
-            # Try to get relays from dvmdash:collector:{id}:relays
-            assigned = self.redis.get(f'dvmdash:collector:{self.collector_id}:relays')
-            if assigned:
-                try:
-                    self._assigned_relays = json.loads(assigned)
-                    logger.info(f"Found {len(self._assigned_relays)} relays assigned to collector {self.collector_id}")
-                except json.JSONDecodeError as e:
-                    logger.error(f"Error decoding relays JSON: {assigned}")
-            
-            # If no relays assigned, request relay distribution from coordinator
-            if not self._assigned_relays:
-                logger.warning(f"No relays assigned to collector {self.collector_id}, requesting relay distribution")
+        logger.info(f"[REDIS_DEBUG] Getting assigned relays for collector {self.collector_id}")
+        
+        try:
+            # Only check Redis if enough time has passed
+            if current_time - self._last_config_check >= self.config_check_interval:
+                # Try to get relays from dvmdash:collector:{id}:relays
+                relay_key = f'dvmdash:collector:{self.collector_id}:relays'
+                logger.info(f"[REDIS_DEBUG] Checking Redis key: {relay_key}")
+                assigned = self.redis.get(relay_key)
                 
-                # Request relay distribution from coordinator
-                self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
-                self.redis.set('dvmdash:settings:last_change', int(time.time()))
-                
-                # Wait a moment for distribution to take effect
-                await asyncio.sleep(3)  # Wait a bit longer to give coordinator time to respond
-                
-                # Try again
-                assigned = self.redis.get(f'dvmdash:collector:{self.collector_id}:relays')
                 if assigned:
+                    logger.info(f"[REDIS_DEBUG] Found relay assignment data: {assigned[:100]}...")
                     try:
                         self._assigned_relays = json.loads(assigned)
-                        logger.info(f"Found {len(self._assigned_relays)} relays assigned to collector {self.collector_id} after distribution")
+                        logger.info(f"[REDIS_DEBUG] Successfully parsed {len(self._assigned_relays)} relays assigned to collector {self.collector_id}")
                     except json.JSONDecodeError as e:
-                        logger.error(f"Error decoding relays JSON after distribution: {assigned}")
+                        logger.error(f"[REDIS_DEBUG] Error decoding relays JSON: {e}")
+                        logger.error(f"[REDIS_DEBUG] Raw relay data: {assigned}")
+                else:
+                    logger.info(f"[REDIS_DEBUG] No relay assignment found in Redis for key: {relay_key}")
                 
-            self._last_config_check = current_time
+                # If no relays assigned, request relay distribution from coordinator
+                if not self._assigned_relays:
+                    logger.warning(f"[REDIS_DEBUG] No relays assigned to collector {self.collector_id}, requesting relay distribution")
+                    
+                    # Request relay distribution from coordinator
+                    result1 = self.redis.set('dvmdash:settings:distribution_requested', '1', ex=300)  # Expire after 5 minutes
+                    result2 = self.redis.set('dvmdash:settings:last_change', int(time.time()))
+                    logger.info(f"[REDIS_DEBUG] Distribution request results: {result1}, {result2}")
+                    
+                    # Wait a moment for distribution to take effect
+                    logger.info(f"[REDIS_DEBUG] Waiting for distribution to take effect...")
+                    await asyncio.sleep(3)  # Wait a bit longer to give coordinator time to respond
+                    
+                    # Try again
+                    logger.info(f"[REDIS_DEBUG] Checking for relay assignment after distribution request")
+                    assigned = self.redis.get(f'dvmdash:collector:{self.collector_id}:relays')
+                    if assigned:
+                        logger.info(f"[REDIS_DEBUG] Found relay assignment after distribution: {assigned[:100]}...")
+                        try:
+                            self._assigned_relays = json.loads(assigned)
+                            logger.info(f"[REDIS_DEBUG] Successfully parsed {len(self._assigned_relays)} relays after distribution")
+                        except json.JSONDecodeError as e:
+                            logger.error(f"[REDIS_DEBUG] Error decoding relays JSON after distribution: {e}")
+                            logger.error(f"[REDIS_DEBUG] Raw relay data after distribution: {assigned}")
+                    else:
+                        logger.error(f"[REDIS_DEBUG] Still no relay assignment after distribution request")
+                    
+                self._last_config_check = current_time
+                
+            # Check if we have relays now
+            if self._assigned_relays:
+                logger.info(f"[REDIS_DEBUG] Returning {len(self._assigned_relays)} assigned relays: {list(self._assigned_relays.keys())}")
+            else:
+                # Check if coordinator is running
+                coordinator_heartbeat = self.redis.get('dvmdash:coordinator:heartbeat')
+                logger.error(f"[REDIS_DEBUG] Coordinator heartbeat: {coordinator_heartbeat}")
+                
+                # Check active collectors
+                active_collectors = self.redis.smembers('dvmdash:collectors:active')
+                logger.error(f"[REDIS_DEBUG] Active collectors: {active_collectors}")
+                
+                # If we still don't have relays, raise exception
+                logger.error(f"[REDIS_DEBUG] Empty relay assignment for collector {self.collector_id}")
+                raise ValueError(f"Empty relay assignment for collector {self.collector_id}")
+                
+            return list(self._assigned_relays.keys())
             
-        if not self._assigned_relays:
-            # If we still don't have relays, raise exception
-            logger.error(f"Empty relay assignment for collector {self.collector_id}")
-            raise ValueError(f"Empty relay assignment for collector {self.collector_id}")
+        except Exception as e:
+            if isinstance(e, ValueError) and "Empty relay assignment" in str(e):
+                # Re-raise the expected ValueError
+                raise
             
-        return list(self._assigned_relays.keys())
+            # Log other unexpected errors
+            logger.error(f"[REDIS_DEBUG] Unexpected error getting assigned relays: {e}")
+            logger.error(traceback.format_exc())
+            raise
     
     def update_relay_metrics(self, relay_url: str, event_id: str):
         """Update metrics for a relay after receiving an event"""

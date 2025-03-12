@@ -221,23 +221,41 @@ async def nostr_client(collector_manager: CollectorManager, relay_manager: Relay
     client = Client(signer)
 
     # Get assigned relays from Redis
-    relays = await relay_manager.get_assigned_relays()
+    logger.info(f"[REDIS_DEBUG] Requesting relay assignments from Redis...")
+    try:
+        relays = await relay_manager.get_assigned_relays()
+        logger.info(f"[REDIS_DEBUG] Successfully received {len(relays)} relay assignments: {relays}")
+    except Exception as e:
+        logger.error(f"[REDIS_DEBUG] Error getting relay assignments: {e}")
+        logger.error(traceback.format_exc())
+        raise
     
     # Validate that we have relays to connect to
     if not relays:
         # This should not happen since get_assigned_relays should throw an exception if no relays are assigned
         # But just in case, let's handle it explicitly
-        error_msg = f"No relays assigned to collector {relay_manager.collector_id}"
+        error_msg = f"[REDIS_DEBUG] No relays assigned to collector {relay_manager.collector_id}"
         logger.error(error_msg)
         raise ValueError(error_msg)
 
     # Add all assigned relays
     for relay in relays:
-        logger.info(f"Adding relay: {relay}")
-        await client.add_relay(relay)
+        logger.info(f"[REDIS_DEBUG] Adding relay to client: {relay}")
+        try:
+            await client.add_relay(relay)
+            logger.info(f"[REDIS_DEBUG] Successfully added relay: {relay}")
+        except Exception as e:
+            logger.error(f"[REDIS_DEBUG] Error adding relay {relay}: {e}")
     
     # Connect to all relays
-    await client.connect()
+    logger.info(f"[REDIS_DEBUG] Connecting to all relays...")
+    try:
+        await client.connect()
+        logger.info(f"[REDIS_DEBUG] Successfully connected to relays")
+    except Exception as e:
+        logger.error(f"[REDIS_DEBUG] Error connecting to relays: {e}")
+        logger.error(traceback.format_exc())
+        raise
 
     days_timestamp = Timestamp.from_secs(
         Timestamp.now().as_secs() - (60 * 60 * 24 * days_lookback)
@@ -255,15 +273,24 @@ async def nostr_client(collector_manager: CollectorManager, relay_manager: Relay
 
 async def listen_to_relays(args, collector_manager: CollectorManager, relay_manager: RelayManager):
     """Listen to relays for new events"""
-    logger.info("Starting relay listener...")
+    logger.info("[REDIS_DEBUG] Starting relay listener...")
     reconnect_interval = 240  # Reconnect every 4 minutes
     next_reconnect = time.time() + reconnect_interval
 
     # Register collector (which will trigger relay distribution)
-    await collector_manager.register()
+    logger.info("[REDIS_DEBUG] Registering collector with Redis...")
+    try:
+        await collector_manager.register()
+        logger.info("[REDIS_DEBUG] Collector registration successful")
+    except Exception as e:
+        logger.error(f"[REDIS_DEBUG] Error registering collector: {e}")
+        logger.error(traceback.format_exc())
+        raise
     
     # Wait a moment for relay distribution to take effect
+    logger.info("[REDIS_DEBUG] Waiting for relay distribution to take effect...")
     await asyncio.sleep(2)
+    logger.info("[REDIS_DEBUG] Continuing after waiting for relay distribution")
 
     while True:
         client = None
@@ -471,8 +498,38 @@ async def main(args):
         redis_client.close()
 
 if __name__ == "__main__":
-    logger.info("Starting event collector...")
+    logger.info("[REDIS_DEBUG] Starting event collector...")
     args = parse_args()
+    
+    # Log Redis connection info
+    logger.info(f"[REDIS_DEBUG] Using Redis URL: {REDIS_URL}")
+    
+    # Test Redis connection
+    try:
+        test_redis = redis.from_url(REDIS_URL)
+        ping_result = test_redis.ping()
+        logger.info(f"[REDIS_DEBUG] Redis connection test: {ping_result}")
+        
+        # Check if coordinator is running
+        coordinator_heartbeat = test_redis.get('dvmdash:coordinator:heartbeat')
+        logger.info(f"[REDIS_DEBUG] Coordinator heartbeat: {coordinator_heartbeat}")
+        
+        # Check active collectors
+        active_collectors = test_redis.smembers('dvmdash:collectors:active')
+        logger.info(f"[REDIS_DEBUG] Active collectors: {active_collectors}")
+        
+        # Check relay configuration
+        relays_config = test_redis.get('dvmdash:settings:relays')
+        if relays_config:
+            relays_dict = json.loads(relays_config)
+            logger.info(f"[REDIS_DEBUG] Found {len(relays_dict)} relays in configuration")
+        else:
+            logger.warning("[REDIS_DEBUG] No relay configuration found in Redis")
+            
+        test_redis.close()
+    except Exception as e:
+        logger.error(f"[REDIS_DEBUG] Redis connection test failed: {e}")
+        logger.error(traceback.format_exc())
 
     async def run_program():
         try:
@@ -481,15 +538,19 @@ if __name__ == "__main__":
             else:
                 await main(args)
         except FileNotFoundError as e:
-            logger.error(f"Configuration error: {e}")
+            logger.error(f"[REDIS_DEBUG] Configuration error: {e}")
             sys.exit(1)
         except ValueError as e:
-            logger.error(f"Invalid configuration: {e}")
+            logger.error(f"[REDIS_DEBUG] Invalid configuration: {e}")
             sys.exit(1)
         except asyncio.TimeoutError:
             logger.info(f"Program ran for {args.runtime} minutes and is now exiting.")
+        except redis.exceptions.ConnectionError as e:
+            logger.error(f"[REDIS_DEBUG] Redis connection error: {e}")
+            logger.error(traceback.format_exc())
+            sys.exit(1)
         except Exception as e:
-            logger.error(f"Fatal error: {e}")
+            logger.error(f"[REDIS_DEBUG] Fatal error: {e}")
             traceback.print_exc()
             sys.exit(1)
 
