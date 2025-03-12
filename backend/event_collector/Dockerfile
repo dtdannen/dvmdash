@@ -20,8 +20,8 @@ RUN mkdir -p /app/backend/event_collector/src
 RUN mkdir -p /app/backend/shared
 
 # Copy the application code, maintaining directory structure
-COPY ./backend/event_collector/src /app/backend/event_collector/src
-COPY ./backend/shared /app/backend/shared
+COPY ./src /app/backend/event_collector/src
+COPY ./shared /app/backend/shared
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
