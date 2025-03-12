@@ -1,15 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
-  async redirects() {
-    return [
-      {
-        source: '/:path+',
-        destination: '/',
-        permanent: true
-      }
-    ]
-  }
+  output: 'standalone'
 }
 
 export default nextConfig
