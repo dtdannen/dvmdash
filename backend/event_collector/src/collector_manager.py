@@ -78,17 +78,33 @@ class CollectorManager:
             
     async def _heartbeat_loop(self):
         """Periodically update heartbeat timestamp"""
+        last_success = time.time()
         while True:
             try:
+                current_time = time.time()
+                time_since_last = current_time - last_success
+                
+                # Log if it's been a while since the last successful heartbeat
+                if time_since_last > 30:  # Log if more than 30 seconds have passed
+                    logger.warning(f"[HEARTBEAT] Long delay since last successful heartbeat: {time_since_last:.1f} seconds")
+                
                 await self._update_heartbeat()
+                last_success = time.time()
+                
+                # Log successful heartbeat periodically (every 10 heartbeats)
+                if int(last_success) % (self.heartbeat_interval * 10) < self.heartbeat_interval:
+                    logger.info(f"[HEARTBEAT] Successfully updated heartbeat at {time.strftime('%H:%M:%S', time.localtime(last_success))}")
+                
                 await asyncio.sleep(self.heartbeat_interval)
             except Exception as e:
-                logger.error(f"Error in heartbeat loop: {e}")
+                logger.error(f"[HEARTBEAT] Error in heartbeat loop: {e}")
+                logger.error(traceback.format_exc())
                 await asyncio.sleep(5)  # Brief delay before retry
                 
     async def _update_heartbeat(self):
         """Update collector heartbeat timestamp"""
         current_time = int(time.time())
+        start_time = time.time()
         
         try:
             # Update heartbeat in Redis
@@ -99,7 +115,7 @@ class CollectorManager:
                 current_time,
                 ex=120  # 2 minutes, longer than the health check interval (60 seconds)
             )
-            logger.debug(f"[REDIS_DEBUG] Updated heartbeat key: {result}")
+            logger.debug(f"[HEARTBEAT] Updated heartbeat key: {result}")
             
             # Also update in the collectors hash for the admin UI
             with self.redis.pipeline() as pipe:
@@ -107,9 +123,9 @@ class CollectorManager:
                 collector_data = self.redis.hgetall(f'collectors:{self.collector_id}')
                 if not collector_data:
                     collector_data = {}
-                    logger.debug(f"[REDIS_DEBUG] No existing collector data found, creating new")
+                    logger.debug(f"[HEARTBEAT] No existing collector data found, creating new")
                 else:
-                    logger.debug(f"[REDIS_DEBUG] Found existing collector data: {collector_data}")
+                    logger.debug(f"[HEARTBEAT] Found existing collector data: {collector_data}")
                 
                 # Update heartbeat
                 collector_data['heartbeat'] = str(current_time)
@@ -119,14 +135,19 @@ class CollectorManager:
                     pipe.hset(f'collectors:{self.collector_id}', key, value)
                 
                 results = pipe.execute()
-                logger.debug(f"[REDIS_DEBUG] Heartbeat pipeline results: {results}")
+                logger.debug(f"[HEARTBEAT] Heartbeat pipeline results: {results}")
             
             # Verify heartbeat was set
             stored_heartbeat = self.redis.get(f'dvmdash:collector:{self.collector_id}:heartbeat')
-            logger.debug(f"[REDIS_DEBUG] Verification - stored heartbeat: {stored_heartbeat}")
+            logger.debug(f"[HEARTBEAT] Verification - stored heartbeat: {stored_heartbeat}")
+            
+            # Log if the heartbeat update took a long time
+            elapsed = time.time() - start_time
+            if elapsed > 1.0:  # Log if it took more than 1 second
+                logger.warning(f"[HEARTBEAT] Heartbeat update took {elapsed:.2f} seconds")
             
         except Exception as e:
-            logger.error(f"[REDIS_DEBUG] Error updating heartbeat: {e}")
+            logger.error(f"[HEARTBEAT] Error updating heartbeat: {e}")
             logger.error(traceback.format_exc())
         
     async def shutdown(self):
@@ -153,6 +174,8 @@ class RelayManager:
         self._assigned_relays = {}  # Cache of assigned relays
         self._last_config_check = 0
         self.config_check_interval = 30  # seconds
+        self._last_metrics_cleanup = 0
+        self.metrics_cleanup_interval = 3600  # Clean up metrics keys once per hour
 
     @staticmethod
     def get_all_relays(redis_client: Redis) -> Dict[str, Dict]:
@@ -470,17 +493,75 @@ class RelayManager:
         # Update in dvmdash:collector:{id}:metrics:{relay_url}
         pipe.hset(metrics_key, 'last_event', current_time)
         pipe.hincrby(metrics_key, 'event_count', 1)
-        pipe.expire(metrics_key, self.metrics_retention)
+        pipe.expire(metrics_key, self.metrics_retention)  # Set TTL for automatic expiration
         
         # Also update in the collectors hash for the admin UI
         metrics_key_alt = f'collectors:{self.collector_id}:metrics:{relay_url}'
         pipe.hset(metrics_key_alt, 'last_event', str(current_time))
         pipe.hincrby(metrics_key_alt, 'event_count', 1)
+        # No TTL for the collectors hash metrics as they're part of a hash
         
         pipe.execute()
         
         logger.debug(f"Updated metrics for relay {relay_url} on collector {self.collector_id}")
         
+        # Periodically clean up old metrics keys
+        self._maybe_cleanup_metrics(current_time)
+        
+    def _maybe_cleanup_metrics(self, current_time):
+        """Periodically clean up old metrics keys"""
+        if current_time - self._last_metrics_cleanup < self.metrics_cleanup_interval:
+            return
+            
+        try:
+            # Set the last cleanup time first to avoid repeated cleanup attempts if it fails
+            self._last_metrics_cleanup = current_time
+            
+            # Get all metrics keys for this collector
+            metrics_pattern = f'dvmdash:collector:{self.collector_id}:metrics:*'
+            metrics_keys = self.redis.keys(metrics_pattern)
+            
+            if not metrics_keys:
+                return
+                
+            logger.info(f"[METRICS] Found {len(metrics_keys)} metrics keys for cleanup check")
+            
+            # Get current relay assignments
+            relays_json = self.redis.get(f'dvmdash:collector:{self.collector_id}:relays')
+            current_relays = []
+            if relays_json:
+                try:
+                    relays_dict = json.loads(relays_json)
+                    current_relays = list(relays_dict.keys())
+                except json.JSONDecodeError:
+                    logger.error(f"[METRICS] Error decoding relays JSON: {relays_json}")
+            
+            # Find metrics keys for relays that are no longer assigned
+            keys_to_delete = []
+            for key in metrics_keys:
+                key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                # Extract relay URL from key
+                relay_url = key_str.replace(f'dvmdash:collector:{self.collector_id}:metrics:', '')
+                
+                if relay_url not in current_relays:
+                    keys_to_delete.append(key)
+            
+            # Delete orphaned metrics keys
+            if keys_to_delete:
+                logger.info(f"[METRICS] Cleaning up {len(keys_to_delete)} orphaned metrics keys")
+                self.redis.delete(*keys_to_delete)
+                
+                # Also clean up corresponding keys in the collectors hash
+                for key in keys_to_delete:
+                    key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                    relay_url = key_str.replace(f'dvmdash:collector:{self.collector_id}:metrics:', '')
+                    alt_key = f'collectors:{self.collector_id}:metrics:{relay_url}'
+                    self.redis.delete(alt_key)
+        
+        except Exception as e:
+            logger.error(f"[METRICS] Error cleaning up metrics keys: {e}")
+            logger.error(traceback.format_exc())
+
     async def sync_config_version(self):
         """Update the collector's config version to match current settings and request relay distribution"""
         current_version = self.redis.get('dvmdash:settings:config_version')

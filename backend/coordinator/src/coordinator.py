@@ -337,22 +337,67 @@ class RelayCoordinator:
                         # Remove from active set
                         pipe.srem('dvmdash:collectors:active', collector_id)
                         
-                        # Also clean up related keys
+                        # Clean up basic collector keys
                         pipe.delete(f'dvmdash:collector:{collector_id_str}:heartbeat')
                         pipe.delete(f'dvmdash:collector:{collector_id_str}:relays')
                         pipe.delete(f'dvmdash:collector:{collector_id_str}:config_version')
+                        pipe.delete(f'dvmdash:collector:{collector_id_str}:nsec_key')
                         pipe.delete(f'collectors:{collector_id_str}')
                         
                         # Log the removal
-                        logger.info(f"Removing stale collector {collector_id_str}, last heartbeat: None")
+                        logger.info(f"Removing stale collector {collector_id_str}")
                     
                     pipe.execute()
+                
+                # Clean up metrics keys for stale collectors
+                await self._cleanup_collector_metrics(stale_collectors)
                 
                 # Redistribute relays if we removed any collectors
                 await self.distribute_relays()
             
         except Exception as e:
             logger.error(f"Error checking collector health: {e}")
+            logger.error(traceback.format_exc())
+            
+    async def _cleanup_collector_metrics(self, stale_collectors: List) -> None:
+        """Clean up metrics keys for stale collectors"""
+        try:
+            for collector_id in stale_collectors:
+                # Ensure collector_id is a string for Redis key
+                collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
+                
+                # Find all metrics keys for this collector
+                metrics_pattern = f'dvmdash:collector:{collector_id_str}:metrics:*'
+                metrics_keys = self.redis.keys(metrics_pattern)
+                
+                if metrics_keys:
+                    logger.info(f"Cleaning up {len(metrics_keys)} metrics keys for stale collector {collector_id_str}")
+                    
+                    # Delete all metrics keys in batches to avoid blocking Redis
+                    batch_size = 100
+                    for i in range(0, len(metrics_keys), batch_size):
+                        batch = metrics_keys[i:i+batch_size]
+                        if batch:
+                            self.redis.delete(*batch)
+                            logger.debug(f"Deleted batch of {len(batch)} metrics keys for collector {collector_id_str}")
+                
+                # Also clean up any other collector-related keys that might exist
+                alt_metrics_pattern = f'collectors:{collector_id_str}:metrics:*'
+                alt_metrics_keys = self.redis.keys(alt_metrics_pattern)
+                
+                if alt_metrics_keys:
+                    logger.info(f"Cleaning up {len(alt_metrics_keys)} alternate metrics keys for stale collector {collector_id_str}")
+                    
+                    # Delete all alternate metrics keys in batches
+                    batch_size = 100
+                    for i in range(0, len(alt_metrics_keys), batch_size):
+                        batch = alt_metrics_keys[i:i+batch_size]
+                        if batch:
+                            self.redis.delete(*batch)
+                            logger.debug(f"Deleted batch of {len(batch)} alternate metrics keys for collector {collector_id_str}")
+                
+        except Exception as e:
+            logger.error(f"Error cleaning up metrics keys: {e}")
             logger.error(traceback.format_exc())
 
 class HistoricalDataCoordinator:
@@ -380,6 +425,8 @@ class EventCollectorCoordinatorManager:
         self.health_check_interval = int(os.getenv("HEALTH_CHECK_INTERVAL_SECONDS", 60))
         self.last_relay_check = 0
         self.relay_check_interval = int(os.getenv("RELAY_CHECK_INTERVAL_SECONDS", 5))
+        self.last_global_cleanup = 0
+        self.global_cleanup_interval = int(os.getenv("GLOBAL_CLEANUP_INTERVAL_SECONDS", 3600))  # Default: 1 hour
         
         # Initialize nsec keys from environment variable
         self._initialize_nsec_keys()
@@ -469,6 +516,11 @@ class EventCollectorCoordinatorManager:
                     await self.relay_coordinator.check_collector_health()
                     self.last_health_check = current_time
                 
+                # Perform global cleanup of orphaned Redis keys
+                if current_time - self.last_global_cleanup >= self.global_cleanup_interval:
+                    await self._perform_global_cleanup()
+                    self.last_global_cleanup = current_time
+                
                 # Check for historical data requests (future implementation)
                 await self.historical_coordinator.check_historical_data_requests()
                 
@@ -511,3 +563,95 @@ class EventCollectorCoordinatorManager:
                 
                 # Exponential backoff on errors
                 await asyncio.sleep(min(30, 2**consecutive_errors))
+    
+    async def _perform_global_cleanup(self):
+        """Perform global cleanup of orphaned Redis keys"""
+        try:
+            logger.info("Starting global Redis key cleanup")
+            
+            # Get all active collectors
+            active_collectors = await self.relay_coordinator.get_active_collectors()
+            active_collector_ids = [
+                c.decode('utf-8') if isinstance(c, bytes) else c 
+                for c in active_collectors
+            ]
+            
+            # Find all collector-related keys
+            collector_metrics_pattern = "dvmdash:collector:*:metrics:*"
+            all_metrics_keys = self.redis.keys(collector_metrics_pattern)
+            
+            if not all_metrics_keys:
+                logger.info("No metrics keys found during global cleanup")
+                return
+                
+            logger.info(f"Found {len(all_metrics_keys)} total metrics keys during global cleanup")
+            
+            # Identify orphaned keys (those belonging to collectors that no longer exist)
+            orphaned_keys = []
+            for key in all_metrics_keys:
+                key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                
+                # Extract collector ID from key
+                # Format: dvmdash:collector:{collector_id}:metrics:{relay_url}
+                parts = key_str.split(':')
+                if len(parts) >= 3:
+                    collector_id = parts[2]
+                    
+                    if collector_id not in active_collector_ids:
+                        orphaned_keys.append(key)
+            
+            # Delete orphaned keys in batches
+            if orphaned_keys:
+                logger.info(f"Found {len(orphaned_keys)} orphaned metrics keys to clean up")
+                
+                batch_size = 100
+                for i in range(0, len(orphaned_keys), batch_size):
+                    batch = orphaned_keys[i:i+batch_size]
+                    if batch:
+                        self.redis.delete(*batch)
+                        logger.info(f"Deleted batch of {len(batch)} orphaned metrics keys")
+                        
+                        # Small sleep to avoid blocking Redis
+                        await asyncio.sleep(0.1)
+            else:
+                logger.info("No orphaned metrics keys found during global cleanup")
+            
+            # Also check for orphaned alternate metrics keys
+            alt_metrics_pattern = "collectors:*:metrics:*"
+            alt_metrics_keys = self.redis.keys(alt_metrics_pattern)
+            
+            if alt_metrics_keys:
+                orphaned_alt_keys = []
+                for key in alt_metrics_keys:
+                    key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                    
+                    # Extract collector ID from key
+                    # Format: collectors:{collector_id}:metrics:{relay_url}
+                    parts = key_str.split(':')
+                    if len(parts) >= 2:
+                        collector_id = parts[1]
+                        
+                        if collector_id not in active_collector_ids:
+                            orphaned_alt_keys.append(key)
+                
+                # Delete orphaned alternate keys in batches
+                if orphaned_alt_keys:
+                    logger.info(f"Found {len(orphaned_alt_keys)} orphaned alternate metrics keys to clean up")
+                    
+                    batch_size = 100
+                    for i in range(0, len(orphaned_alt_keys), batch_size):
+                        batch = orphaned_alt_keys[i:i+batch_size]
+                        if batch:
+                            self.redis.delete(*batch)
+                            logger.info(f"Deleted batch of {len(batch)} orphaned alternate metrics keys")
+                            
+                            # Small sleep to avoid blocking Redis
+                            await asyncio.sleep(0.1)
+                else:
+                    logger.info("No orphaned alternate metrics keys found during global cleanup")
+            
+            logger.info("Global Redis key cleanup completed")
+            
+        except Exception as e:
+            logger.error(f"Error during global Redis key cleanup: {e}")
+            logger.error(traceback.format_exc())
