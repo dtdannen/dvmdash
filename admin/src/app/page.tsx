@@ -1,6 +1,37 @@
+"use client"
+
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+
+interface SystemStatus {
+  redis_host: string;
+  redis_connected: boolean;
+}
 
 export default function Home() {
+  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const response = await fetch('/api/admin/status');
+        if (!response.ok) {
+          throw new Error('Failed to fetch status');
+        }
+        const data = await response.json();
+        setStatus(data);
+      } catch (err) {
+        console.error('Error fetching status:', err);
+        setError('Failed to load system status');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStatus();
+  }, []);
   return (
     <div className="space-y-6">
       <div className="bg-white shadow rounded-lg p-6">
@@ -29,16 +60,22 @@ export default function Home() {
       
       <div className="bg-white shadow rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Connection Status</h2>
-        <div className="space-y-2">
-          <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-            <span>Redis: Connected</span>
+        {loading ? (
+          <p className="text-gray-500">Loading connection status...</p>
+        ) : error ? (
+          <p className="text-red-500">{error}</p>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center">
+              <div className={`w-3 h-3 rounded-full ${status?.redis_connected ? 'bg-green-500' : 'bg-red-500'} mr-2`}></div>
+              <span>Redis: {status?.redis_connected ? 'Connected' : 'Disconnected'} ({status?.redis_host || 'unknown'})</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+              <span>Postgres: Connected</span>
+            </div>
           </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-            <span>Postgres: Connected</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

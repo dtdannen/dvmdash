@@ -286,14 +286,27 @@ export default function RelaysPage() {
                   
                   {/* Show metrics if available */}
                   {relay.metrics && (
-                    <div className="mt-2 text-sm">
-                      <div className="mt-2">
+                    <div className="mt-3 text-sm">
+                      <div className="font-medium text-gray-700">Event Metrics:</div>
+                      <div className="mt-2 bg-gray-50 p-2 rounded-md border border-gray-200">
                         {Object.entries(relay.metrics).map(([collector, metrics]) => (
-                          <div key={collector} className="text-gray-600">
-                            Collector {collector.slice(0, 8)}: {metrics.event_count} events, 
-                            last at {new Date(parseInt(metrics.last_event) * 1000).toLocaleString()}
+                          <div key={collector} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
+                            <div className="font-mono text-xs text-gray-500">
+                              Collector {collector.slice(0, 8)}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-md font-medium">
+                                {metrics.event_count} events
+                              </span>
+                              <span className="text-gray-600 text-xs">
+                                Last: {new Date(parseInt(metrics.last_event) * 1000).toLocaleString()}
+                              </span>
+                            </div>
                           </div>
                         ))}
+                        <div className="mt-2 text-xs text-gray-500 text-right">
+                          Total events: {Object.values(relay.metrics).reduce((sum, metrics) => sum + parseInt(metrics.event_count || '0'), 0)}
+                        </div>
                       </div>
                     </div>
                   )}

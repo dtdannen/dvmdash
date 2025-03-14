@@ -23,11 +23,20 @@ export async function GET() {
       
       for (const collectorId of collectors) {
         const collectorIdStr = typeof collectorId === 'string' ? collectorId : (collectorId as any).toString();
-        const metricsKey = `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}`;
-        const collectorMetrics = await redis.hgetall(metricsKey);
         
-        if (Object.keys(collectorMetrics).length > 0) {
-          metrics[collectorIdStr] = collectorMetrics;
+        // Try both key formats - the new format with dvmdash prefix and the old format
+        const metricsKeys = [
+          `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}`,
+          `collectors:${collectorIdStr}:metrics:${relay.url}`
+        ];
+        
+        for (const metricsKey of metricsKeys) {
+          const collectorMetrics = await redis.hgetall(metricsKey);
+          
+          if (Object.keys(collectorMetrics).length > 0) {
+            metrics[collectorIdStr] = collectorMetrics;
+            break; // Found metrics, no need to check other key formats
+          }
         }
       }
       

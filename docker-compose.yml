@@ -93,6 +93,8 @@ services:
       - HEALTH_CHECK_INTERVAL_SECONDS=60  # Check collector health every 60 seconds
       - RELAY_CHECK_INTERVAL_SECONDS=5  # Check for relay changes every 5 seconds
       - COLLECTOR_TIMEOUT_SECONDS=300  # Consider collectors stale after 5 minutes of no heartbeat
+    env_file:
+      - ./.env
     volumes:
       - ./backend/coordinator:/app/backend/coordinator
       - ./backend/shared:/app/backend/shared

@@ -14,6 +14,8 @@ interface SystemStatus {
   outdated_collectors: string[];
   config_version: number;
   last_change: number | null;
+  redis_host: string;
+  redis_connected: boolean;
 }
 
 export async function GET() {
@@ -61,11 +63,35 @@ export async function GET() {
     // Get outdated collectors
     const outdatedCollectors = await RelayConfigManager.getOutdatedCollectors(redis);
     
+    // Get Redis connection info
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379/0';
+    let redisHost = 'localhost';
+    
+    try {
+      // Extract host from Redis URL
+      const url = new URL(redisUrl);
+      redisHost = url.hostname;
+    } catch (e) {
+      console.error('Error parsing Redis URL:', e);
+    }
+    
+    // Check Redis connection
+    let redisConnected = false;
+    try {
+      // Ping Redis to check connection
+      await redis.ping();
+      redisConnected = true;
+    } catch (e) {
+      console.error('Redis connection check failed:', e);
+    }
+    
     const status: SystemStatus = {
       collectors,
       outdated_collectors: outdatedCollectors,
       config_version: configVersion ? parseInt(configVersion) : 0,
-      last_change: lastChange ? parseInt(lastChange) : null
+      last_change: lastChange ? parseInt(lastChange) : null,
+      redis_host: redisHost,
+      redis_connected: redisConnected
     };
     
     return NextResponse.json(status);
