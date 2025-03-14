@@ -14,6 +14,8 @@ from nostr_sdk import (
     LogLevel,
     Kind,
     Event,
+    EventBuilder,
+    Metadata,
 )
 import traceback
 import argparse
@@ -45,6 +47,9 @@ nostr_sdk.init_logger(getattr(LogLevel, NOSTR_LOG_LEVEL))
 
 # Default relay if no Redis configuration exists
 DEFAULT_RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
+
+# Flag to track if profile note has been sent during this boot session
+PROFILE_NOTE_SENT = False
 
 def load_dvm_config():
     """Load DVM configuration from YAML file. Raises exceptions if file is not found or invalid."""
@@ -213,8 +218,86 @@ class NotificationHandler(HandleNotification):
     async def handle_msg(self, relay_url: str, message: str):
         logger.debug(f"Received message from {relay_url}: {message}")
 
+async def create_profile_note(client: Client, collector_id: str, has_nsec_key: bool):
+    """Create and broadcast a kind 0 profile note"""
+    global PROFILE_NOTE_SENT
+    
+    # Check if we've already sent a profile note for this boot session
+    if PROFILE_NOTE_SENT:
+        logger.info("Profile note already sent for this boot session, skipping")
+        return
+    
+    # Only send profile note if we have an nsec key
+    if not has_nsec_key:
+        logger.info("No nsec key assigned, skipping profile note creation")
+        return
+    
+    try:
+        logger.info("Creating and broadcasting kind 0 profile note")
+        
+        # Create metadata
+        metadata = Metadata()
+        metadata.name = f"DVMDash Event Listener {collector_id}"
+        metadata.display_name = f"DVMDash Event Listener {collector_id}"
+        metadata.about = "I'm an event listener that collects events from relays for https://stats.dvmdash.live. I do not send any events except a kind 0 profile event occasionally. Please consider whitelisting me if you'd like DVM events on your relay to show up on DVMDash"
+        metadata.set_nip05(f"dvmdash-listener-{collector_id}@dvmdash.live")
+        
+        # Create and send event
+        builder = EventBuilder.metadata(metadata)
+        event = await client.sign_event_builder(builder)
+        logger.info(f"About to send profile event:\n\n{event}\n\n")
+        await client.send_event(event)
+        
+        logger.info(f"Successfully sent kind 0 profile note for collector {collector_id}")
+        
+        # Mark that we've sent a profile note for this boot session
+        PROFILE_NOTE_SENT = True
+        
+    except Exception as e:
+        logger.error(f"Error creating profile note: {e}")
+        logger.error(traceback.format_exc())
+
 async def nostr_client(collector_manager: CollectorManager, relay_manager: RelayManager, days_lookback=0):
-    signer = Keys.generate()
+    # Get assigned nsec key - wait until it's available
+    nsec_key = None
+    max_retries = 10
+    retry_count = 0
+    retry_delay = 2  # Start with 2 seconds
+    
+    while retry_count < max_retries:
+        try:
+            nsec_key_bytes = relay_manager.redis.get(f"dvmdash:collector:{relay_manager.collector_id}:nsec_key")
+            if nsec_key_bytes:
+                nsec_key = nsec_key_bytes.decode("utf-8")
+                logger.info(f"[REDIS_DEBUG] Found assigned nsec key from Redis")
+                break
+            else:
+                retry_count += 1
+                logger.warning(f"[REDIS_DEBUG] No nsec key assigned yet, waiting (attempt {retry_count}/{max_retries})...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(30, retry_delay * 2)  # Exponential backoff, max 30 seconds
+        except Exception as e:
+            logger.error(f"[REDIS_DEBUG] Error getting assigned nsec key: {e}")
+            retry_count += 1
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(30, retry_delay * 2)
+    
+    # If we still don't have an nsec key after all retries, raise an exception
+    if not nsec_key:
+        error_msg = f"[REDIS_DEBUG] Failed to get nsec key after {max_retries} attempts"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    # Create signer with the assigned key
+    try:
+        signer = Keys.parse(nsec_key)
+        logger.info(f"[REDIS_DEBUG] Using assigned nsec key for Nostr client")
+    except Exception as e:
+        error_msg = f"[REDIS_DEBUG] Error parsing assigned nsec key: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        raise ValueError(error_msg)
+    
     pk = signer.public_key()
     logger.info(f"Nostr Test Client public key: {pk.to_bech32()}, Hex: {pk.to_hex()}")
 
@@ -322,6 +405,11 @@ async def listen_to_relays(args, collector_manager: CollectorManager, relay_mana
                     
                     # If we get here, we successfully connected
                     logger.info("Successfully connected to relays")
+                    
+                    # Send profile note after successful connection
+                    # If we got here, we have an nsec key
+                    await create_profile_note(client, relay_manager.collector_id, True)
+                    
                     break
                     
                 except ValueError as e:

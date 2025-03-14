@@ -381,6 +381,65 @@ class EventCollectorCoordinatorManager:
         self.last_relay_check = 0
         self.relay_check_interval = int(os.getenv("RELAY_CHECK_INTERVAL_SECONDS", 5))
         
+        # Initialize nsec keys from environment variable
+        self._initialize_nsec_keys()
+    
+    def _initialize_nsec_keys(self):
+        """Initialize nsec keys in Redis from environment variable"""
+        nsec_keys = os.getenv("DVMDASH_LISTENER_NSECS", "")
+        
+        if not nsec_keys:
+            logger.warning("No DVMDASH_LISTENER_NSECS environment variable set, collectors will generate their own keys")
+            return
+            
+        keys_list = nsec_keys.split(",")
+        logger.info(f"Initializing {len(keys_list)} nsec keys from environment variable")
+        
+        # Only set keys if they don't already exist in Redis
+        if not self.redis.exists("dvmdash:settings:nsec_keys"):
+            # Store keys in Redis
+            for i, key in enumerate(keys_list):
+                self.redis.hset("dvmdash:settings:nsec_keys", f"key_{i}", key)
+            
+            logger.info(f"Stored {len(keys_list)} nsec keys in Redis")
+    
+    def assign_nsec_key(self, collector_id):
+        """Assign an nsec key to a collector"""
+        # Check if collector already has a key
+        existing_key = self.redis.get(f"dvmdash:collector:{collector_id}:nsec_key")
+        if existing_key:
+            logger.info(f"Collector {collector_id} already has nsec key assigned")
+            return True
+            
+        # Get all keys
+        all_keys = self.redis.hgetall("dvmdash:settings:nsec_keys")
+        if not all_keys:
+            logger.warning("No nsec keys available in Redis")
+            return False
+            
+        # Get all assigned keys
+        assigned_keys = {}
+        for c_id in self.redis.smembers("dvmdash:collectors:active"):
+            c_id_str = c_id.decode("utf-8") if isinstance(c_id, bytes) else c_id
+            key = self.redis.get(f"dvmdash:collector:{c_id_str}:nsec_key")
+            if key:
+                assigned_keys[c_id_str] = key.decode("utf-8") if isinstance(key, bytes) else key
+        
+        # Find an unassigned key
+        for key_id, key_value in all_keys.items():
+            key_str = key_value.decode("utf-8") if isinstance(key_value, bytes) else key_value
+            if key_str not in assigned_keys.values():
+                # Assign this key to the collector
+                self.redis.set(f"dvmdash:collector:{collector_id}:nsec_key", key_str)
+                logger.info(f"Assigned nsec key {key_id} to collector {collector_id}")
+                return True
+        
+        # If we get here, all keys are assigned
+        error_msg = f"Unable to assign nsec key to collector {collector_id}, all keys are in use"
+        logger.error(error_msg)
+        self.redis.rpush("dvmdash:errors", error_msg)
+        return False
+        
     async def process_forever(self):
         """Main processing loop for the coordinator"""
         consecutive_errors = 0
@@ -393,7 +452,16 @@ class EventCollectorCoordinatorManager:
                 # Check for relay distribution needs
                 if current_time - self.last_relay_check >= self.relay_check_interval:
                     if await self.relay_coordinator.should_redistribute_relays():
-                        await self.relay_coordinator.distribute_relays()
+                        # Distribute relays
+                        distribution_success = await self.relay_coordinator.distribute_relays()
+                        
+                        # If relay distribution was successful, also assign nsec keys
+                        if distribution_success:
+                            collectors = await self.relay_coordinator.get_active_collectors()
+                            for collector_id in collectors:
+                                collector_id_str = collector_id.decode("utf-8") if isinstance(collector_id, bytes) else collector_id
+                                self.assign_nsec_key(collector_id_str)
+                                
                     self.last_relay_check = current_time
                 
                 # Check collector health

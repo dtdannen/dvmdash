@@ -46,11 +46,31 @@ class CollectorManager:
             # Verify registration
             is_active = self.redis.sismember('dvmdash:collectors:active', self.collector_id)
             logger.info(f"[REDIS_DEBUG] Verification - collector in active set: {is_active}")
+            
+            # Wait for nsec key assignment
+            await self._wait_for_nsec_key()
         except Exception as e:
             logger.error(f"[REDIS_DEBUG] Error during collector registration: {e}")
             logger.error(traceback.format_exc())
             raise
         
+    async def _wait_for_nsec_key(self):
+        """Wait for nsec key assignment from coordinator"""
+        max_retries = 5
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            nsec_key = self.redis.get(f"dvmdash:collector:{self.collector_id}:nsec_key")
+            if nsec_key:
+                logger.info(f"[REDIS_DEBUG] Received nsec key assignment from coordinator")
+                return
+                
+            logger.info(f"[REDIS_DEBUG] Waiting for nsec key assignment (attempt {attempt+1}/{max_retries})")
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(10, retry_delay * 2)  # Exponential backoff, max 10 seconds
+        
+        logger.warning("[REDIS_DEBUG] Did not receive nsec key assignment after maximum retries")
+    
     def _start_heartbeat(self):
         """Start the heartbeat background task"""
         if self._heartbeat_task is None:
