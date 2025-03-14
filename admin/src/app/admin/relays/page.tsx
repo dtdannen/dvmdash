@@ -38,6 +38,20 @@ export default function RelaysPage() {
            ? "bg-green-500" 
            : "bg-red-500";
   };
+  
+  // Helper function to format time difference for heartbeat display
+  const formatTimeDifference = (timestamp: number | null) => {
+    if (!timestamp) return null;
+    
+    const now = Math.floor(Date.now() / 1000);
+    const diffSeconds = now - timestamp;
+    
+    const hours = Math.floor(diffSeconds / 3600);
+    const minutes = Math.floor((diffSeconds % 3600) / 60);
+    const seconds = diffSeconds % 60;
+    
+    return { hours, minutes, seconds };
+  };
   const [newRelayUrl, setNewRelayUrl] = useState("");
   const [relays, setRelays] = useState<Relay[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
@@ -180,6 +194,43 @@ export default function RelaysPage() {
         throw new Error("Failed to fetch Redis state");
       }
       const data = await res.json();
+      
+      // Add additional debug information about relay metrics
+      if (systemStatus && relays.length > 0) {
+        data.debug = {
+          relayMetricsInfo: {
+            message: "Debug information for relay metrics",
+            relaysWithMetrics: relays.filter(r => r.metrics && Object.keys(r.metrics).length > 0).length,
+            totalRelays: relays.length,
+            relaysData: relays.map(r => ({
+              url: r.url,
+              hasMetrics: r.metrics ? true : false,
+              metricsKeys: r.metrics ? Object.keys(r.metrics) : [],
+              metricsData: r.metrics || {}
+            })),
+            collectorRelayMapping: {}
+          }
+        };
+        
+        // Add mapping of collectors to their relays and available metrics
+        systemStatus.collectors.forEach(collector => {
+          data.debug.relayMetricsInfo.collectorRelayMapping[collector.id] = {
+            assignedRelays: collector.relays,
+            metricsFound: {}
+          };
+          
+          // For each relay assigned to this collector, check if metrics exist
+          collector.relays.forEach(relayUrl => {
+            const relayData = relays.find(r => r.url === relayUrl);
+            if (relayData?.metrics?.[collector.id]) {
+              data.debug.relayMetricsInfo.collectorRelayMapping[collector.id].metricsFound[relayUrl] = relayData.metrics[collector.id];
+            } else {
+              data.debug.relayMetricsInfo.collectorRelayMapping[collector.id].metricsFound[relayUrl] = "No metrics found";
+            }
+          });
+        });
+      }
+      
       setRedisState(data);
     } catch (err) {
       console.error(err);
@@ -284,30 +335,10 @@ export default function RelaysPage() {
                     </div>
                   )}
                   
-                  {/* Show metrics if available */}
+                  {/* Show simple metrics summary if available */}
                   {relay.metrics && (
-                    <div className="mt-3 text-sm">
-                      <div className="font-medium text-gray-700">Event Metrics:</div>
-                      <div className="mt-2 bg-gray-50 p-2 rounded-md border border-gray-200">
-                        {Object.entries(relay.metrics).map(([collector, metrics]) => (
-                          <div key={collector} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
-                            <div className="font-mono text-xs text-gray-500">
-                              Collector {collector.slice(0, 8)}
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-md font-medium">
-                                {metrics.event_count} events
-                              </span>
-                              <span className="text-gray-600 text-xs">
-                                Last: {new Date(parseInt(metrics.last_event) * 1000).toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="mt-2 text-xs text-gray-500 text-right">
-                          Total events: {Object.values(relay.metrics).reduce((sum, metrics) => sum + parseInt(metrics.event_count || '0'), 0)}
-                        </div>
-                      </div>
+                    <div className="mt-1 text-sm text-gray-500">
+                      Total events: {Object.values(relay.metrics).reduce((sum, metrics) => sum + parseInt(metrics.event_count || '0'), 0)}
                     </div>
                   )}
                 </div>
@@ -373,22 +404,60 @@ export default function RelaysPage() {
                     </div>
                   </div>
                   <div className="mt-1 text-sm text-gray-500">
-                    Last heartbeat:{" "}
-                    {collector.last_heartbeat
-                      ? new Date(collector.last_heartbeat * 1000).toLocaleString()
-                      : "Never"}
+                    {collector.last_heartbeat ? (
+                      <>
+                        Last heartbeat was{" "}
+                        {formatTimeDifference(collector.last_heartbeat)?.hours} hrs{" "}
+                        {formatTimeDifference(collector.last_heartbeat)?.minutes} mins{" "}
+                        {formatTimeDifference(collector.last_heartbeat)?.seconds} secs ago{" "}
+                        ({new Date(collector.last_heartbeat * 1000).toLocaleString()})
+                      </>
+                    ) : (
+                      "Last heartbeat: Never"
+                    )}
                   </div>
                   <div className="mt-1 text-sm text-gray-500">
                     Assigned relays: {collector.relays.length}
-                    {collector.relays.length > 0 && (
-                      <div className="mt-1">
-                        {collector.relays.map((relay, index) => (
-                          <div key={index} className="text-gray-400 text-xs">
-                            Listening to {relay}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+{collector.relays.length > 0 && (
+  <div className="mt-2">
+    <div className="bg-gray-50 p-2 rounded-md border border-gray-200">
+      {collector.relays.map((relay, index) => {
+        // Find metrics for this relay from the relays list
+        const relayData = relays.find(r => r.url === relay);
+        const metrics = relayData?.metrics?.[collector.id];
+        
+        // Format time since last event if metrics exist
+        let lastEventTime = null;
+        if (metrics?.last_event) {
+          const lastEventTimestamp = parseInt(metrics.last_event);
+          lastEventTime = formatTimeDifference(lastEventTimestamp);
+        }
+        
+        return (
+          <div key={index} className="py-1 border-b border-gray-100 last:border-0">
+            <div className="font-mono text-xs text-gray-600">
+              Listening to {relay}
+            </div>
+            {metrics ? (
+              <div className="flex items-center justify-between mt-1">
+                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                  {metrics.event_count || 0} events
+                </span>
+                {lastEventTime && (
+                  <span className="text-gray-500 text-xs">
+                    Last event: {lastEventTime.hours} hrs {lastEventTime.minutes} mins {lastEventTime.seconds} secs ago
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="text-gray-400 text-xs mt-1">No metrics available</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
                   </div>
                 </div>
               ))

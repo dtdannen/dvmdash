@@ -31,11 +31,23 @@ export async function GET() {
       if (relaysJson) {
         const relays = JSON.parse(relaysJson);
         for (const relayUrl of Object.keys(relays)) {
-          const metricsKey = `dvmdash:collector:${collectorIdStr}:metrics:${relayUrl}`;
-          const metrics = await redis.hgetall(metricsKey);
+          // Try both with and without trailing slash
+          const metricsKeys = [
+            `dvmdash:collector:${collectorIdStr}:metrics:${relayUrl}`,
+            `dvmdash:collector:${collectorIdStr}:metrics:${relayUrl}/`,
+            `collectors:${collectorIdStr}:metrics:${relayUrl}`,
+            `collectors:${collectorIdStr}:metrics:${relayUrl}/`
+          ];
           
-          if (Object.keys(metrics).length > 0) {
-            result.collectors[collectorIdStr].metrics[relayUrl] = metrics;
+          for (const metricsKey of metricsKeys) {
+            const metrics = await redis.hgetall(metricsKey);
+            
+            if (Object.keys(metrics).length > 0) {
+              result.collectors[collectorIdStr].metrics[relayUrl] = metrics;
+              // Also add the key that worked for debugging
+              result.collectors[collectorIdStr].metrics[`${relayUrl}_key_used`] = metricsKey;
+              break;
+            }
           }
         }
       }

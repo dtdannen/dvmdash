@@ -27,7 +27,10 @@ export async function GET() {
         // Try both key formats - the new format with dvmdash prefix and the old format
         const metricsKeys = [
           `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}`,
-          `collectors:${collectorIdStr}:metrics:${relay.url}`
+          `collectors:${collectorIdStr}:metrics:${relay.url}`,
+          // Also try with trailing slash
+          `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}/`,
+          `collectors:${collectorIdStr}:metrics:${relay.url}/`
         ];
         
         for (const metricsKey of metricsKeys) {
