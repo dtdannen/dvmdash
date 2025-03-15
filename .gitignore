@@ -200,3 +200,4 @@ frontend/dvmdash-frontend/.env.development
 utility/scanner/results/
 
 admin/.env.production
+frontend/dvmdash-frontend/.env.production

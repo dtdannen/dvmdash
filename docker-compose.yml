@@ -224,7 +224,7 @@ services:
   frontend:
     build:
       context: ./frontend/dvmdash-frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.local
     profiles: ["all"]
     ports:
       - "3000:3000"
