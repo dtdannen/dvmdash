@@ -36,40 +36,53 @@ class RelayCoordinator:
         active_threshold = current_time - self.collector_timeout
         
         # Give new collectors a grace period to send their first heartbeat
-        # This is needed because collectors register themselves before sending heartbeats
         grace_period = 30  # seconds
         
         for collector_id in collectors:
             # Ensure collector_id is a string for Redis key
             collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
             
-            heartbeat = self.redis.get(f'dvmdash:collector:{collector_id_str}:heartbeat')
+            # Get collector data from hash
+            collector_data = self.redis.hgetall(f'dvmdash:collector:{collector_id_str}')
             
-            # Include collectors with valid heartbeats
-            if heartbeat and int(heartbeat) >= active_threshold:
+            # Check for heartbeat in collector data (handling byte strings)
+            has_heartbeat = False
+            heartbeat_value = None
+            
+            for key in collector_data:
+                # Convert byte string keys to regular strings if needed
+                key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                if key_str == 'heartbeat':
+                    has_heartbeat = True
+                    value = collector_data[key]
+                    heartbeat_value = int(value.decode('utf-8') if isinstance(value, bytes) else value)
+                    break
+            
+            if has_heartbeat and heartbeat_value >= active_threshold:
                 active_collectors.append(collector_id)
                 continue
-                
+            
             # For collectors without heartbeats, check if they were recently added
-            # by looking at when they were registered in the active set
-            if not heartbeat:
-                # Check if this collector was recently added (within grace period)
-                # We'll use the registration time in the collectors hash if available
-                collector_data = self.redis.hgetall(f'collectors:{collector_id_str}')
-                
-                # If we have registration data and it's recent, include the collector
-                if collector_data and 'registered_at' in collector_data:
-                    registered_at = int(collector_data['registered_at'])
-                    if current_time - registered_at < grace_period:
-                        logger.info(f"Including recently registered collector {collector_id_str} in active collectors (no heartbeat yet)")
-                        active_collectors.append(collector_id)
-                        continue
-                
-                # If we don't have registration data, give benefit of doubt for a short grace period
-                # This assumes the collector was just added if it's in the active set
-                # We'll include it for a short grace period to give it time to send a heartbeat
-                logger.debug(f"Collector {collector_id_str} has no heartbeat, including in active collectors during grace period")
+            has_registration = False
+            registration_time = None
+            
+            for key in collector_data:
+                # Convert byte string keys to regular strings if needed
+                key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                if key_str == 'registered_at':
+                    has_registration = True
+                    value = collector_data[key]
+                    registration_time = int(value.decode('utf-8') if isinstance(value, bytes) else value)
+                    break
+            
+            if has_registration and current_time - registration_time < grace_period:
+                logger.info(f"Including recently registered collector {collector_id_str} in active collectors (no heartbeat yet)")
                 active_collectors.append(collector_id)
+                continue
+            
+            # If we don't have registration data, give benefit of doubt for a short grace period
+            logger.debug(f"Collector {collector_id_str} has no heartbeat, including in active collectors during grace period")
+            active_collectors.append(collector_id)
         
         return active_collectors
     
@@ -124,9 +137,23 @@ class RelayCoordinator:
                 # Ensure collector_id is a string for Redis key
                 collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
                 
-                # Check if collector is outdated based on config version
-                collector_version = self.redis.get(f'dvmdash:collector:{collector_id_str}:config_version')
-                if not collector_version or int(collector_version) != int(current_version):
+                # Check if collector is outdated based on config version in the hash
+                collector_data = self.redis.hgetall(f'dvmdash:collector:{collector_id_str}')
+                
+                # Check for config_version in collector data (handling byte strings)
+                has_config_version = False
+                config_version_value = None
+                
+                for key in collector_data:
+                    # Convert byte string keys to regular strings if needed
+                    key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                    if key_str == 'config_version':
+                        has_config_version = True
+                        value = collector_data[key]
+                        config_version_value = int(value.decode('utf-8') if isinstance(value, bytes) else value)
+                        break
+                
+                if not has_config_version or config_version_value != int(current_version):
                     outdated.append(collector_id)
             
             return outdated
@@ -251,22 +278,11 @@ class RelayCoordinator:
                             relay_json
                         )
                         
-                        # Also update in the collectors hash for the admin UI
-                        pipe.hset(
-                            f'collectors:{collector_id_str}',
-                            'relays',
-                            relay_json
-                        )
-                        
-                        # Update collector's config version
+                        # Update collector's config version in the hash
                         current_version = self.redis.get('dvmdash:settings:config_version')
                         if current_version:
-                            pipe.set(
-                                f'dvmdash:collector:{collector_id_str}:config_version',
-                                current_version
-                            )
                             pipe.hset(
-                                f'collectors:{collector_id_str}',
+                                f'dvmdash:collector:{collector_id_str}',
                                 'config_version',
                                 current_version
                             )
@@ -299,31 +315,56 @@ class RelayCoordinator:
                 # Ensure collector_id is a string for Redis key
                 collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
                 
-                heartbeat = self.redis.get(f'dvmdash:collector:{collector_id_str}:heartbeat')
+                # Get collector data from hash
+                collector_data = self.redis.hgetall(f'dvmdash:collector:{collector_id_str}')
+                
                 # Consider a collector stale if:
                 # 1. It has a heartbeat older than the threshold, OR
                 # 2. It has no heartbeat (null) and has been in the system for longer than the timeout
-                # This ensures collectors that never send a heartbeat are eventually removed
-                if heartbeat and int(heartbeat) < stale_threshold:
-                    # Case 1: Collector has an old heartbeat
-                    logger.info(f"Collector {collector_id_str} has stale heartbeat: {int(heartbeat)} < {stale_threshold}")
-                    stale_collectors.append(collector_id)
-                elif not heartbeat:
+                
+                # Check for heartbeat in collector data (handling byte strings)
+                has_heartbeat = False
+                heartbeat_value = None
+                
+                for key in collector_data:
+                    # Convert byte string keys to regular strings if needed
+                    key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                    if key_str == 'heartbeat':
+                        has_heartbeat = True
+                        value = collector_data[key]
+                        heartbeat_value = int(value.decode('utf-8') if isinstance(value, bytes) else value)
+                        break
+                
+                if has_heartbeat:
+                    if heartbeat_value < stale_threshold:
+                        # Case 1: Collector has an old heartbeat
+                        logger.info(f"Collector {collector_id_str} has stale heartbeat: {heartbeat_value} < {stale_threshold}")
+                        stale_collectors.append(collector_id)
+                else:
                     # Case 2: Collector has no heartbeat
-                    # Check if this collector was recently added by looking at registration time
-                    collector_data = self.redis.hgetall(f'collectors:{collector_id_str}')
+                    has_registration = False
+                    registration_time = None
                     
-                    if collector_data and 'registered_at' in collector_data:
-                        registered_at = int(collector_data['registered_at'])
+                    for key in collector_data:
+                        # Convert byte string keys to regular strings if needed
+                        key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                        if key_str == 'registered_at':
+                            has_registration = True
+                            value = collector_data[key]
+                            registration_time = int(value.decode('utf-8') if isinstance(value, bytes) else value)
+                            break
+                    
+                    if has_registration:
                         # Only mark as stale if it's been registered for longer than the collector timeout
-                        if current_time - registered_at > self.collector_timeout:
-                            logger.info(f"Collector {collector_id_str} has no heartbeat and was registered {current_time - registered_at}s ago, marking as stale")
+                        if current_time - registration_time > self.collector_timeout:
+                            logger.info(f"Collector {collector_id_str} has no heartbeat and was registered {current_time - registration_time}s ago, marking as stale")
                             stale_collectors.append(collector_id)
                         else:
-                            logger.info(f"Collector {collector_id_str} has no heartbeat but was recently registered ({current_time - registered_at}s ago), not marking as stale yet")
+                            logger.info(f"Collector {collector_id_str} has no heartbeat but was recently registered ({current_time - registration_time}s ago), not marking as stale yet")
                     else:
                         # If we can't determine when it was added, be conservative and mark as stale
                         logger.info(f"Collector {collector_id_str} has no heartbeat and no registration time, marking as stale")
+                        logger.info(f"collector_data is {collector_data}")
                         stale_collectors.append(collector_id)
             
             if stale_collectors:
@@ -337,12 +378,10 @@ class RelayCoordinator:
                         # Remove from active set
                         pipe.srem('dvmdash:collectors:active', collector_id)
                         
-                        # Clean up basic collector keys
-                        pipe.delete(f'dvmdash:collector:{collector_id_str}:heartbeat')
+                        # Clean up collector keys
+                        pipe.delete(f'dvmdash:collector:{collector_id_str}')
                         pipe.delete(f'dvmdash:collector:{collector_id_str}:relays')
-                        pipe.delete(f'dvmdash:collector:{collector_id_str}:config_version')
                         pipe.delete(f'dvmdash:collector:{collector_id_str}:nsec_key')
-                        pipe.delete(f'collectors:{collector_id_str}')
                         
                         # Log the removal
                         logger.info(f"Removing stale collector {collector_id_str}")
@@ -539,12 +578,19 @@ class EventCollectorCoordinatorManager:
                             # Ensure collector_id is a string for Redis key
                             collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
                             
-                            # Get heartbeat information
-                            heartbeat = self.redis.get(f'dvmdash:collector:{collector_id_str}:heartbeat')
-                            heartbeat_age = "Never" 
-                            if heartbeat:
-                                heartbeat_timestamp = int(heartbeat)
-                                heartbeat_age = f"{current_time - heartbeat_timestamp} seconds ago"
+                            # Get heartbeat information from the hash
+                            collector_data = self.redis.hgetall(f'dvmdash:collector:{collector_id_str}')
+                            heartbeat_age = "Never"
+                            
+                            # Check for heartbeat in collector data (handling byte strings)
+                            for key in collector_data:
+                                # Convert byte string keys to regular strings if needed
+                                key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                                if key_str == 'heartbeat':
+                                    value = collector_data[key]
+                                    heartbeat_timestamp = int(value.decode('utf-8') if isinstance(value, bytes) else value)
+                                    heartbeat_age = f"{current_time - heartbeat_timestamp} seconds ago"
+                                    break
                             
                             # Get relay assignments
                             relays_json = self.redis.get(f'dvmdash:collector:{collector_id_str}:relays')

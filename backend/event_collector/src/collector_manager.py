@@ -28,8 +28,8 @@ class CollectorManager:
             result = self.redis.sadd('dvmdash:collectors:active', self.collector_id)
             logger.info(f"[REDIS_DEBUG] Added to active set: {result}")
             
-            # Store registration time in collectors hash
-            result = self.redis.hset(f'collectors:{self.collector_id}', 'registered_at', current_time)
+            # Store registration time in collector hash
+            result = self.redis.hset(f'dvmdash:collector:{self.collector_id}', 'registered_at', current_time)
             logger.info(f"[REDIS_DEBUG] Stored registration time: {result}")
             
             # Start heartbeat
@@ -107,38 +107,22 @@ class CollectorManager:
         start_time = time.time()
         
         try:
-            # Update heartbeat in Redis
-            # Use a longer expiration time (120 seconds) to ensure heartbeats don't expire between health checks
-            # This prevents false "no heartbeat" detections when the coordinator checks every 60 seconds
-            result = self.redis.set(
-                f'dvmdash:collector:{self.collector_id}:heartbeat',
-                current_time,
-                ex=120  # 2 minutes, longer than the health check interval (60 seconds)
+            # Update heartbeat in Redis - single location in the hash
+            result = self.redis.hset(
+                f'dvmdash:collector:{self.collector_id}',
+                'heartbeat', current_time
             )
+            
+            # Set TTL on the hash
+            self.redis.expire(
+                f'dvmdash:collector:{self.collector_id}',
+                120  # 2 minutes, longer than the health check interval (60 seconds)
+            )
+            
             logger.debug(f"[HEARTBEAT] Updated heartbeat key: {result}")
             
-            # Also update in the collectors hash for the admin UI
-            with self.redis.pipeline() as pipe:
-                # Get current collector data
-                collector_data = self.redis.hgetall(f'collectors:{self.collector_id}')
-                if not collector_data:
-                    collector_data = {}
-                    logger.debug(f"[HEARTBEAT] No existing collector data found, creating new")
-                else:
-                    logger.debug(f"[HEARTBEAT] Found existing collector data: {collector_data}")
-                
-                # Update heartbeat
-                collector_data['heartbeat'] = str(current_time)
-                
-                # Save back to Redis
-                for key, value in collector_data.items():
-                    pipe.hset(f'collectors:{self.collector_id}', key, value)
-                
-                results = pipe.execute()
-                logger.debug(f"[HEARTBEAT] Heartbeat pipeline results: {results}")
-            
             # Verify heartbeat was set
-            stored_heartbeat = self.redis.get(f'dvmdash:collector:{self.collector_id}:heartbeat')
+            stored_heartbeat = self.redis.hget(f'dvmdash:collector:{self.collector_id}', 'heartbeat')
             logger.debug(f"[HEARTBEAT] Verification - stored heartbeat: {stored_heartbeat}")
             
             # Log if the heartbeat update took a long time
@@ -160,9 +144,13 @@ class CollectorManager:
             except asyncio.CancelledError:
                 pass
         self.redis.srem('dvmdash:collectors:active', self.collector_id)
-        self.redis.delete(f'dvmdash:collector:{self.collector_id}:heartbeat')
-        self.redis.delete(f'dvmdash:collector:{self.collector_id}:metrics')
+        self.redis.delete(f'dvmdash:collector:{self.collector_id}')
         self.redis.delete(f'dvmdash:collector:{self.collector_id}:relays')
+        
+        # Clean up metrics keys
+        metrics_keys = self.redis.keys(f'dvmdash:collector:{self.collector_id}:metrics:*')
+        if metrics_keys:
+            self.redis.delete(*metrics_keys)
 
 class RelayManager:
     """Manages relay assignments and metrics tracking"""
@@ -486,24 +474,21 @@ class RelayManager:
         """Update metrics for a relay after receiving an event"""
         current_time = int(time.time())
         
-        # Update collector-specific metrics
-        metrics_key = f'dvmdash:collector:{self.collector_id}:metrics:{relay_url}'
+        # Normalize relay URL to ensure it has a trailing slash
+        normalized_url = relay_url if relay_url.endswith('/') else f"{relay_url}/"
+        
+        # Update metrics in a single location
+        metrics_key = f'dvmdash:collector:{self.collector_id}:metrics:{normalized_url}'
         pipe = self.redis.pipeline()
         
-        # Update in dvmdash:collector:{id}:metrics:{relay_url}
+        # Update in metrics hash
         pipe.hset(metrics_key, 'last_event', current_time)
         pipe.hincrby(metrics_key, 'event_count', 1)
         pipe.expire(metrics_key, self.metrics_retention)  # Set TTL for automatic expiration
         
-        # Also update in the collectors hash for the admin UI
-        metrics_key_alt = f'collectors:{self.collector_id}:metrics:{relay_url}'
-        pipe.hset(metrics_key_alt, 'last_event', str(current_time))
-        pipe.hincrby(metrics_key_alt, 'event_count', 1)
-        # No TTL for the collectors hash metrics as they're part of a hash
-        
         pipe.execute()
         
-        logger.debug(f"Updated metrics for relay {relay_url} on collector {self.collector_id}")
+        logger.debug(f"Updated metrics for relay {normalized_url} on collector {self.collector_id}")
         
         # Periodically clean up old metrics keys
         self._maybe_cleanup_metrics(current_time)
@@ -543,20 +528,23 @@ class RelayManager:
                 # Extract relay URL from key
                 relay_url = key_str.replace(f'dvmdash:collector:{self.collector_id}:metrics:', '')
                 
-                if relay_url not in current_relays:
+                # Check if the relay URL (with or without trailing slash) is in current_relays
+                relay_url_no_slash = relay_url.rstrip('/')
+                relay_matches = False
+                
+                for current_relay in current_relays:
+                    current_relay_no_slash = current_relay.rstrip('/')
+                    if relay_url_no_slash == current_relay_no_slash:
+                        relay_matches = True
+                        break
+                
+                if not relay_matches:
                     keys_to_delete.append(key)
             
             # Delete orphaned metrics keys
             if keys_to_delete:
                 logger.info(f"[METRICS] Cleaning up {len(keys_to_delete)} orphaned metrics keys")
                 self.redis.delete(*keys_to_delete)
-                
-                # Also clean up corresponding keys in the collectors hash
-                for key in keys_to_delete:
-                    key_str = key.decode('utf-8') if isinstance(key, bytes) else key
-                    relay_url = key_str.replace(f'dvmdash:collector:{self.collector_id}:metrics:', '')
-                    alt_key = f'collectors:{self.collector_id}:metrics:{relay_url}'
-                    self.redis.delete(alt_key)
         
         except Exception as e:
             logger.error(f"[METRICS] Error cleaning up metrics keys: {e}")
@@ -566,15 +554,9 @@ class RelayManager:
         """Update the collector's config version to match current settings and request relay distribution"""
         current_version = self.redis.get('dvmdash:settings:config_version')
         if current_version:
-            # Update in dvmdash:collector:{id}:config_version
-            self.redis.set(
-                f'dvmdash:collector:{self.collector_id}:config_version',
-                current_version
-            )
-            
-            # Also update in the collectors hash for the admin UI
+            # Update in collector hash
             self.redis.hset(
-                f'collectors:{self.collector_id}',
+                f'dvmdash:collector:{self.collector_id}',
                 'config_version',
                 current_version
             )

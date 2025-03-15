@@ -43,7 +43,8 @@ NOSTR_LOG_LEVEL = os.getenv("NOSTR_LOG_LEVEL", "INFO").upper()
 logger = loguru.logger
 logger.remove()  # Remove default handler
 logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
-nostr_sdk.init_logger(getattr(LogLevel, NOSTR_LOG_LEVEL))
+if NOSTR_LOG_LEVEL != "OFF":
+    nostr_sdk.init_logger(getattr(LogLevel, NOSTR_LOG_LEVEL))
 
 # Default relay if no Redis configuration exists
 DEFAULT_RELAYS = os.getenv("RELAYS", "wss://relay.dvmdash.live").split(",")
