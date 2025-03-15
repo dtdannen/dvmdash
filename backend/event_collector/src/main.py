@@ -44,6 +44,7 @@ logger = loguru.logger
 logger.remove()  # Remove default handler
 logger.add(sys.stdout, colorize=True, level=LOG_LEVEL)
 if NOSTR_LOG_LEVEL != "OFF":
+    logger.info(f"Adding nostr_sdk logger with level: {NOSTR_LOG_LEVEL}")
     nostr_sdk.init_logger(getattr(LogLevel, NOSTR_LOG_LEVEL))
 
 # Default relay if no Redis configuration exists

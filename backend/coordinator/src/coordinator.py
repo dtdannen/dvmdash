@@ -20,7 +20,7 @@ class RelayCoordinator:
         self.redis_relay_lock_key = "dvmdash_relay_distribution_lock"
         self.distribution_interval = int(os.getenv("RELAY_DISTRIBUTION_INTERVAL_SECONDS", 30))
         self.last_distribution = 0
-        self.collector_timeout = int(os.getenv("COLLECTOR_TIMEOUT_SECONDS", 300))  # 5 minutes
+        self.collector_timeout = int(os.getenv("COLLECTOR_TIMEOUT_SECONDS", 60))  # 1 minute
         
     async def get_all_relays(self) -> Dict[str, Dict]:
         """Get all configured relays and their settings"""
@@ -205,9 +205,7 @@ class RelayCoordinator:
                     default_relays = {
                         "wss://relay.damus.io": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
                         "wss://relay.primal.net": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
-                        "wss://relay.dvmdash.live": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
-                        "wss://relay.f7z.xyz": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"},
-                        "wss://relayable.org": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"}
+                        "wss://relay.dvmdash.live": {"activity": "normal", "added_at": int(time.time()), "added_by": "system"}
                     }
                     self.redis.set('dvmdash:settings:relays', json.dumps(default_relays))
                     relays_config = default_relays
