@@ -533,14 +533,24 @@ class EventCollectorCoordinatorManager:
                         collectors = await self.relay_coordinator.get_active_collectors()
                         logger.info(f"Current relay assignments for {len(collectors)} active collectors:")
                         
+                        current_time = int(time.time())
+                        
                         for collector_id in collectors:
                             # Ensure collector_id is a string for Redis key
                             collector_id_str = collector_id.decode('utf-8') if isinstance(collector_id, bytes) else collector_id
                             
+                            # Get heartbeat information
+                            heartbeat = self.redis.get(f'dvmdash:collector:{collector_id_str}:heartbeat')
+                            heartbeat_age = "Never" 
+                            if heartbeat:
+                                heartbeat_timestamp = int(heartbeat)
+                                heartbeat_age = f"{current_time - heartbeat_timestamp} seconds ago"
+                            
+                            # Get relay assignments
                             relays_json = self.redis.get(f'dvmdash:collector:{collector_id_str}:relays')
                             relays = json.loads(relays_json) if relays_json else {}
                             
-                            logger.info(f"  Collector {collector_id_str}: {len(relays)} relays assigned")
+                            logger.info(f"  Collector {collector_id_str}: {len(relays)} relays assigned, last heartbeat: {heartbeat_age}")
                             for relay_url in relays.keys():
                                 logger.info(f"    - {relay_url}")
                     except Exception as e:
