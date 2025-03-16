@@ -321,7 +321,7 @@ class RelayCoordinator:
                             for c in collectors
                         ):
                             logger.info(
-                                "All collectors at maximum relay capacity, some relays will remain unassigned"
+                                f"All collectors at maximum relay capacity of {max_relays_per_collector}, some relays will remain unassigned"
                             )
                             break
 
