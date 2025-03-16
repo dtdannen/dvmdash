@@ -33,10 +33,22 @@ export async function GET() {
       // Ensure collector_id is a string for Redis key
       const collectorIdStr = typeof collectorId === 'string' ? collectorId : (collectorId as any).toString();
       
-      // Get collector information
-      const heartbeat = await redis.get(`dvmdash:collector:${collectorIdStr}:heartbeat`);
-      const configVersion = await redis.get(`dvmdash:collector:${collectorIdStr}:config_version`);
-      const relaysJson = await redis.get(`dvmdash:collector:${collectorIdStr}:relays`);
+      // Get collector information from hash
+      const rawCollectorData = await redis.hgetall(`dvmdash:collector:${collectorIdStr}`);
+      const rawRelaysJson = await redis.get(`dvmdash:collector:${collectorIdStr}:relays`);
+      
+      // Convert hash data to regular strings
+      const collectorData: Record<string, string> = {};
+      for (const key in rawCollectorData) {
+        if (Object.prototype.hasOwnProperty.call(rawCollectorData, key)) {
+          const keyStr = String(key);
+          const valueStr = String(rawCollectorData[key]);
+          collectorData[keyStr] = valueStr;
+        }
+      }
+      
+      // Convert relays JSON to string if it's a Buffer
+      const relaysJson = rawRelaysJson ? String(rawRelaysJson) : null;
       
       let relaysList: string[] = [];
       if (relaysJson) {
@@ -50,15 +62,19 @@ export async function GET() {
       
       collectors.push({
         id: collectorIdStr,
-        last_heartbeat: heartbeat ? parseInt(heartbeat) : null,
-        config_version: configVersion ? parseInt(configVersion) : null,
+        last_heartbeat: collectorData.heartbeat ? parseInt(collectorData.heartbeat) : null,
+        config_version: collectorData.config_version ? parseInt(collectorData.config_version) : null,
         relays: relaysList
       });
     }
     
     // Get configuration version and last change
-    const configVersion = await redis.get('dvmdash:settings:config_version');
-    const lastChange = await redis.get('dvmdash:settings:last_change');
+    const rawConfigVersion = await redis.get('dvmdash:settings:config_version');
+    const rawLastChange = await redis.get('dvmdash:settings:last_change');
+    
+    // Convert to strings if they're Buffers
+    const configVersion = rawConfigVersion ? String(rawConfigVersion) : null;
+    const lastChange = rawLastChange ? String(rawLastChange) : null;
     
     // Get outdated collectors
     const outdatedCollectors = await RelayConfigManager.getOutdatedCollectors(redis);

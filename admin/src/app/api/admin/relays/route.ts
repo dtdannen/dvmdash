@@ -24,22 +24,41 @@ export async function GET() {
       for (const collectorId of collectors) {
         const collectorIdStr = typeof collectorId === 'string' ? collectorId : (collectorId as any).toString();
         
-        // Try both key formats - the new format with dvmdash prefix and the old format
+        // Try both with and without trailing slash
         const metricsKeys = [
           `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}`,
-          `collectors:${collectorIdStr}:metrics:${relay.url}`,
-          // Also try with trailing slash
-          `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}/`,
-          `collectors:${collectorIdStr}:metrics:${relay.url}/`
+          `dvmdash:collector:${collectorIdStr}:metrics:${relay.url}/`
         ];
         
+        let foundMetrics = false;
+        
         for (const metricsKey of metricsKeys) {
-          const collectorMetrics = await redis.hgetall(metricsKey);
+          const rawMetrics = await redis.hgetall(metricsKey);
           
-          if (Object.keys(collectorMetrics).length > 0) {
-            metrics[collectorIdStr] = collectorMetrics;
+          // Convert Redis hash to a regular JavaScript object with string keys and values
+          if (Object.keys(rawMetrics).length > 0) {
+            const processedMetrics: Record<string, string> = {};
+            
+            // Process each key-value pair in the Redis hash
+            for (const key in rawMetrics) {
+              if (Object.prototype.hasOwnProperty.call(rawMetrics, key)) {
+                const value = rawMetrics[key];
+                // Convert to string if needed
+                const keyStr = String(key);
+                const valueStr = String(value);
+                processedMetrics[keyStr] = valueStr;
+              }
+            }
+            
+            metrics[collectorIdStr] = processedMetrics;
+            foundMetrics = true;
+            console.log(`Found metrics for collector ${collectorIdStr} at key ${metricsKey}`);
             break; // Found metrics, no need to check other key formats
           }
+        }
+        
+        if (!foundMetrics) {
+          console.log(`No metrics found for collector ${collectorIdStr} and relay ${relay.url}`);
         }
       }
       

@@ -44,7 +44,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
       - DAYS_LOOKBACK=20
-      - NOSTR_LOG_LEVEL=INFO
+      - NOSTR_LOG_LEVEL=OFF
     healthcheck:
       test: [ "CMD", "python", "-c", "import os, redis; r=redis.from_url('redis://redis:6379/0'); r.ping() if os.getenv('START_LISTENING')=='true' else exit(0)" ]
       interval: 30s

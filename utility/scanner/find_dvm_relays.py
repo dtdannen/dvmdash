@@ -815,6 +815,1050 @@ RELAYS = [
     "bostr.cx.ms",
     "nostr.cxplay.org",
     "relay.cxplay.org",
+    "relay.utxo.one/private",
+    "nostr.sats.coffee/",
+    "quotes.mycelium.social/",
+    "nostr.cizmar.net/",
+    "free.relayted.de/",
+    "nostr.felixzieger.de/",
+    "nas.yunierrodriguez.com:4848/",
+    "hayloo.nostr1.com/",
+    "wot.brightbolt.net/",
+    "nostr.self-determined.de/",
+    "thebarn.nostr1.com/",
+    "bostr.syobon.net/",
+    "nostr.pailakapo.com/",
+    "nostr.thebiglake.org/",
+    "brightlights.nostr1.com/",
+    "gitcitadel.nostr1.com/",
+    "nostrue.com/",
+    "nostr.myshosholoza.co.za/",
+    "relay1.nostrchat.io/",
+    "strfry.chatbett.de/",
+    "relay.mostard.org/",
+    "relay.mattybs.lol/",
+    "relay.asthroughfire.com/",
+    "rebelbase.social/relay",
+    "airchat.nostr1.com/",
+    "relay.sigit.io/",
+    "slick.mjex.me/",
+    "relay.nbswozlfpjuwc4y.boo/",
+    "chronicle.ziomc.com/",
+    "jskitty.cat/nostr",
+    "relay.utih.net/",
+    "social.camph.net/",
+    "multiplextr.coracle.social/",
+    "logstr.mycelium.social/",
+    "inbox.mycelium.social/",
+    "gnost.faust.duckdns.org/",
+    "relay-fenrir.nexterz-sv.xyz/",
+    "relay.j35tr.com/",
+    "nostr.dlsouza.lol/",
+    "freespeech.casa/",
+    "zaplab.nostr1.com/",
+    "nostr.bch.ninja/",
+    "nostr.sovbit.host/",
+    "nostrja-kari-http.heguro.com/",
+    "nostr.xmr.rocks/",
+    "bitcr-cloud-run-03-550030097098.europe",
+    "relay.caramboo.com/",
+    "relay.nostrhub.fr/",
+    "merrcurrup.railway.app/",
+    "nostr.notribe.net/",
+    "relay.hodl.ar/",
+    "wot.tealeaf.dev/",
+    "nostr.2h2o.io/",
+    "lightningrelay.com/",
+    "nostr.walletofsatoshi.com/",
+    "fabian.nostr1.com/",
+    "nostr1.thelifeofanegro.com/",
+    "nostr.portemonero.com/",
+    "nostr.czas.plus/",
+    "nostr.zoel.network/",
+    "relay.minibolt.info/",
+    "wot.eminence.gdn/",
+    "welcome.nostr.wine/",
+    "relay.nquiz.io/",
+    "nostr.sathoarder.com/",
+    "nostrapps.com/",
+    "haven.on4r.net/inbox",
+    "nostr.openordex.org/",
+    "relay03.lnfi.network/",
+    "community.proxymana.net/",
+    "zap.watch/",
+    "nostr.tools.global.id/",
+    "relay.arrakis.lat/",
+    "milwaukietalkie.nostr1.com/",
+    "relay.geekiam.services/",
+    "nostr.mining.sc/",
+    "ursin.nostr1.com/",
+    "nostr.mom/2123/416576/",
+    "nostr.cottongin.xyz/",
+    "rocky.nostr1.com/",
+    "relay.exit.pub/",
+    "relays.land/codytest",
+    "pyramid.fiatjaf.com/",
+    "yarnlady.21mil.me/",
+    "kadargo.zw.is/",
+    "pnostr.self-determined.de/inbox",
+    "relay.kamp.site/",
+    "relay.devvul.com/",
+    "relay.mostro.network/",
+    "relay.agorist.space/",
+    "relay.rkus.se/",
+    "linode.progserver.site:4848/",
+    "relay.stream.labs.h3.se/",
+    "chatwith.krisconstable.com/",
+    "nostr.bilthon.dev/",
+    "relay.oke.minds.io/nostr/v1/ws",
+    "cfrelay.snowcait.workers.dev/",
+    "nostr.jonmartins.com/",
+    "nostr.256k1.dev/",
+    "nostr.0x7e.xyz/",
+    "wons.calva.dev/",
+    "nostr.sebastix.dev/",
+    "custom.fiatjaf.com/",
+    "bitcoinmaximalists.online/",
+    "staging.bitcointxoko.com/",
+    "relay.utxo.one/chat",
+    "mleku.nostr1.com/",
+    "aegis.relaynostr.xyz/",
+    "relay.sepiropht.me/",
+    "nostr.chaima.info/",
+    "primus.nostr1.com/",
+    "dtonon.nostr1.com/",
+    "fido-news.z7.ai/",
+    "nostr.searx.is/",
+    "news.nos.social/",
+    "relay.nostromo.social/",
+    "relay.evanverma.com/",
+    "groups.0xchat.com/",
+    "nostr-news.nostr1.com/",
+    "nostr.fort-btc.club/",
+    "relay.zapstore.dev/",
+    "node-ior.webhop.me:4848/",
+    "mar101xy.com/relay",
+    "nostr.jfischer.org/",
+    "relay.oh-happy-day.xyz/",
+    "nostr.intrepid18.com/",
+    "relay.magiccity.live/",
+    "cc3d.nostr1.com/",
+    "nostr21.com/",
+    "relay.angor.io/",
+    "nostr-news.nostr1.com/",
+    "nostr.fort-btc.club/",
+    "relay.zapstore.dev/",
+    "node-ior.webhop.me:4848/",
+    "mar101xy.com/relay",
+    "nostr.jfischer.org/",
+    "relay.oh-happy-day.xyz/",
+    "nostr.intrepid18.com/",
+    "relay.magiccity.live/",
+    "cc3d.nostr1.com/",
+    "nostr21.com/",
+    "relay.angor.io/",
+    "relay.olas.app/",
+    "jklksdnbit.duckdns.org:3355/",
+    "relay.kreweofkeys.net/",
+    "relay.yana.do/",
+    "me.purplerelay.com/",
+    "ir.purplerelay.com/",
+    "relay.nostrview.com/",
+    "relay.cyphernomad.com/",
+    "h.codingarena.top/inbox",
+    "202.61.207.49:8090/",
+    "haven.tealeaf.dev/",
+    "relay.wikifreedia.xyz/",
+    "nostr.btc-library.com/",
+    "194.195.222.47:4848/",
+    "monitorlizard.nostr1.com/",
+    "nostr-rs-relay.dev.fedibtc.com/",
+    "relay.westernbtc.com/",
+    "hbr.coracle.social/",
+    "nostr.atitlan.io/",
+    "nostr.azzamo.net/",
+    "relay.shop21.dk/",
+    "nostr.dodge.me.uk/",
+    "nostr.messagepush.io/",
+    "hk.purplerelay.com/",
+    "nip85.nostr.band/",
+    "jingle.nostrver.se/",
+    "feeds.nostr.band/typescript",
+    "relay.bitcoinveneto.org/",
+    "relay.nostr.net/",
+    "nr.rosano.ca/",
+    "au.purplerelay.com/",
+    "relay.siamstr.com/",
+    "rsslay.ch3n2k.com/",
+    "relay.nostpy.lol/",
+    "relay.lumina.rocks/",
+    "nostr.pareto.space/",
+    "nostr.ussenterprise.xyz/",
+    "misskey.io/",
+    "nostr.hashi.sbs/",
+    "relay.mess.ch/",
+    "bostr.syobon.net/",
+    "strfry.bonsai.com/",
+    "haven.ciori.net/",
+    "relay.chontit.win/",
+    "relay.openbalance.app/",
+    "nostr.skitso.business/",
+    "relay.illuminodes.com/",
+    "relay.stewlab.win/",
+    "relay.xeble.me/",
+    "relay.nostr.ai/",
+    "nostream-production-643a.up.railway.app/",
+    "nostr.bitcoinist.org/",
+    "nostr.commonshub.brussels/",
+    "orangepiller.org/",
+    "wot.brightbolt.net/",
+    "chorus.bonsai.com/",
+    "nostr-dev.zbd.gg/",
+    "nostr.gleeze.com/",
+    "relay.nostrfreedom.net/inbox",
+    "relay.757btc.org/",
+    "nostr.yael.at/",
+    "xmr.usenostr.org/",
+    "nostr.rtvslawenia.com/",
+    "relay.nostr.wf/",
+    "relay.mostr.pub/",
+    "relay.corpum.com/",
+    "relay.lightning.gdn/",
+    "nostr.lorentz.is/",
+    "nostr.gerbils.online/",
+    "relay.noderunners.network/invoices",
+    "relay.nostr.nu/",
+    "ithurtswhenip.ee/",
+    "social.protest.net/relay",
+    "pareto.nostr1.com/",
+    "nostr.bitcoiner.social/",
+    "relay.moinsen.com/",
+    "nostr-relay.shirogaku.xyz/",
+    "nostr.kloudcover.com/",
+    "nostr.thurk.org/",
+    "nostr.roundrockbitcoiners.com/",
+    "bostr.bitcointxoko.com/",
+    "dvms.f7z.io/",
+    "ca.purplerelay.com/",
+    "nip13.girino.org/",
+    "nostr.einundzwanzig.space/",
+    "rss.nos.social/",
+    "nostr.schneimi.de/",
+    "relay.czas.xyz/",
+    "relay.vertexlab.io/",
+    "relay.needs.tr/",
+    "eupo43gj24.execute-api.us-east-1.amazonaws.com/",
+    "thewildhustle.nostr1.com/",
+    "paid.no.str.cr/",
+    "kiiski.mynetgear.com:4848/",
+    "relaypag.es/",
+    "nostr.hifish.org/",
+    "servus.social/",
+    "relay.nostrich.cc/",
+    "cache2.primal.net/v1",
+    "nostr-03.dorafactory.org/",
+    "nostr-1.nbo.angani.co/",
+    "relay.vrtmrz.net/",
+    "relay.jellyfish.land/",
+    "relay.purplestr.com/",
+    "nostr.thebiglake.org/",
+    "nsrelay.assilvestrar.club/",
+    "feeds.nostr.band/audio",
+    "relay.mememaps.net/",
+    "nostr-verif.slothy.win/",
+    "nostr.satstralia.com/",
+    "purplerelay.com/",
+    "shu02.shugur.com/",
+    "skeme.vanderwarker.family/",
+    "nostr.carroarmato0.be/",
+    "puresignal-relay.onrender.com/",
+    "nostril.cam/",
+    "sushi.ski/",
+    "nostr.namek.link/",
+    "puresignal-relay.onrender.com/",
+    "nostril.cam/",
+    "sushi.ski/",
+    "nostr.namek.link/",
+    "backup.keychat.io/",
+    "cyberspace.nostr1.com/",
+    "relay.primal.net/",
+    "nostr.cypherpunk.today/",
+    "nostr.noones.com/",
+    "wot.nostr.sats4.life/chat",
+    "relay.lax1dude.net/",
+    "chorus.tealeaf.dev/",
+    "nostrrelay.taylorperron.com/",
+    "relay.diablocanyon1.com/outbox",
+    "nostr.agentcampfire.com/",
+    "kaffeesats.net/nostrclient/api/v1/relay",
+    "relay.etch.social/",
+    "bunker.vanderwarker.family/",
+    "nostrelay.yeghro.com/",
+    "nostr.dmgd.monster/",
+    "mleku.realy.lol/",
+    "seewaan.com/relay",
+    "feeds.nostr.band/lang/en",
+    "nostr.sonnenhof-zieger.de/",
+    "relay.gathr.gives/all",
+    "relay1.plor.dev/",
+    "relay.minds.com/nos",
+    "nostr-pr02.redscrypt.org/",
+    "social.olsentribe.fyi/",
+    "nortis.nostr1.com/",
+    "nostr.lu.ke/",
+    "nostr-pr01.redscrypt.org:47443/",
+    "elites.nostrati.org/",
+    "server2.aseword.com/",
+    "rl.baud.one/",
+    "api.seminode.com/relay",
+    "waukietaukie.nostr1.com/",
+    "feeds.nostr.band/lang/ru",
+    "feeds.nostr.band/newstr",
+    "relay.onlynostr.club/",
+    "relay.nosotros.app/",
+    "data.relay.vanderwarker.family/",
+    "debug.zap.watch/",
+    "feeds.nostr.band/memes",
+    "chadf.nostr1.com/",
+    "relay-dev.netstr.io/",
+    "feeds.nostr.band/app_ideas",
+    "groups.yugoatobe.com/",
+    "relay.shawnyeager.com/chat",
+    "relay-rpi.edufeed.org/",
+    "cheesejr.21mil.me/",
+    "nostr.sats.li/",
+    "nostrcheck.me/relay",
+    "rebelbase.social/relay",
+    "node-ior.webhop.me:6042/",
+    "hax.reliefcloud.com/",
+    "relay.nostr.band/",
+    "nos.lol/",
+    "vidono.apps.slidestr.net/",
+    "nostr.at/",
+    "relay.brightbolt.net/",
+    "relay.reya.su/inbox",
+    "relay.13room.space/",
+    "feeds.nostr.band/meme",
+    "feeds.nostr.band/nostrcuba",
+    "relay.sincensura.org/",
+    "relay.pituf.in/",
+    "user.kindpag.es/",
+    "dev-relay.lnfi.network/",
+    "pay.thefockinfury.wtf/nostrrelay/1",
+    "wot.brightbolt.net/",
+    "v-relay.d02.vrtmrz.net/",
+    "relay.reya.su/",
+    "inner.sebastix.social/",
+    "feeds.nostr.band/video",
+    "core.btcmap.org/nostrrelay/relay",
+    "strfry.shock.network/",
+    "relay.nuts.cash/",
+    "empathicdingo5.lnbits.com/nostrrelay/v1",
+    "free.relayted.de/",
+    "strfry.openhoofd.nl/",
+    "nostr.iz5wga.radio/",
+    "cfrelay.royalgarter.workers.dev/",
+    "relay.digitalezukunft.cyou/",
+    "nostr.cizmar.net/",
+    "nostr.felixzieger.de/",
+    "nostr.rikmeijer.nl/",
+    "nas.yunierrodriguez.com:4848/",
+    "wot.relayted.de/",
+    "hayloo.nostr1.com/",
+    "relay.cosmicbolt.net/",
+    "thebarn.nostr1.com/",
+    "nostr.ch3n2k.com/",
+    "feeds.nostr.band/pics",
+    "bitcr-cloud-run-03-550030097098.europe",
+    "relay.purplekonnektiv.com/",
+    "freelay.sovbit.host/",
+    "relay.nostrarabia.com/",
+    "aplaceinthesun.nostr1.com/",
+    "shu01.shugur.com/",
+    "notify-staging.damus.io/",
+    "gnost.faust.duckdns.org/",
+    "nostr.self-determined.de/",
+    "wot.azzamo.net/",
+    "nostr.sectiontwo.org/",
+    "relay.dannymorabito.com/",
+    "dev.messagepush.io:8080/",
+    "relay.copylaradio.com/",
+    "relay.bitcoinpark.com/",
+    "basedpotato.nostr1.com/",
+    "nostrelites.org/",
+    "relay.tagayasu.xyz/",
+    "9yo.punipoka.pink/",
+    "relay.sovereign.app/",
+    "relay.nostar.org/",
+    "fiatjaf.nostr1.com/",
+    "dwebcamp.nos.social/",
+    "cfrelay.puhcho.workers.dev/",
+    "coinos.io/ws",
+    "atlas.nostr.land/",
+    "powrelay.xyz/",
+    "hotrightnow.nostr1.com/",
+    "nostr.bitcoinplebs.de/",
+    "gitcitadel.nostr1.com/",
+    "nostr.myshosholoza.co.za/",
+    "brightlights.nostr1.com/",
+    "misskey.design/",
+    "srtrelay.c-stellar.net/",
+    "hub.nostr-relay.app/",
+    "relay.chrisatmachine.com/",
+    "powrelay.xyz/",
+    "hotrightnow.nostr1.com/",
+    "nostr.bitcoinplebs.de/",
+    "gitcitadel.nostr1.com/",
+    "nostr.myshosholoza.co.za/",
+    "brightlights.nostr1.com/",
+    "misskey.design/",
+    "srtrelay.c-stellar.net/",
+    "hub.nostr-relay.app/",
+    "relay.chrisatmachine.com/",
+    "ditto.pub/relay",
+    "offchain.pub/",
+    "relay.lifpay.me/",
+    "relay.wavlake.com/",
+    "inbox.azzamo.net/",
+    "relay-fenrir.nexterz-sv.xyz/",
+    "onlynotes.lol/",
+    "freespeech.casa/",
+    "nostr.portemonero.com/",
+    "nostrja-kari-http.heguro.com/",
+    "airchat.nostr1.com/",
+    "chronicle.ziomc.com/",
+    "mailbox.mw.leastauthority.com/v1",
+    "nostr-relay.bitcoin.ninja/",
+    "nostr.pailakapo.com/",
+    "misskey.cloud/",
+    "jskitty.cat/nostr",
+    "relay.nostr.com.au/",
+    "nostr.pistaum.com/",
+    "relay.utxo.one/",
+    "at.nostrworks.com/",
+    "relay.nostrdvm.com/",
+    "relay.coinos.io/",
+    "relay.stens.dev/",
+    "relay.livefreebtc.dev/",
+    "relay5.bitransfer.org/",
+    "relay.nostr.sc/",
+    "koru.bitcointxoko.com/",
+    "relay.nostrasia.net/",
+    "relay.notoshi.win/",
+    "frjosh.nostr1.com/",
+    "straylight.cafe/relay",
+    "paid.relay.vanderwarker.family/",
+    "relay.vanderwarker.family/",
+    "ttnostr.duckdns.org:4848/",
+    "nostr.8777.ch/",
+    "relay.gandlaf.com/",
+    "nostr.tbai.me:592/",
+    "tw.purplerelay.com/",
+    "misskey.social/",
+    "nostr.yuhr.org/",
+    "nostr1.jpegslangah.com/",
+    "relay01.lnfi.network/",
+    "no.str.cr/",
+    "devapi.freefrom.space/v1/ws",
+    "nostr.extrabits.io/",
+    "us.nostr.wine/",
+    "relay.nostrfy.io/",
+    "nostr.rosenbaum.se/",
+    "btcpay2.nisaba.solutions/nostr",
+    "ltgnetwork.nostr1.com/",
+    "pl.unostr.one/",
+    "communities.nos.social/",
+    "wot.nostr.net/",
+    "waukietalkie.nostr1.com/",
+    "nostr.rosenbaum.se/",
+    "btcpay2.nisaba.solutions/nostr",
+    "ltgnetwork.nostr1.com/",
+    "pl.unostr.one/",
+    "communities.nos.social/",
+    "wot.nostr.net/",
+    "waukietalkie.nostr1.com/",
+    "relay.devstr.org/",
+    "nostr.camalolo.com/",
+    "nostr-relay.schnitzel.world/",
+    "ditto.nsnip.io/relay",
+    "relay.stoner.com/",
+    "testnet.plebnet.dev/nostrrelay/2hive",
+    "relay.gems.xyz/",
+    "xorrelay.libretechsystems.xyz/",
+    "in.purplerelay.com/",
+    "nostream.coinmachin.es/",
+    "tollbooth.stens.dev/",
+    "140.f7z.io/",
+    "relay.snort.social/v2",
+    "nostr.bitcoinvn.io/",
+    "relay.danieldaquino.me/chat",
+    "relay.diablocanyon1.com/private",
+    "nostr-relay.amethyst.name/",
+    "cache1.primal.net/v1",
+    "nostr.cercatrova.me/",
+    "nostr.spaceshell.xyz/",
+    "relay.nsec.app/",
+    "wot.innovativecerebrum.ai/",
+    "relay.nostr.watch/",
+    "tamby.mjex.me/inbox",
+    "21ideas.nostr1.com/",
+    "relay.usefusion.ai/",
+    "relay.0v0.social/",
+    "nostr.bitpunk.fm/",
+    "nostr.sudocarlos.com/outbox",
+    "nostr2.girino.org/",
+    "nostr.holbrook.no/",
+    "bevo.nostr1.com/",
+    "social.proxymana.net/",
+    "strfry.geektank.ai/",
+    "nostr.kehiy.net/",
+    "relay.denver.space/",
+    "thewritingdesk.nostr1.com/",
+    "gleasonator.dev/relay",
+    "relay.sebdev.io/",
+    "nostr.zbd.gg/",
+    "relay.froth.zone/",
+    "relay.lawallet.ar/",
+    "agentorange.nostr1.com/",
+    "henhouse.social/relay",
+    "misskey.gothloli.club/",
+    "relay.lexingtonbitcoin.org/",
+    "alru07.nostr1.com/",
+    "relay.crbl.io/",
+    "nostr.notribe.net/",
+    "fabian.nostr1.com/",
+    "nostr.2h2o.io/",
+    "nostr.sathoarder.com/",
+    "relay.nquiz.io/",
+    "zaplab.nostr1.com/",
+    "misskey.art/",
+    "nostr.dlsouza.lol/",
+    "nostr.bch.ninja/",
+    "relay.nostrhub.fr/",
+    "invillage-outvillage.com/",
+    "greensoul.space/",
+    "arda-nostra-7686.rostiapp.cz/",
+    "relay.hook.cafe/",
+    "relay.mwaters.net/",
+    "labour.fiatjaf.com/",
+    "nostr.cltrrd.us/",
+    "nostr.huszonegy.world/",
+    "relay.despera.space/",
+    "relay-rs.nexterz-sv.xyz/",
+    "libretechsystems.nostr1.com/",
+    "wot.danieldaquino.me/",
+    "fiatjaf.com/",
+    "relay29.notoshi.win/",
+    "nostr.tavux.tech/",
+    "haven.puhcho.me/",
+    "relay.mostard.org/",
+    "misskey.systems/",
+    "haven.calva.dev/",
+    "nostr.bit4use.com/",
+    "nostr.decentony.com/",
+    "coop.nostr1.com/",
+    "lnbits.satoshibox.io/nostrclient/api/v1/relay",
+    "nostr.biu.im/",
+    "nostr.x0f.org/",
+    "haven.nostrver.se/",
+    "groups.hzrd149.com/",
+    "relay.sigit.io/",
+    "relay.unknown.cloud/",
+    "shu03.shugur.com/",
+    "relay.minibits.cash/",
+    "memrelay.girino.org/",
+    "relay.snort.social/",
+    "fenrir-s.notoshi.win/",
+    "4340main.duckdns.org:4848/",
+    "relay.braydon.com/",
+    "nostr-rs-relay-ishosta.phamthanh.me/",
+    "nostr.frostr.xyz/",
+    "christpill.nostr1.com/",
+    "zorrelay.libretechsystems.xyz/",
+    "wot.codingarena.top/",
+    "relay.degmods.com/",
+    "nostr.me/relay",
+    "cache0.primal.net/c2",
+    "relay.mycelium.social/",
+    "mastodon.cloud/api/v1/streaming",
+    "chorus.mikedilger.com:444/",
+    "x.kojira.io/",
+    "nostr.a2x.pub/",
+    "stage.mosavi.io/v1/ws",
+    "nostr.takasaki.dev/",
+    "nostr.heavyrubberslave.com/",
+    "nostr.tac.lol/",
+    "relay.nostrr.de/inbox",
+    "relay.snort.social/|",
+    "relay.ru.ac.th/",
+    "wheat.happytavern.co/",
+    "nostr.4liberty.one/",
+    "nostr.brackrat.com/",
+    "relay.diablocanyon1.com/inbox",
+    "relay.snort.social/",
+    "aegis.relayted.de/",
+    "nostr.mom/",
+    "support.nostr1.com/",
+    "haven.girino.org/inbox",
+    "aegis.relayted.de/",
+    "nostr.mom/",
+    "support.nostr1.com/",
+    "haven.girino.org/inbox",
+    "relay1.xfire.to/",
+    "relay.satlantis.io/",
+    "nostr.jcloud.es/",
+    "synalysis.nostr1.com/",
+    "nostr@bitcoiner.social/",
+    "relay.satoshidnc.com/",
+    "hivetalk.nostr1.com/",
+    "relay.kyhou.duckdns.org:4438/inbox",
+    "relay.kyhou.duckdns.org:4438/",
+    "nostr.polyserv.xyz/",
+    "nostr-02.dorafactory.org/",
+    "haven.ciori.net/inbox",
+    "relay.damus.io/",
+    "nostrich.zonemix.tech/",
+    "nostr.inosta.cc/",
+    "relay.nostrdice.com/",
+    "relay.verified-nostr.com/",
+    "lnbits.yhf.name/nostrrelay/test-relay-1",
+    "nostr.sidnlabs.nl/",
+    "relay.nostrtalk.org/",
+    "relay.test.nquiz.io/",
+    "relay-admin.thaliyal.com/",
+    "antisocial.nostr1.com/",
+    "stratum.libretechsystems.xyz/",
+    "nostr.4rs.nl/",
+    "multiplexer.huszonegy.world/",
+    "relay.dannymorabito.com/inbox",
+    "relay.4zaps.com/",
+    "haven.eternal.gdn/",
+    "news.utxo.one/",
+    "ch.purplerelay.com/",
+    "knostr.neutrine.com/",
+    "us.purplerelay.com/",
+    "relay.nostrr.de/",
+    "a.nos.lol/",
+    "wot.shaving.kiwi/",
+    "nerostr.girino.org/",
+    "santo.iguanatech.net/",
+    "nostr.cloud.vinney.xyz/",
+    "thecitadel.nostr1.com/",
+    "relay.botev.sv/",
+    "fiatrevelation.nostr1.com/",
+    "haven.calva.dev/inbox",
+    "relay.tapestry.ninja/",
+    "relay.nostrfreedom.net/outbox",
+    "nostr.mom/2123/413236/",
+    "f7z.io/",
+    "lightningrelay.com/",
+    "nostr.sovbit.host/",
+    "nostr.easydns.ca/",
+    "haven.girino.org/private",
+    "relay.transtoad.com/",
+    "sorrelay.libretechsystems.xyz/",
+    "czas.top/",
+    "relay2.nostrchat.io/",
+    "shitpost.poridge.club/",
+    "plebone.nostr1.com/",
+    "feeds.nostr.band/bens",
+    "relay.opensailsolutions.xyz/inbox",
+    "nostr.strits.dk/",
+    "kirpy.nostrnaut.love/",
+    "nostr.strits.dk/",
+    "kirpy.nostrnaut.love/",
+    "wot.dtonon.com/",
+    "nostr-relay.app/",
+    "e.nos.lol/",
+    "n.wingu.se/",
+    "submarin.online/",
+    "premium.primal.net/",
+    "paid.nostrified.org/",
+    "kr.purplerelay.com/",
+    "relay.nostrified.org/",
+    "nostr.2b9t.xyz/",
+    "relay.axeldolce.xyz/",
+    "childlove.top/",
+    "unodog.site/",
+    "relay.gifbuddy.lol/",
+    "nostr.overmind.lol/",
+    "voxonomatronics.nostr1.com/",
+    "nostr.asdf.mx/",
+    "nostr.btc-media.services/",
+    "kirpy.nostrnaut.love/inbox",
+    "profiles.nostr1.com/",
+    "david.nostr1.com/",
+    "nostr-verified.wellorder.net/",
+    "nostr.itdestro.cc/",
+    "team-relay.pareto.space/",
+    "tigs.nostr1.com/",
+    "relay.nostrfreaks.com/",
+    "cdn.czas.xyz/",
+    "cellar.nostr.wine/",
+    "nostr.heliodex.cf/",
+    "nostr.dl3.dedyn.io/",
+    "relay.danieldaquino.me/",
+    "relay.cashumints.space/",
+    "nproxy.kristapsk.lv/",
+    "nostr.animeomake.com/",
+    "yestr.me/",
+    "nostr-dev.wellorder.net/",
+    "nostr.koning-degraaf.nl/",
+    "feeds.nostr.band/lang/pt",
+    "feeds.nostr.band/omni__ventures",
+    "mihhdu.org/nostr",
+    "unostr.one/",
+    "wbc.nostr1.com/",
+    "relay.varke.eu/",
+    "relay.jerseyplebs.com/",
+    "bucket.coracle.social/",
+    "nostr.reelnetwork.eu/",
+    "nostr.1312.media/",
+    "relay-nwc.rizful.com/",
+    "bonifatius.nostr1.com/",
+    "umbrel.merkle.space:4848/",
+    "nostr.middling.mydns.jp/",
+    "relay.geyser.fund/",
+    "relay.rodbishop.nz/",
+    "podsystems.nostr1.com/",
+    "relay.marc26z.com/",
+    "lnvoltz.com/nostrrelay/n49jzjytb",
+    "blass.zone:48543/",
+    "nostr.javi.space/",
+    "nostr-relay.algotech.io/",
+    "haven.eternal.gdn/inbox",
+    "relay-rs.nexterz.com/",
+    "nostr.mdip.yourself.dev/",
+    "nostr-relay.derekross.me/inbox",
+    "feeds.nostr.band/popular",
+    "sources.nostr1.com/",
+    "de.purplerelay.com/",
+    "nostr.noderunners.network/",
+    "nostr.novacisko.cz/",
+    "relay.brightbolt.net/inbox",
+    "bostr.azzamo.net/",
+    "hi.myvoiceourstory.org/",
+    "nostr.oxtr.dev/",
+    "search.nos.today/",
+    "nos.zct-mrl.com/",
+    "nostrua.com/",
+    "frysian.nostrich.casa/",
+    "relay.nostrcheck.me/",
+    "relay.emotic.io:8080/",
+    "vegan.mycelium.social/",
+    "nostr-pr03.redscrypt.org/",
+    "relay.artx.market/",
+    "relay.azzamo.net/",
+    "privateisland.club/",
+    "relay.albylabs.com/",
+    "ragnar-relay.com/",
+    "nostr.kalf.org/",
+    "nostr.wine/",
+    "mrecheese.21mil.me/",
+    "creatr.nostr.wine/",
+    "nostr.leitecore.com/",
+    "relay.g1sms.fr/",
+    "nostr.grooveix.com/",
+    "relay.bostr.online/",
+    "relay.unsupervised.online/",
+    "relay.badgr.digital/",
+    "wot.relayted.de/",
+    "nostr-relay01.redscrypt.org:48443/",
+    "nostr.d11n.net/",
+    "prl.plus/",
+    "relay.raybuni.com/",
+    "nostr.sudocarlos.com/",
+    "nostria.space/",
+    "relay.netstr.io/",
+    "relay.vengeful.eu/",
+    "wot.girino.org/",
+    "relay.getalby.com/",
+    "riley.timegate.co/",
+    "relay.prieb.me/",
+    "relay.prieb.me/inbox",
+    "wot.nostri.ai/",
+    "relay.bitdevs.tw/",
+    "relay.nostrplebs.com/",
+    "relay.groups.nip29.com/",
+    "ae.purplerelay.com/",
+    "nostr.hashbang.nl/",
+    "nostr.sprovoost.nl/",
+    "aaa-api.freefrom.space/v1/ws",
+    "nostr.corebreach.com/",
+    "xmr.ithurtswhenip.ee/",
+    "nostr.liberty.fans/",
+    "relay.lnfi.network/",
+    "relay04.lnfi.network/",
+    "sendit.nosflare.com/",
+    "relay.camelus.app/",
+    "bridge.duozhutuan.com/",
+    "n.ka.st/",
+    "nostr.piwdaily.com/",
+    "feeds.nostr.band/react",
+    "feeds.nostr.band/react",
+    "relay.shuymn.me/",
+    "vitor.nostr1.com/",
+    "fl.purplerelay.com/",
+    "kitchen.zap.cooking/",
+    "chronicle.puhcho.me/",
+    "node-ior.webhop.me:6048/",
+    "relay.patrickulrich.com/",
+    "nostr.millonair.us/",
+    "relay.pokernostr.com/",
+    "jp.purplerelay.com/",
+    "haven.girino.org/",
+    "wot.downisontheup.ca/",
+    "nostr.thank.eu/",
+    "relay.nsnip.io/",
+    "nostrelay.memory-art.xyz/",
+    "nostr-02.yakihonne.com/",
+    "relay.fr13nd5.com/",
+    "relay.zone667.com/",
+    "v1250.planz.io/nostr",
+    "nrelay.c-stellar.net/",
+    "relay.lem0n.cc/",
+    "relay.staging.geyser.fund/",
+    "nostr.rblb.it/",
+    "nostr1.thelifeofanegro.com/",
+    "nostr.coincards.com/",
+    "relay.minds.com/",
+    "nostr.rubberdoll.cc/",
+    "nostr.derogab.com/",
+    "pnostr.self-determined.de/",
+    "chronicle.dtonon.com/",
+    "relay.chakany.systems/",
+    "shu04.shugur.com/",
+    "relay.stackinsats.net/",
+    "relay.minds.com/nostr/v1/w",
+    "relay.freeplace.nl/",
+    "nostr.primz.org/",
+    "relay.nostraddress.com/",
+    "test.nfrelay.app/",
+    "nostrich.adagio.tw/",
+    "n3r.xyz/",
+    "h.codingarena.top/outbox",
+    "nostr.hekster.org/",
+    "node-ior.webhop.me:6051/",
+    "nostr.ovia.to/",
+    "relay.diablocanyon1.com/chat",
+    "wot.nostri.ai/inbox",
+    "nostr.luisschwab.net/",
+    "nostr.zoel.network/",
+    "soloco.nl/",
+    "hist.nostr.land/",
+    "nostr.girino.org/",
+    "relay.nostrverified.fyi/",
+    "nostrelay.circum.space/",
+    "shota.house/",
+    "relay.bitcoinartclock.com/",
+    "relay.sxclij.com/",
+    "nostr.d11n.net/inbox",
+    "nostr.massmux.com/",
+    "relay.xmr.news/",
+    "main.ghostless.org/",
+    "nostr.stupleb.cc/",
+    "directory.yabu.me/",
+    "relay.nostr.wirednet.jp/",
+    "lolicon.monster/",
+    "theforest.nostr1.com/",
+    "nostr.timegate.co/",
+    "nostrja-kari.heguro.com/",
+    "relay.diablocanyon1.com/",
+    "relay.minds.com/nostr/v1",
+    "nostrja-kari-nip50.heguro.com/",
+    "nostr.caramboo.com/",
+    "quotes.mycelium.social/",
+    "nostr.vulpem.com/",
+    "relay.nos.social/",
+    "relay.dev.bdw.to/",
+    "ghost.dolu.dev/",
+    "loli.church/",
+    "lnb.bolverker.com/nostrrelay/666",
+    "slick.mjex.me/",
+    "feeds.nostr.band/ru",
+    "feeds.nostr.band/lang/es",
+    "nostr.faust.duckdns.org/",
+    "misskey.takehi.to/",
+    "bostr.erechorse.com/",
+    "haven.cyberhornet.net/inbox",
+    "relay.asthroughfire.com/",
+    "relay.danieldaquino.me/private",
+    "relay.nbswozlfpjuwc4y.boo/",
+    "relay.noderunners.network/",
+    "adre.su/",
+    "filter.nostr.wine/",
+    "inbox.nostr.wine/",
+    "relay.caramboo.com/",
+    "relay.minds.com/nostr/v1/ws",
+    "relay.hodl.ar/",
+    "nostr.kungfu-g.rip/",
+    "relay.gasteazi.net/",
+    "bostr.lightningspore.com/",
+    "relay.wellorder.net/",
+    "nostr.rblb.it:7777/",
+    "wot.tealeaf.dev/",
+    "nostrue.com/",
+    "feeds.nostr.band/tony",
+    "nostr.openhoofd.nl/",
+    "ftp.halifax.rwth-aachen.de/nostr",
+    "v2.fly.dev/",
+    "relay.noswhere.com/",
+    "node-ior.webhop.me:6002/",
+    "relay.weloveit.info/",
+    "relay.ziomc.com/",
+    "relay.buildtall.com/",
+    "travis-shears-nostr-relay-v2.fly.dev/",
+    "social.camph.net/",
+    "nostr.babyshark.win/",
+    "null.spdns.eu/",
+    "relay.bullishbounty.com/",
+    "relay-nwc.rizful.com/v1",
+    "wot.sebastix.social/",
+    "relay.keychat.io/",
+    "nostr.czas.plus/",
+    "welcome.nostr.wine/",
+    "relay.goodmorningbitcoin.com/",
+    "relay.primal.net/|",
+    "nostr.nordlysln.net:3241/",
+    "beta.nostril.cam/",
+    "relay.patrickulrich.com/inbox",
+    "relayrs.notoshi.win/",
+    "nostr.land/",
+    "aegis.utxo.one/",
+    "relay.ingwie.me/",
+    "nostr-relay.cbrx.io/",
+    "nostr.dbtc.link/",
+    "relay.minds.com/nostr/v1/wscheck",
+    "relay.utih.net/",
+    "datagrave.wild-vibes.ts.net:10000/",
+    "cfrelay.haorendashu.workers.dev/",
+    "nwc.primal.net/ayvjleilmx0al7j2pqt24qe...",
+    "premis.one/",
+    "nostr.ingwie.me/",
+    "njump.me/",
+    "relay.minds.com/nostr",
+    "nostr.huszonegy.world/nostrrelay/nnz68...",
+    "nos.xmark.cc/",
+    "nostr.easydns.ca/2123/413509/",
+    "yabu.me/v1",
+    "yabu.me/",
+    "bnc.netsec.vip/",
+    "relay.orangepill.ovh/",
+    "njump.me/r/privateisland.club",
+    "relay.gandlaf.com/outbox",
+    "relay.das.casa/",
+    "ditto.slothy.win/relay",
+    "node-ior.webhop.me:6061/",
+    "relay.nexterz-sv.xyz/",
+    "nostr.phuture.sk/",
+    "umbrel.hanel.online:4848/",
+    "satsage.xyz/",
+    "relaydiscovery.com/",
+    "nostr.thaliyal.com/",
+    "nostr.lojong.info/",
+    "nostr.cool110.xyz/",
+    "kiwibuilders.nostr21.net/",
+    "eostagram.com/",
+    "nostr.1sat.org/",
+    "brainstorm.nostr1.com/",
+    "nuagedepirates.pagekite.me/ws",
+    "node-ior.webhop.me:6039/",
+    "strfry.chatbett.de/",
+    "nostr.hexhex.online/",
+    "peepepoopoo.nostrati.org/",
+    "relay.guggero.org/",
+    "prod.mosavi.io/v1/ws",
+    "nostr.plantroon.com/",
+    "haven.accioly.social/",
+    "chorus.pjv.me/",
+    "nostr.mtrj.cz/",
+    "nostr.data.haus/",
+    "haven.puhcho.me/inbox",
+    "nostr.sagaciousd.com/",
+    "wot.nostr.sats4.life/",
+    "haven.girino.org/outbox",
+    "wot.nostr.party/",
+    "nostr-relay.sn-media.com/",
+    "nostr.sats.coffee/",
+    "relay.mattybs.lol/",
+    "nostr-pub.wellorder.net/",
+    "staging.yabu.me/",
+    "mandidraws.nostrnaut.love/inbox",
+    "nostr.sudocarlos.com/inbox",
+    "sergio.nostr1.com/",
+    "yabu.me/v2",
+    "misskey.04.si/",
+    "nostr.walletofsatoshi.com/",
+    "nostr.xmr.rocks/",
+    "cmdsrv.de:4848/",
+    "relay.minibolt.info/",
+    "relay.hunos.hu/",
+    "relay.westernbtc.com/|",
+    "frens.nostr1.com/",
+    "relay.caramboo.com/inbox",
+    "wostr.hexhex.online/",
+    "haven.accioly.social/inbox",
+    "nostr.slothy.win/",
+    "relay.d11n.net/",
+    "nosfabrica.nostr1.com/",
+    "multiplextr.coracle.social/",
+    "nostr.on4r.net/",
+    "relay.jeffg.fyi/",
+    "seth.nostr1.com/",
+    "inbox.mycelium.social/",
+    "logstr.mycelium.social/",
+    "stage.mosavi.xyz/v1/ws",
+    "nostr.1f52b.xyz/",
+    "art.nostrfreaks.com/",
+    "nostr.dl3.dedyn.io/inbox",
+    "relay.fountain.fm/",
+    "n.ok0.org/",
+    "nostr.mom/2123/416576",
+    "relay.dwadziesciajeden.pl/",
+    "relay02.lnfi.network/",
+    "merrcurrup.railway.app/",
+    "satellite.hzrd149.com/",
+    "haven.tealeaf.dev/inbox",
+    "no.netsec.vip/",
+    "node-ior.webhop.me:6070/",
+    "relay.electriclifestyle.com/",
+    "wot.utxo.one/i%20still%20see%20dozens%...",
+    "notify.damus.io/",
+    "haven.girino.org/chat",
+    "feeds.nostr.band/nostrhispano",
+    "nostr.oxtr.dev/|",
+    "relay.danieldaquino.me/inbox",
+    "njump.me/r/relay.nostr.band",
+    "nostrpi.btchost.org/",
+    "node-ior.webhop.me:6069/",
+    "eden.nostr.land/debug",
+    "filter.nostr.wine/classification",
+    "nostr.se7enz.com/",
+    "nostr.pjv.me/",
+    "atlas.nostr.land/invoices",
+    "puravida.nostr.land/",
+    "relay.nostrid.com/",
+    "thebackupbox.net/ws/nostr-relay",
+    "wot.utxo.one/",
+    "relay.nostrplebs.com/|",
+    "adeptus.cwharton.com/",
+    "relay.s3x.social/",
+    "novoa.nagoya/",
+    "us.nostr.land/",
+    "nostr.reckless.dev/",
+    "relay.utxo.one/outbox",
+    "relay.utxo.one/inbox",
+    "47b904bdb483.sn.mynetname.net:4848/",
+    "nostr.coincrowd.fund/",
+    "relay.utxo.one/private",
+    "nostr.d11n.net/outbox",
+    "relay.jthecodemonkey.xyz/",
+    "notes.miguelalmodo.com/",
+    "algo.utxo.one/",
+    "relay.damus.io/|",
+    "bots.utxo.one/",
+    "relay.alex71btc.com/",
+    "relay.johnnyasantos.com/",
 ]
 
 
@@ -903,9 +1947,9 @@ print(f"is 6969 in relevant kinds? {Kind(6969) in RELEVANT_KINDS}")
 
 class BatchNotificationHandler(HandleNotification):
     def __init__(self):
-        self.events_processed: Dict[
-            str, Dict[int, int]
-        ] = {}  # relay_url -> {kind -> count}
+        self.events_processed: Dict[str, Dict[int, int]] = (
+            {}
+        )  # relay_url -> {kind -> count}
         self.start_time = time.time()
 
     async def handle(self, relay_url: str, subscription_id: str, event: Event):
@@ -943,7 +1987,7 @@ class BatchNotificationHandler(HandleNotification):
 
 
 async def test_relay_batch(
-    relays: List[str], timeout_seconds: int = 60
+    relays: List[str], timeout_seconds: int = 60, max_retries: int = 3
 ) -> Dict[str, Any]:
     """
     Test a batch of relays for DVM events.
@@ -951,6 +1995,7 @@ async def test_relay_batch(
     Args:
         relays: List of relay URLs to test
         timeout_seconds: How long to listen for events
+        max_retries: Maximum number of connection retry attempts
 
     Returns:
         Dictionary containing test results and stats
@@ -964,21 +2009,42 @@ async def test_relay_batch(
     handle_notifications_task = None
 
     try:
-        # Add relays to client
+        # Add relays to client with retry logic
         for relay in relays:
             if not (relay.startswith("ws://") or relay.startswith("wss://")):
                 relay = f"wss://{relay}"
                 logger.info(f"Adding relay with 'wss://' prefix: {relay}")
-            try:
-                await client.add_relay(relay)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to add relay with 'wss://' prefix, trying with 'ws://'"
-                )
+            
+            # Try with wss:// protocol first
+            success = False
+            for retry in range(max_retries):
                 try:
-                    await client.add_relay(relay.replace("wss://", "ws://"))
-                except:
-                    logger.error(f"Failed to add relay {relay}: {e}")
+                    await client.add_relay(relay)
+                    success = True
+                    break
+                except Exception as e:
+                    if retry == max_retries - 1:
+                        logger.warning(
+                            f"Failed to add relay with 'wss://' prefix after {max_retries} attempts, trying with 'ws://'"
+                        )
+                    else:
+                        logger.debug(f"Retry {retry+1}/{max_retries} for relay {relay}: {e}")
+                        await asyncio.sleep(1)
+            
+            # If wss:// failed, try with ws:// protocol
+            if not success:
+                ws_relay = relay.replace("wss://", "ws://")
+                for retry in range(max_retries):
+                    try:
+                        await client.add_relay(ws_relay)
+                        success = True
+                        break
+                    except Exception as e:
+                        if retry == max_retries - 1:
+                            logger.error(f"Failed to add relay {relay} after all attempts: {e}")
+                        else:
+                            logger.debug(f"Retry {retry+1}/{max_retries} for relay {ws_relay}: {e}")
+                            await asyncio.sleep(1)
 
         # Connect to relays
         await client.connect()
@@ -1023,28 +2089,75 @@ async def process_all_relays(
     batch_size: int = 5,
     timeout_seconds: int = 60,
     delay_between_batches: int = 5,
+    max_retries: int = 2,
 ):
     """
     Process all relays in batches, testing each batch for DVM events.
+    
+    Args:
+        relays: List of relay URLs to test
+        batch_size: Number of relays to test in each batch
+        timeout_seconds: How long to listen for events per batch
+        delay_between_batches: Delay between testing batches
+        max_retries: Maximum number of retries for failed batches
+        
+    Returns:
+        List of batch results
     """
     results = []
 
     # Calculate number of batches
     n_batches = math.ceil(len(relays) / batch_size)
-
+    
+    # Remove duplicates from relay list
+    unique_relays = []
+    seen = set()
+    for relay in relays:
+        # Normalize relay URL for deduplication
+        normalized = relay.strip().lower()
+        if normalized not in seen:
+            seen.add(normalized)
+            unique_relays.append(relay)
+    
+    logger.info(f"Processing {len(unique_relays)} unique relays out of {len(relays)} total")
+    
+    # Process relays in batches
     for i in tqdm(range(n_batches), desc="Processing relay batches"):
         # Get current batch of relays
         start_idx = i * batch_size
-        batch = relays[start_idx : start_idx + batch_size]
+        batch = unique_relays[start_idx : start_idx + batch_size]
 
         logger.info(f"Testing batch {i+1}/{n_batches}: {batch}")
 
-        # Test the batch
-        try:
-            batch_results = await test_relay_batch(batch, timeout_seconds)
-            results.append({"batch": i, "relays": batch, "results": batch_results})
-        except Exception as e:
-            logger.error(f"Error testing batch {i+1}: {e}")
+        # Test the batch with retries
+        success = False
+        for retry in range(max_retries + 1):  # +1 for initial attempt
+            try:
+                if retry > 0:
+                    logger.warning(f"Retry {retry}/{max_retries} for batch {i+1}")
+                
+                batch_results = await test_relay_batch(
+                    batch, 
+                    timeout_seconds=timeout_seconds
+                )
+                
+                results.append({"batch": i, "relays": batch, "results": batch_results})
+                success = True
+                break
+            except Exception as e:
+                logger.error(f"Error testing batch {i+1} (attempt {retry+1}): {e}")
+                if retry < max_retries:
+                    # Wait before retrying
+                    await asyncio.sleep(2)
+        
+        if not success:
+            logger.error(f"Failed to process batch {i+1} after {max_retries + 1} attempts")
+            # Add empty result to maintain batch count
+            results.append({
+                "batch": i, 
+                "relays": batch, 
+                "results": {"duration": 0, "relays": {}}
+            })
 
         # Wait between batches unless it's the last batch
         if i < n_batches - 1:
@@ -1111,12 +2224,208 @@ def process_and_save_results(
     return str(filepath)
 
 
+def analyze_kind_distribution(data):
+    """
+    Analyze the distribution of DVM kinds across relays.
+    
+    Args:
+        data: Processed results data
+        
+    Returns:
+        Dictionary with kind distribution analysis
+    """
+    # Count occurrences of each kind across all relays
+    kind_counts = {}
+    relays_with_kind = {}
+    kinds_by_relay = {}
+    
+    for relay_data in data['results']:
+        relay = relay_data['relay']
+        kinds_by_relay[relay] = set(relay_data['kinds_found'])
+        
+        for kind in relay_data['kinds_found']:
+            if kind not in kind_counts:
+                kind_counts[kind] = 0
+                relays_with_kind[kind] = 0
+            
+            kind_counts[kind] += relay_data['events_per_kind'].get(str(kind), 0)
+            relays_with_kind[kind] += 1
+    
+    # Find rare kinds (those that appear in few relays)
+    rare_kinds = []
+    if relays_with_kind:
+        threshold = max(1, len([r for r in data['results'] if r['total_events'] > 0]) * 0.1)  # 10% of active relays
+        rare_kinds = [k for k, count in relays_with_kind.items() if count <= threshold]
+    
+    # Find relays with unique kinds
+    relays_with_unique_kinds = {}
+    for relay, kinds in kinds_by_relay.items():
+        if not kinds:
+            continue
+            
+        unique_kinds = set()
+        for kind in kinds:
+            # Check if this kind appears in only this relay or very few relays
+            if relays_with_kind.get(kind, 0) <= 3:  # Appears in 3 or fewer relays
+                unique_kinds.add(kind)
+        
+        if unique_kinds:
+            relays_with_unique_kinds[relay] = list(unique_kinds)
+    
+    return {
+        'kind_counts': kind_counts,
+        'relays_with_kind': relays_with_kind,
+        'rare_kinds': rare_kinds,
+        'relays_with_unique_kinds': relays_with_unique_kinds
+    }
+
+def generate_relay_recommendations(data, kind_analysis, top_n=30):
+    """
+    Generate a ranked list of recommended relays for monitoring.
+    
+    Args:
+        data: Processed results data
+        kind_analysis: Analysis of kind distribution
+        top_n: Number of top relays to recommend
+        
+    Returns:
+        List of recommended relays with scores and reasons
+    """
+    # Create a scoring system for relays
+    relay_scores = {}
+    relay_reasons = {}
+    
+    # Get relays with events
+    active_relays = [r for r in data['results'] if r['total_events'] > 0]
+    
+    # Calculate maximum values for normalization
+    max_events = max([r['total_events'] for r in active_relays]) if active_relays else 1
+    max_kinds = max([r['num_kinds'] for r in active_relays]) if active_relays else 1
+    
+    # Score each relay
+    for relay_data in active_relays:
+        relay = relay_data['relay']
+        score = 0
+        reasons = []
+        
+        # Score based on total events (40% weight)
+        event_score = (relay_data['total_events'] / max_events) * 40
+        score += event_score
+        
+        # Score based on variety of kinds (40% weight)
+        kind_score = (relay_data['num_kinds'] / max_kinds) * 40
+        score += kind_score
+        
+        # Bonus for having unique kinds (20% weight)
+        unique_kinds = kind_analysis.get('relays_with_unique_kinds', {}).get(relay, [])
+        if unique_kinds:
+            unique_score = min(len(unique_kinds) * 5, 20)  # Cap at 20 points
+            score += unique_score
+            reasons.append(f"Has {len(unique_kinds)} unique DVM kinds")
+        
+        # Add reasons for recommendation
+        if relay_data['total_events'] > max_events * 0.5:
+            reasons.append("High event volume")
+        if relay_data['num_kinds'] > max_kinds * 0.5:
+            reasons.append("High DVM kind variety")
+        
+        relay_scores[relay] = score
+        relay_reasons[relay] = reasons
+    
+    # Sort relays by score
+    ranked_relays = sorted(relay_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    
+    # Prepare recommendations
+    recommendations = []
+    for i, (relay, score) in enumerate(ranked_relays):
+        relay_data = next(r for r in data['results'] if r['relay'] == relay)
+        recommendation = {
+            'rank': i + 1,
+            'relay': relay,
+            'score': score,
+            'events': relay_data['total_events'],
+            'kinds': relay_data['num_kinds'],
+            'reasons': relay_reasons[relay]
+        }
+        recommendations.append(recommendation)
+    
+    return recommendations
+
+
+def print_top_results(data, top_n=20):
+    """
+    Print the top N relays by events and kinds.
+    
+    Args:
+        data: Processed results data
+        top_n: Number of top relays to display
+    """
+    print("\n=== TOP RELAYS BY TOTAL DVM EVENTS ===")
+    by_events = sorted(data['results'], key=lambda x: x['total_events'], reverse=True)[:top_n]
+    for i, relay in enumerate(by_events):
+        if relay['total_events'] > 0:
+            print(f"{i+1}. {relay['relay']}: {relay['total_events']} events")
+    
+    print("\n=== TOP RELAYS BY VARIETY OF DVM KINDS ===")
+    by_kinds = sorted(data['results'], key=lambda x: x['num_kinds'], reverse=True)[:top_n]
+    for i, relay in enumerate(by_kinds):
+        if relay['num_kinds'] > 0:
+            print(f"{i+1}. {relay['relay']}: {relay['num_kinds']} different kinds")
+            print(f"   Kinds: {sorted(relay['kinds_found'])}")
+    
+    # Analyze and print kind distribution
+    kind_analysis = analyze_kind_distribution(data)
+    
+    if kind_analysis['kind_counts']:
+        print("\n=== DVM KIND DISTRIBUTION ===")
+        print(f"Total unique DVM kinds found: {len(kind_analysis['kind_counts'])}")
+        
+        print("\nMost common DVM kinds:")
+        top_kinds = sorted(kind_analysis['kind_counts'].items(), key=lambda x: x[1], reverse=True)[:10]
+        for kind, count in top_kinds:
+            print(f"  Kind {kind}: {count} events across {kind_analysis['relays_with_kind'][kind]} relays")
+        
+        if kind_analysis['rare_kinds']:
+            print("\nRare DVM kinds (found in few relays):")
+            for kind in sorted(kind_analysis['rare_kinds']):
+                print(f"  Kind {kind}: {kind_analysis['kind_counts'][kind]} events in {kind_analysis['relays_with_kind'][kind]} relays")
+        
+        # Print relays with unique kinds
+        if 'relays_with_unique_kinds' in kind_analysis and kind_analysis['relays_with_unique_kinds']:
+            print("\n=== RELAYS WITH UNIQUE DVM KINDS ===")
+            print("These relays have DVM kinds that appear in 3 or fewer relays total:")
+            
+            # Sort by number of unique kinds
+            sorted_unique_relays = sorted(
+                kind_analysis['relays_with_unique_kinds'].items(), 
+                key=lambda x: len(x[1]), 
+                reverse=True
+            )
+            
+            for relay, unique_kinds in sorted_unique_relays:
+                print(f"  {relay}: {len(unique_kinds)} unique kinds")
+                print(f"    Unique kinds: {sorted(unique_kinds)}")
+        
+        # Generate and print relay recommendations
+        recommendations = generate_relay_recommendations(data, kind_analysis, top_n=30)
+        
+        print("\n=== RECOMMENDED RELAYS FOR MONITORING ===")
+        print(f"Top {len(recommendations)} relays ranked by combined score of event volume, kind variety, and uniqueness:")
+        
+        for rec in recommendations:
+            reasons_str = ", ".join(rec['reasons']) if rec['reasons'] else "Good overall performance"
+            print(f"{rec['rank']:2d}. {rec['relay']} (Score: {rec['score']:.1f})")
+            print(f"    Events: {rec['events']}, Kinds: {rec['kinds']}")
+            print(f"    Why: {reasons_str}")
+
+
 async def main():
     try:
         logger.info("Starting relay batch testing")
 
+        # Process all relays, not just a subset
         results = await process_all_relays(
-            relays=RELAYS[10:100],
+            relays=RELAYS,  # Use all relays instead of a subset
             batch_size=5,
             timeout_seconds=60,
             delay_between_batches=5,
@@ -1127,21 +2436,54 @@ async def main():
         logger.info(f"Results saved to: {filepath}")
 
         # Print summary of sorted results
-        logger.info("\nTesting completed. Summary (sorted by number of kinds):")
+        logger.info("\nTesting completed. Summary:")
         with open(filepath, "r") as f:
             data = json.load(f)
 
-        print("\nSummary:")
-        print(f"Total relays tested: {data['summary']['total_relays_tested']}")
-        print(f"Relays with events: {data['summary']['relays_with_events']}")
-        print(f"Total events found: {data['summary']['total_events_found']}")
+        # Calculate percentage of relays with DVM events
+        total_relays = data['summary']['total_relays_tested']
+        relays_with_events = data['summary']['relays_with_events']
+        percentage = (relays_with_events / total_relays * 100) if total_relays > 0 else 0
 
-        print("\nResults by relay:")
-        for relay_data in data["results"]:
-            print(f"\n  {relay_data['relay']}:")
-            print(f"    Total events: {relay_data['total_events']}")
-            print(f"    Number of kinds: {relay_data['num_kinds']}")
-            print(f"    Kinds found: {relay_data['kinds_found']}")
+        print("\n=== SUMMARY ===")
+        print(f"Total relays tested: {total_relays}")
+        print(f"Relays with DVM events: {relays_with_events} ({percentage:.1f}%)")
+        print(f"Total DVM events found: {data['summary']['total_events_found']}")
+        
+        # Calculate average events per relay with events
+        if relays_with_events > 0:
+            avg_events = data['summary']['total_events_found'] / relays_with_events
+            print(f"Average events per active relay: {avg_events:.1f}")
+
+        # Print top results in a more readable format
+        print_top_results(data)
+        
+        # Generate and save recommended relay list
+        kind_analysis = analyze_kind_distribution(data)
+        recommendations = generate_relay_recommendations(data, kind_analysis, top_n=30)
+        
+        # Save recommendations to a file
+        recommendations_file = Path("results") / f"recommended_relays_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        Path("results").mkdir(parents=True, exist_ok=True)
+        
+        with open(recommendations_file, "w") as f:
+            json.dump({
+                "timestamp": datetime.now().isoformat(),
+                "recommendations": recommendations,
+                "explanation": "Relays are ranked based on a combined score of event volume (40%), kind variety (40%), and uniqueness (20%)"
+            }, f, indent=2)
+        
+        # Also save a simple text file with just the relay URLs for easy copying
+        relay_list_file = Path("results") / f"relay_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        with open(relay_list_file, "w") as f:
+            f.write("# Top recommended relays for DVM monitoring\n")
+            f.write("# Generated on: " + datetime.now().isoformat() + "\n\n")
+            for rec in recommendations:
+                f.write(rec['relay'] + "\n")
+        
+        print(f"\nDetailed results saved to: {filepath}")
+        print(f"Recommended relays saved to: {recommendations_file}")
+        print(f"Simple relay list saved to: {relay_list_file}")
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt, shutting down...")

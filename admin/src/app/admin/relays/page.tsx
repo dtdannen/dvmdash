@@ -374,10 +374,48 @@ export default function RelaysPage() {
       {systemStatus && (
         <div className="bg-white rounded-lg shadow mb-8">
           <div className="px-4 py-3 border-b">
-            <h2 className="text-lg font-semibold">Event Collectors</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              The number of event collectors is configured at startup in the docker-compose.yml file, under event_collector {'->'} deploy {'->'} replicas
-            </p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-lg font-semibold">Event Collectors</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  The number of event collectors is configured at startup in the docker-compose.yml file, under event_collector {'->'} deploy {'->'} replicas
+                </p>
+              </div>
+              <div>
+                <button
+                  onClick={() => {
+                    if (window.confirm('⚠️ WARNING: This will remove all collector state from Redis.\n\nYou will need to restart the event collectors after this operation.\n\nAre you sure you want to proceed?')) {
+                      setLoading(true);
+                      fetch('/api/admin/collectors/reset', {
+                        method: 'POST',
+                      })
+                        .then(res => res.json())
+                        .then(data => {
+                          if (data.success) {
+                            alert(`${data.message}. Please restart your event collectors.`);
+                            fetchData();
+                          } else {
+                            setError(data.error || 'Failed to reset collectors');
+                          }
+                        })
+                        .catch(err => {
+                          console.error('Error resetting collectors:', err);
+                          setError('Failed to reset collectors');
+                        })
+                        .finally(() => {
+                          setLoading(false);
+                        });
+                    }
+                  }}
+                  disabled={loading}
+                  className="px-3 py-2 bg-red-500 text-white text-sm rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
+                >
+                  <span className="mr-1">⚠️</span>
+                  {loading ? 'Processing...' : 'Clear All Collectors'}
+                </button>
+                <p className="text-xs text-red-500 mt-1">Requires collector restart</p>
+              </div>
+            </div>
           </div>
           <div className="divide-y">
             {systemStatus.collectors.length === 0 ? (

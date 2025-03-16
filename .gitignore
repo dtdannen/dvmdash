@@ -201,3 +201,7 @@ utility/scanner/results/
 
 admin/.env.production
 frontend/dvmdash-frontend/.env.production
+relay_frequencies.txt
+temp_relay_frequencies.txt
+temp_relay_urls.txt
+unique_relay_urls.txt

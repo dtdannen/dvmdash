@@ -377,7 +377,7 @@ class RelayCoordinator:
                         pipe.srem('dvmdash:collectors:active', collector_id)
                         
                         # Clean up collector keys
-                        pipe.delete(f'dvmdash:collector:{collector_id_str}')
+                         
                         pipe.delete(f'dvmdash:collector:{collector_id_str}:relays')
                         pipe.delete(f'dvmdash:collector:{collector_id_str}:nsec_key')
                         

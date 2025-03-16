@@ -15,13 +15,12 @@ export async function GET() {
       // Ensure collector_id is a string for Redis key
       const collectorIdStr = typeof collectorId === 'string' ? collectorId : (collectorId as any).toString();
       
-      const heartbeat = await redis.get(`dvmdash:collector:${collectorIdStr}:heartbeat`);
-      const configVersion = await redis.get(`dvmdash:collector:${collectorIdStr}:config_version`);
+      // Get collector information from hash
+      const collectorData = await redis.hgetall(`dvmdash:collector:${collectorIdStr}`);
       const relaysJson = await redis.get(`dvmdash:collector:${collectorIdStr}:relays`);
       
       result.collectors[collectorIdStr] = {
-        heartbeat,
-        config_version: configVersion,
+        collector_data: collectorData,
         relays: relaysJson ? JSON.parse(relaysJson) : {}
       };
       
@@ -31,23 +30,12 @@ export async function GET() {
       if (relaysJson) {
         const relays = JSON.parse(relaysJson);
         for (const relayUrl of Object.keys(relays)) {
-          // Try both with and without trailing slash
-          const metricsKeys = [
-            `dvmdash:collector:${collectorIdStr}:metrics:${relayUrl}`,
-            `dvmdash:collector:${collectorIdStr}:metrics:${relayUrl}/`,
-            `collectors:${collectorIdStr}:metrics:${relayUrl}`,
-            `collectors:${collectorIdStr}:metrics:${relayUrl}/`
-          ];
+          // Use consistent key format
+          const metricsKey = `dvmdash:collector:${collectorIdStr}:metrics:${relayUrl}`;
+          const metrics = await redis.hgetall(metricsKey);
           
-          for (const metricsKey of metricsKeys) {
-            const metrics = await redis.hgetall(metricsKey);
-            
-            if (Object.keys(metrics).length > 0) {
-              result.collectors[collectorIdStr].metrics[relayUrl] = metrics;
-              // Also add the key that worked for debugging
-              result.collectors[collectorIdStr].metrics[`${relayUrl}_key_used`] = metricsKey;
-              break;
-            }
+          if (Object.keys(metrics).length > 0) {
+            result.collectors[collectorIdStr].metrics[relayUrl] = metrics;
           }
         }
       }
