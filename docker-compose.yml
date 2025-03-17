@@ -169,7 +169,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: ./api/Dockerfile
+      dockerfile: ./api/Dockerfile.local
     profiles: [ "all" ]
     ports:
       - "8000:8000"
