@@ -348,7 +348,21 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
 
       <main className="container mx-auto p-4">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold mb-2">DVM: {stats.dvm_id}</h2>
+          <div className="flex items-center gap-4 mb-2">
+            {stats.dvm_picture && (
+              <img 
+                src={stats.dvm_picture} 
+                alt={stats.dvm_name || stats.dvm_id} 
+                className="w-12 h-12 rounded-full object-cover"
+              />
+            )}
+            <h2 className="text-2xl font-bold">
+              DVM: {stats.dvm_name || stats.dvm_id}
+            </h2>
+          </div>
+          {stats.dvm_about && (
+            <p className="text-sm text-muted-foreground mb-2">{stats.dvm_about}</p>
+          )}
           <p className="text-sm text-muted-foreground">
             Showing data from {stats.period_start.toLocaleString()} to {stats.period_end.toLocaleString()}
           </p>

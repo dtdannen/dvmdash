@@ -80,11 +80,15 @@ export interface DVMTimeSeriesData {
 
 export interface DVMStats {
   dvm_id: string
+  dvm_name?: string
+  dvm_about?: string
+  dvm_picture?: string
   timestamp: string
   period_start: string
   period_end: string
   total_responses: number
   total_feedback: number
+  supported_kinds?: number[]
   time_series: DVMTimeSeriesData[]
 }
 
