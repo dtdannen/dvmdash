@@ -53,6 +53,9 @@ export interface DVMTimeSeriesData {
 
 export interface DVMStats {
   dvm_id: string;
+  dvm_name?: string;
+  dvm_about?: string;
+  dvm_picture?: string;
   timestamp: Date;
   period_start: Date;
   period_end: Date;
@@ -72,6 +75,9 @@ export interface DVMListItem {
   supported_kinds: number[];
   num_supporting_kinds: number;
   is_active: boolean;
+  dvm_name?: string;
+  dvm_about?: string;
+  dvm_picture?: string;
 }
 
 export interface DVMList {

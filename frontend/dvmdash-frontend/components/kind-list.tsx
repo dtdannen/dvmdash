@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -26,20 +26,88 @@ interface KindTableProps {
   kinds: KindListResponse['kinds']
 }
 
+type SortableColumn = 'kind' | 'total_requests' | 'total_responses' | 'num_supporting_dvms' | 'last_seen'
+
 const KindTable = ({ kinds }: KindTableProps) => {
+  const [sortColumn, setSortColumn] = useState<SortableColumn | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleHeaderClick = (column: SortableColumn) => {
+    if (sortColumn === column) {
+      // Toggle direction if clicking the same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedKinds = useMemo(() => {
+    if (!sortColumn) return kinds
+
+    return [...kinds].sort((a, b) => {
+      let aValue, bValue
+
+      if (sortColumn === 'last_seen') {
+        // Date comparison for last_seen
+        aValue = new Date(a.last_seen).getTime()
+        bValue = new Date(b.last_seen).getTime()
+      } else {
+        // For numeric columns
+        aValue = a[sortColumn] || 0
+        bValue = b[sortColumn] || 0
+      }
+
+      // Sort based on direction
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    })
+  }, [kinds, sortColumn, sortDirection])
+
+  // Helper to render sort indicator
+  const renderSortIndicator = (column: SortableColumn) => {
+    if (sortColumn !== column) return null
+    return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+  }
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Kind</TableHead>
-          <TableHead className="text-right">Requests</TableHead>
-          <TableHead className="text-right">Responses</TableHead>
-          <TableHead className="text-right">Supporting DVMs</TableHead>
-          <TableHead className="text-right">Last Seen</TableHead>
+          <TableHead 
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('kind')}
+          >
+            Kind {renderSortIndicator('kind')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('total_requests')}
+          >
+            Requests {renderSortIndicator('total_requests')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('total_responses')}
+          >
+            Responses {renderSortIndicator('total_responses')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('num_supporting_dvms')}
+          >
+            Supporting DVMs {renderSortIndicator('num_supporting_dvms')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('last_seen')}
+          >
+            Last Seen {renderSortIndicator('last_seen')}
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {kinds.map((kind) => (
+        {sortedKinds.map((kind) => (
           <TableRow key={kind.kind}>
             <TableCell className="font-medium">
               <Link href={`/kind-stats/${kind.kind}`} className="hover:underline">

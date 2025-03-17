@@ -586,6 +586,10 @@ class EventCollectorCoordinatorManager:
         self.global_cleanup_interval = int(
             os.getenv("GLOBAL_CLEANUP_INTERVAL_SECONDS", 3600)
         )  # Default: 1 hour
+        self.last_dvm_profile_update = 0
+        self.dvm_profile_update_interval = int(
+            os.getenv("DVM_PROFILE_UPDATE_INTERVAL_SECONDS", 60)  # use 86400 in prod
+        )  # Default: 1 day
 
         # Initialize nsec keys from environment variable
         self._initialize_nsec_keys()
@@ -654,6 +658,127 @@ class EventCollectorCoordinatorManager:
         self.redis.rpush("dvmdash:errors", error_msg)
         return False
 
+    async def update_dvm_profiles(self):
+        """Update DVM profiles from recent kind 31990 events (last 2 days)"""
+        try:
+            logger.info("Starting daily DVM profile update")
+
+            # Connect to the database
+            async with self.metrics_pool.acquire() as conn:
+                # Get profile events from the last 2 days
+                two_days_ago = int(time.time()) - (2 * 24 * 60 * 60)
+
+                # Query for recent profile events
+                rows = await conn.fetch(
+                    """
+                    SELECT id, pubkey, created_at, content
+                    FROM raw_events 
+                    WHERE kind = 31990 AND created_at > to_timestamp($1)
+                    ORDER BY pubkey, created_at DESC
+                """,
+                    two_days_ago,
+                )
+
+                logger.info(f"Found {len(rows)} recent DVM profile events")
+
+                # Process events
+                updated_count = 0
+                skipped_count = 0
+                error_count = 0
+                current_dvm = None
+
+                for row in rows:
+                    event_id, pubkey, created_at, content = row
+
+                    # Skip older events for the same DVM (we only want the newest)
+                    if current_dvm == pubkey:
+                        skipped_count += 1
+                        continue
+
+                    current_dvm = pubkey
+
+                    # Validate JSON content
+                    try:
+                        profile_data = json.loads(content)
+
+                        # Check if this DVM already has a profile and if this event is newer
+                        existing = await conn.fetchrow(
+                            """
+                            SELECT last_profile_event_id, last_profile_event_updated_at
+                            FROM dvms
+                            WHERE id = $1
+                        """,
+                            pubkey,
+                        )
+
+                        if existing:
+                            existing_event_id, existing_updated_at = existing
+
+                            # Skip if we already have a newer profile
+                            if existing_updated_at:
+                                # Ensure both datetimes are timezone-aware for comparison
+                                if not existing_updated_at.tzinfo:
+                                    existing_updated_at = existing_updated_at.replace(
+                                        tzinfo=timezone.utc
+                                    )
+                                if not created_at.tzinfo:
+                                    created_at = created_at.replace(tzinfo=timezone.utc)
+
+                                # Compare timestamps and log details for debugging
+                                if existing_updated_at >= created_at:
+                                    logger.debug(
+                                        f"Skipping profile for DVM {pubkey}: existing={existing_updated_at} >= new={created_at}"
+                                    )
+                                    skipped_count += 1
+                                    continue
+                                else:
+                                    logger.debug(
+                                        f"Updating profile for DVM {pubkey}: existing={existing_updated_at} < new={created_at}"
+                                    )
+
+                        # Update the DVM's profile
+                        await conn.execute(
+                            """
+                            INSERT INTO dvms (
+                                id, first_seen, last_seen, 
+                                last_profile_event_id, last_profile_event_raw_json, 
+                                last_profile_event_updated_at, updated_at
+                            )
+                            VALUES ($1, $2, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+                            ON CONFLICT (id) DO UPDATE SET
+                                last_profile_event_id = $3,
+                                last_profile_event_raw_json = $4,
+                                last_profile_event_updated_at = $5,
+                                updated_at = CURRENT_TIMESTAMP
+                        """,
+                            pubkey,
+                            created_at,
+                            event_id,
+                            content,
+                            created_at,
+                        )
+
+                        updated_count += 1
+
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Invalid JSON content in event {event_id} for DVM {pubkey}"
+                        )
+                        error_count += 1
+                    except Exception as e:
+                        logger.warning(
+                            f"Error processing event {event_id} (will skip it): {str(e)}"
+                        )
+                        error_count += 1
+
+                logger.info(
+                    f"DVM profile update completed: {updated_count} updated, {skipped_count} skipped, {error_count} errors"
+                )
+
+        except Exception as e:
+            logger.error(f"Error updating DVM profiles: {e}")
+            logger.error(traceback.format_exc())
+
     async def process_forever(self):
         """Main processing loop for the coordinator"""
         consecutive_errors = 0
@@ -698,6 +823,14 @@ class EventCollectorCoordinatorManager:
                 ):
                     await self._perform_global_cleanup()
                     self.last_global_cleanup = current_time
+
+                # Update DVM profiles
+                if (
+                    current_time - self.last_dvm_profile_update
+                    >= self.dvm_profile_update_interval
+                ):
+                    await self.update_dvm_profiles()
+                    self.last_dvm_profile_update = current_time
 
                 # Check for historical data requests (future implementation)
                 await self.historical_coordinator.check_historical_data_requests()
