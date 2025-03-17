@@ -33,7 +33,8 @@ interface DVMCardProps {
 }
 
 const DVMCard = ({ dvm }: DVMCardProps) => {
-  const initials = dvm.id.substring(0, 2).toUpperCase()
+  const displayName = dvm.dvm_name || dvm.id
+  const initials = displayName.substring(0, 2).toUpperCase()
   const lastSeenDate = new Date(dvm.last_seen)
   const timeAgo = Math.round((Date.now() - lastSeenDate.getTime()) / (1000 * 60)) // minutes ago
 
@@ -43,10 +44,13 @@ const DVMCard = ({ dvm }: DVMCardProps) => {
         <CardContent className="p-4">
           <div className="flex items-center space-x-4">
             <Avatar>
+              {dvm.dvm_picture ? (
+                <AvatarImage src={dvm.dvm_picture} alt={displayName} />
+              ) : null}
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{dvm.id}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
               <p className="text-xs text-gray-500 truncate">
                 {dvm.supported_kinds.length} supported kinds • {dvm.num_supporting_kinds} supporting
               </p>
@@ -89,8 +93,14 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
         {dvms.map((dvm: DVMListItem) => (
           <TableRow key={dvm.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
             <TableCell className="font-medium">
-              <Link href={`/dvm-stats/${dvm.id}`} className="hover:underline">
-                {dvm.id}
+              <Link href={`/dvm-stats/${dvm.id}`} className="hover:underline flex items-center">
+                {dvm.dvm_picture && (
+                  <Avatar className="h-6 w-6 mr-2">
+                    <AvatarImage src={dvm.dvm_picture} alt={dvm.dvm_name || dvm.id} />
+                    <AvatarFallback>{(dvm.dvm_name || dvm.id).substring(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                )}
+                {dvm.dvm_name || dvm.id}
               </Link>
             </TableCell>
             <TableCell className="text-right">{dvm.supported_kinds.length}</TableCell>
@@ -111,10 +121,12 @@ export function DVMList() {
   const [timeRange, setTimeRange] = useState<TimeWindow>('30d')
   const { dvmList, isLoading, isError } = useDVMList(100, 0, timeRange as TimeWindow)
 
-  // Filter DVMs based on search term
-  const filteredDVMs = dvmList?.dvms.filter((dvm: DVMListItem) =>
-    dvm.id.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || []
+  // Filter DVMs based on search term (match against ID or name)
+  const filteredDVMs = dvmList?.dvms.filter((dvm: DVMListItem) => {
+    const searchTermLower = searchTerm.toLowerCase();
+    return dvm.id.toLowerCase().includes(searchTermLower) || 
+           (dvm.dvm_name && dvm.dvm_name.toLowerCase().includes(searchTermLower));
+  }) || []
 
   return (
     <div className="min-h-screen bg-background">
