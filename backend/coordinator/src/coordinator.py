@@ -718,17 +718,23 @@ class EventCollectorCoordinatorManager:
                             if existing_updated_at:
                                 # Ensure both datetimes are timezone-aware for comparison
                                 if not existing_updated_at.tzinfo:
-                                    existing_updated_at = existing_updated_at.replace(tzinfo=timezone.utc)
+                                    existing_updated_at = existing_updated_at.replace(
+                                        tzinfo=timezone.utc
+                                    )
                                 if not created_at.tzinfo:
                                     created_at = created_at.replace(tzinfo=timezone.utc)
-                                
+
                                 # Compare timestamps and log details for debugging
                                 if existing_updated_at >= created_at:
-                                    logger.debug(f"Skipping profile for DVM {pubkey}: existing={existing_updated_at} >= new={created_at}")
+                                    logger.debug(
+                                        f"Skipping profile for DVM {pubkey}: existing={existing_updated_at} >= new={created_at}"
+                                    )
                                     skipped_count += 1
                                     continue
                                 else:
-                                    logger.debug(f"Updating profile for DVM {pubkey}: existing={existing_updated_at} < new={created_at}")
+                                    logger.debug(
+                                        f"Updating profile for DVM {pubkey}: existing={existing_updated_at} < new={created_at}"
+                                    )
 
                         # Update the DVM's profile
                         await conn.execute(
