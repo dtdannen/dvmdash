@@ -7,9 +7,15 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 import os
 import asyncpg
+import redis
+import time
+import json
 from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
+
+from admin_routes import router as admin_router
+from relay_config import RelayConfigManager
 
 
 class DVMTimeSeriesData(BaseModel):
@@ -20,6 +26,9 @@ class DVMTimeSeriesData(BaseModel):
 
 class DVMStatsResponse(BaseModel):
     dvm_id: str
+    dvm_name: Optional[str] = None
+    dvm_about: Optional[str] = None
+    dvm_picture: Optional[str] = None
     timestamp: datetime
     total_responses: int
     total_feedback: int
@@ -34,6 +43,9 @@ class DVMListItem(BaseModel):
     total_responses: Optional[int] = None
     total_feedback: Optional[int] = None
     total_events: Optional[int] = None
+    dvm_name: Optional[str] = None
+    dvm_about: Optional[str] = None
+    dvm_picture: Optional[str] = None
 
 
 class DVMListResponse(BaseModel):
@@ -112,6 +124,9 @@ class KindListResponse(BaseModel):
 
 app = FastAPI(title="DVMDash API")
 
+# Include admin routes
+app.include_router(admin_router)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -143,9 +158,61 @@ async def get_db_pool():
     )
 
 
+def clean_stale_collectors(redis_client):
+    """Remove stale collectors from Redis"""
+    current_time = int(time.time())
+    # Increase the threshold to 30 minutes to give collectors more time to start up
+    active_threshold = current_time - (30 * 60)
+    
+    collectors = redis_client.smembers('dvmdash:collectors:active')
+    removed_count = 0
+    
+    for collector_id in collectors:
+        heartbeat = redis_client.get(f'dvmdash:collector:{collector_id}:heartbeat')
+        # Only remove collectors that have a heartbeat older than the threshold
+        # Don't remove collectors that haven't sent a heartbeat yet (they might be starting up)
+        if heartbeat and int(heartbeat) < active_threshold:
+            print(f"Removing stale collector: {collector_id}")
+            # Remove from active set
+            redis_client.srem('dvmdash:collectors:active', collector_id)
+            # Clean up all collector keys
+            for key in redis_client.keys(f'dvmdash:collector:{collector_id}:*'):
+                redis_client.delete(key)
+            removed_count += 1
+    
+    if removed_count > 0:
+        print(f"Cleaned up {removed_count} stale collectors")
+    return removed_count
+
 @app.on_event("startup")
 async def startup():
     app.state.pool = await get_db_pool()
+    
+    # Initialize Redis connection
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    app.state.redis = redis.from_url(redis_url)
+    
+    # Clean up stale collectors
+    clean_stale_collectors(app.state.redis)
+    
+    # Initialize relays in Redis if none exist
+    relays = RelayConfigManager.get_all_relays(app.state.redis)
+    if not relays:
+        print("No relays found in Redis. Initializing default relays...")
+        default_relays_str = os.getenv("DEFAULT_RELAYS", "wss://relay.damus.io,wss://relay.primal.net")
+        default_relays = [url.strip() for url in default_relays_str.split(",") if url.strip()]
+        
+        for relay_url in default_relays:
+            # Add relay with normal activity level
+            success = RelayConfigManager.add_relay(app.state.redis, relay_url, "normal")
+            if success:
+                print(f"Added relay: {relay_url}")
+            else:
+                print(f"Failed to add relay: {relay_url}")
+        
+        # Request relay distribution from coordinator
+        RelayConfigManager.request_relay_distribution(app.state.redis)
+        print("Requested relay distribution from coordinator")
 
 
 @app.on_event("shutdown")
@@ -301,6 +368,7 @@ async def list_dvms(
                     d.id,
                     d.last_seen,
                     d.is_active,
+                    d.last_profile_event_raw_json,
                     COALESCE(dk.supported_kinds, ARRAY[]::integer[]) as supported_kinds,
                     s.total_responses,
                     s.total_feedback,
@@ -319,6 +387,7 @@ async def list_dvms(
                     d.id,
                     d.last_seen,
                     d.is_active,
+                    d.last_profile_event_raw_json,
                     COALESCE(dk.supported_kinds, ARRAY[]::integer[]) as supported_kinds,
                     NULL::integer as total_responses,
                     NULL::integer as total_feedback,
@@ -331,7 +400,37 @@ async def list_dvms(
             """
             rows = await conn.fetch(query, limit, offset)
 
-        return {"dvms": [dict(row) for row in rows]}
+        # Process rows to extract profile information
+        processed_rows = []
+        for row in rows:
+            row_dict = dict(row)
+            
+            # Extract profile information
+            profile_json = row_dict.pop('last_profile_event_raw_json', None)
+            if profile_json:
+                try:
+                    if isinstance(profile_json, str):
+                        profile_json = json.loads(profile_json)
+                    
+                    # Extract name
+                    if "name" in profile_json:
+                        row_dict["dvm_name"] = profile_json["name"]
+                    
+                    # Extract about
+                    if "about" in profile_json:
+                        row_dict["dvm_about"] = profile_json["about"]
+                    
+                    # Extract picture (check both picture and image fields)
+                    if "picture" in profile_json:
+                        row_dict["dvm_picture"] = profile_json["picture"]
+                    elif "image" in profile_json:
+                        row_dict["dvm_picture"] = profile_json["image"]
+                except Exception as e:
+                    print(f"Error parsing profile JSON for DVM {row_dict['id']}: {e}")
+            
+            processed_rows.append(row_dict)
+
+        return {"dvms": processed_rows}
 
 
 @app.get("/api/stats/dvm/{dvm_id}", response_model=DVMStatsResponse)
@@ -348,7 +447,7 @@ async def get_dvm_stats(
     async with app.state.pool.acquire() as conn:
         # First check if DVM exists
         dvm_check = await conn.fetchrow(
-            "SELECT id, is_active FROM dvms WHERE id = $1", dvm_id
+            "SELECT id, is_active, last_profile_event_raw_json FROM dvms WHERE id = $1", dvm_id
         )
         if not dvm_check:
             print(f"[DVM Stats] DVM {dvm_id} not found")
@@ -360,6 +459,35 @@ async def get_dvm_stats(
             )
 
         print(f"[DVM Stats] Found active DVM {dvm_id}")
+        
+        # Extract profile information
+        dvm_name = None
+        dvm_about = None
+        dvm_picture = None
+        
+        if dvm_check["last_profile_event_raw_json"]:
+            try:
+                profile_json = dvm_check["last_profile_event_raw_json"]
+                if isinstance(profile_json, str):
+                    profile_json = json.loads(profile_json)
+                
+                # Extract name
+                if "name" in profile_json:
+                    dvm_name = profile_json["name"]
+                
+                # Extract about
+                if "about" in profile_json:
+                    dvm_about = profile_json["about"]
+                
+                # Extract picture (check both picture and image fields)
+                if "picture" in profile_json:
+                    dvm_picture = profile_json["picture"]
+                elif "image" in profile_json:
+                    dvm_picture = profile_json["image"]
+                
+                print(f"[DVM Stats] Extracted profile data: name={dvm_name}, has_about={bool(dvm_about)}, has_picture={bool(dvm_picture)}")
+            except Exception as e:
+                print(f"[DVM Stats] Error parsing profile JSON: {e}")
 
         # Get latest stats from dvm_time_window_stats
         stats_query = """
@@ -453,7 +581,13 @@ async def get_dvm_stats(
         time_series = [dict(row) for row in timeseries_rows]
         print(f"[DVM Stats] Found {len(time_series)} time series data points")
 
-        result = {**dict(stats), "time_series": time_series}
+        result = {
+            **dict(stats), 
+            "time_series": time_series,
+            "dvm_name": dvm_name,
+            "dvm_about": dvm_about,
+            "dvm_picture": dvm_picture
+        }
         print(f"[DVM Stats] Returning result with {len(result['time_series'])} time series points")
         return result
 

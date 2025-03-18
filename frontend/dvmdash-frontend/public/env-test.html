@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Environment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Environment Test</h1>
+    <div id="env-info">Loading environment information...</div>
+    <h2>API Test</h2>
+    <div id="api-test">Testing API connection...</div>
+
+    <script>
+        // Display environment variables
+        const envInfo = document.getElementById('env-info');
+        const apiTest = document.getElementById('api-test');
+
+        // Function to test direct API call
+        async function testDirectApi() {
+            try {
+                const apiUrl = window.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                const url = `${apiUrl}/health`;
+                
+                apiTest.innerHTML = `<p>Testing direct API call to: ${url}</p>`;
+                
+                const response = await fetch(url, {
+                    headers: { 'Accept': 'application/json' },
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                apiTest.innerHTML = `
+                    <p>Testing direct API call to: ${url}</p>
+                    <h3 class="success">Success!</h3>
+                    <p>Status: ${response.status}</p>
+                    <p>Data:</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                apiTest.innerHTML = `
+                    <h3 class="error">Error</h3>
+                    <p>Message: ${error.message}</p>
+                    <p>This could indicate that your frontend is not connecting to the local API.</p>
+                    <p>Check the browser console for more details.</p>
+                `;
+                console.error('API Test Error:', error);
+            }
+        }
+
+        // Function to test proxy API call
+        async function testProxyApi() {
+            try {
+                const url = '/api/proxy?path=health';
+                
+                apiTest.innerHTML += `<p>Testing proxy API call to: ${url}</p>`;
+                
+                const response = await fetch(url, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                apiTest.innerHTML += `
+                    <h3 class="success">Proxy API Success!</h3>
+                    <p>Status: ${response.status}</p>
+                    <p>Data:</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                apiTest.innerHTML += `
+                    <h3 class="error">Proxy API Error</h3>
+                    <p>Message: ${error.message}</p>
+                    <p>Check the browser console for more details.</p>
+                `;
+                console.error('Proxy API Test Error:', error);
+            }
+        }
+
+        // Display environment info
+        function displayEnvInfo() {
+            // Get environment variables from window
+            const envVars = {
+                NEXT_PUBLIC_API_URL: window.NEXT_PUBLIC_API_URL || 'Not set in window',
+                NODE_ENV: process.env?.NODE_ENV || 'Not available in browser'
+            };
+
+            envInfo.innerHTML = `
+                <h3>Environment Variables</h3>
+                <pre>${JSON.stringify(envVars, null, 2)}</pre>
+                <p>Note: In the browser, you can only access environment variables that start with NEXT_PUBLIC_</p>
+            `;
+        }
+
+        // Run tests
+        displayEnvInfo();
+        testDirectApi().then(() => testProxyApi());
+    </script>
+</body>
+</html>

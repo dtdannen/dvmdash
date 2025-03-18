@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first to leverage Docker cache
-COPY ./backend/event_collector/requirements.txt .
+COPY ./requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -20,8 +20,8 @@ RUN mkdir -p /app/backend/event_collector/src
 RUN mkdir -p /app/backend/shared
 
 # Copy the application code, maintaining directory structure
-COPY ./backend/event_collector/src /app/backend/event_collector/src
-COPY ./backend/shared /app/backend/shared
+COPY ./src /app/backend/event_collector/src
+COPY ./shared /app/backend/shared
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

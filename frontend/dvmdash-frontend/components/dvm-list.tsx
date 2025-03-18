@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -33,7 +33,8 @@ interface DVMCardProps {
 }
 
 const DVMCard = ({ dvm }: DVMCardProps) => {
-  const initials = dvm.id.substring(0, 2).toUpperCase()
+  const displayName = dvm.dvm_name || dvm.id
+  const initials = displayName.substring(0, 2).toUpperCase()
   const lastSeenDate = new Date(dvm.last_seen)
   const timeAgo = Math.round((Date.now() - lastSeenDate.getTime()) / (1000 * 60)) // minutes ago
 
@@ -43,10 +44,13 @@ const DVMCard = ({ dvm }: DVMCardProps) => {
         <CardContent className="p-4">
           <div className="flex items-center space-x-4">
             <Avatar>
+              {dvm.dvm_picture ? (
+                <AvatarImage src={dvm.dvm_picture} alt={displayName} />
+              ) : null}
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{dvm.id}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
               <p className="text-xs text-gray-500 truncate">
                 {dvm.supported_kinds.length} supported kinds • {dvm.num_supporting_kinds} supporting
               </p>
@@ -72,25 +76,117 @@ interface DVMTableProps {
   dvms: DVMListItem[]
 }
 
+type SortableColumn = 'id' | 'supported_kinds' | 'total_requests' | 'total_responses' | 'num_supporting_kinds' | 'last_seen'
+
 const DVMTable = ({ dvms }: DVMTableProps) => {
+  const [sortColumn, setSortColumn] = useState<SortableColumn | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleHeaderClick = (column: SortableColumn) => {
+    if (sortColumn === column) {
+      // Toggle direction if clicking the same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedDVMs = useMemo(() => {
+    if (!sortColumn) return dvms
+
+    return [...dvms].sort((a, b) => {
+      let aValue, bValue
+
+      // Special handling for id column which should sort by name if available
+      if (sortColumn === 'id') {
+        aValue = a.dvm_name || a.id
+        bValue = b.dvm_name || b.id
+        return sortDirection === 'asc' 
+          ? String(aValue).localeCompare(String(bValue))
+          : String(bValue).localeCompare(String(aValue))
+      }
+      
+      // Handle array length for supported_kinds
+      if (sortColumn === 'supported_kinds') {
+        aValue = a.supported_kinds.length
+        bValue = b.supported_kinds.length
+      } else if (sortColumn === 'last_seen') {
+        // Date comparison for last_seen
+        aValue = new Date(a.last_seen).getTime()
+        bValue = new Date(b.last_seen).getTime()
+      } else {
+        // For other numeric columns
+        aValue = a[sortColumn] || 0
+        bValue = b[sortColumn] || 0
+      }
+
+      // Sort based on direction
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    })
+  }, [dvms, sortColumn, sortDirection])
+
+  // Helper to render sort indicator
+  const renderSortIndicator = (column: SortableColumn) => {
+    if (sortColumn !== column) return null
+    return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+  }
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>DVM</TableHead>
-          <TableHead className="text-right">Supported Kinds</TableHead>
-          <TableHead className="text-right">Requests</TableHead>
-          <TableHead className="text-right">Responses</TableHead>
-          <TableHead className="text-right">Supporting Kinds</TableHead>
-          <TableHead className="text-right">Last Seen</TableHead>
+          <TableHead 
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('id')}
+          >
+            DVM {renderSortIndicator('id')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('supported_kinds')}
+          >
+            Supported Kinds {renderSortIndicator('supported_kinds')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('total_requests')}
+          >
+            Requests {renderSortIndicator('total_requests')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('total_responses')}
+          >
+            Responses {renderSortIndicator('total_responses')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('num_supporting_kinds')}
+          >
+            Supporting Kinds {renderSortIndicator('num_supporting_kinds')}
+          </TableHead>
+          <TableHead 
+            className="text-right cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('last_seen')}
+          >
+            Last Seen {renderSortIndicator('last_seen')}
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {dvms.map((dvm: DVMListItem) => (
+        {sortedDVMs.map((dvm: DVMListItem) => (
           <TableRow key={dvm.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
             <TableCell className="font-medium">
-              <Link href={`/dvm-stats/${dvm.id}`} className="hover:underline">
-                {dvm.id}
+              <Link href={`/dvm-stats/${dvm.id}`} className="hover:underline flex items-center">
+                {dvm.dvm_picture && (
+                  <Avatar className="h-6 w-6 mr-2">
+                    <AvatarImage src={dvm.dvm_picture} alt={dvm.dvm_name || dvm.id} />
+                    <AvatarFallback>{(dvm.dvm_name || dvm.id).substring(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                )}
+                {dvm.dvm_name || dvm.id}
               </Link>
             </TableCell>
             <TableCell className="text-right">{dvm.supported_kinds.length}</TableCell>
@@ -111,10 +207,12 @@ export function DVMList() {
   const [timeRange, setTimeRange] = useState<TimeWindow>('30d')
   const { dvmList, isLoading, isError } = useDVMList(100, 0, timeRange as TimeWindow)
 
-  // Filter DVMs based on search term
-  const filteredDVMs = dvmList?.dvms.filter((dvm: DVMListItem) =>
-    dvm.id.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || []
+  // Filter DVMs based on search term (match against ID or name)
+  const filteredDVMs = dvmList?.dvms.filter((dvm: DVMListItem) => {
+    const searchTermLower = searchTerm.toLowerCase();
+    return dvm.id.toLowerCase().includes(searchTermLower) || 
+           (dvm.dvm_name && dvm.dvm_name.toLowerCase().includes(searchTermLower));
+  }) || []
 
   return (
     <div className="min-h-screen bg-background">

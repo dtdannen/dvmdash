@@ -1,0 +1,12 @@
+{
+  "names": {
+    "dvmdash-listener-1": "6b5b5fab2da1614dd7e87bdcb69e852dcc593a38591163fb7c779a880492d87f",
+    "dvmdash-listener-2": "6b5ad3cd4e69036ca85b060bf99e418a264b2000ddefdc0ac79620829b93f732",
+    "dvmdash-listener-3": "6b5b84947599efadcd37d2c34dcf63d89b5b05ae21666cbfe2fc74e91ab9620f",
+    "dvmdash-listener-4": "6b5a76b0c3ab9b2af20553788b2770662bcac8e6c72813ac5f698811f024b517",
+    "dvmdash-listener-5": "6b5a0fc803fa00fc7cdcf110d3bc97b546614033d27d18147c29e217de7544f2"
+  },
+  "relays": {
+    "da18e9860040f3bf493876fc16b1a912ae5a6f6fa8d5159c3de2b8233a0d9851": ["wss://relay.primal.net/", "wss://nostr.wine/", "wss://relay.damus.io/", "wss://relay.snort.social/", "wss://eden.nostr.land/", "wss://relay.dvmdash.live"]
+  }
+}
