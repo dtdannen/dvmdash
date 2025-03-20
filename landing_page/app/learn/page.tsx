@@ -177,20 +177,6 @@ export default function LearnPage() {
               DVMDash <span className="text-primary text-lg">Learn</span>
             </Link>
             <div className="flex items-center">
-              <nav className="hidden md:flex space-x-6 mr-4">
-                <Link href="#" className="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary">
-                  Home
-                </Link>
-                <Link href="#" className="text-primary font-medium">
-                  Learn
-                </Link>
-                <Link href="#" className="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary">
-                  Community
-                </Link>
-                <Link href="#" className="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary">
-                  Documentation
-                </Link>
-              </nav>
               <ThemeToggle />
             </div>
           </div>
