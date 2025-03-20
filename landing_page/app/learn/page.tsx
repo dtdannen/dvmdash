@@ -1,11 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { BookOpen, Clock, ExternalLink, GraduationCap, LayoutGrid, Lightbulb, Search, Tag, User } from "lucide-react"
+import { BookOpen, Clock, ExternalLink, GraduationCap, LayoutGrid, Lightbulb, Newspaper, Search, Tag, User } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { ThemeToggle } from "@/components/theme-toggle"
-import { fetchEventsByIds, eventToArticle, decodeNoteId } from "@/lib/nostr"
+import { fetchEventsByNaddrs, eventToArticle, decodeNaddr } from "@/lib/nostr"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,35 +16,55 @@ interface Article {
   title: string
   author: string
   url: string
+  primalUrl?: string // URL for Primal
   description?: string
   category?: string
   readTime?: string
+  imageUrl?: string // Field for the article image
+  createdAt?: number // Timestamp for sorting
+  naddr?: string // naddr identifier
   nostrEvent?: any // Optional field for the original Nostr event
 }
 
-// Define the note IDs to fetch with optional category overrides
+// Define the naddr identifiers to fetch with optional category overrides
 interface NoteConfig {
-  id: string;
-  category?: 'tutorial' | 'news' | 'misc';
+  naddr: string;
+  category?: 'tutorial' | 'news' | 'idea' | 'misc';
 }
 
 const noteConfigs: NoteConfig[] = [
   { 
-    id: 'note1ksn2amfu3pwjr0l28ucgrrg3aahejc3dphvcxvjjzt6fm8k09j4q2mlhwm',
-    category: 'tutorial' // Override category for this note
-  },
-  { 
-    id: 'note1l5y82ws076zsfrpvuse0g50zzstcxq832f63834u9zyexl95q7zq9wcvtr',
+    naddr: 'naddr1qvzqqqr4gupzq743a4atthagufhsvacq42c7yk4zmphjz2vg3mw6s055nhuwz5n4qqsyjm6594z9vnfd2d5k6atvv96x7u3d2pex76n9vd6z6ur6vajks7sa5fzxa',
     category: 'news' // Override category for this note
   },
   { 
-    id: 'note19nnafqx7rxwjkagnmqdff3wvjzkxmhgpc3jl4j0m4s87y4vjzshshmmxsw',
-    // No category override, will use the one detected from the note's tags
+    naddr: 'naddr1qvzqqqr4gupzp75cf0tahv5z7plpdeaws7ex52nmnwgtwfr2g3m37r844evqrr6jqqw9x6rfwpcxjmn894fks6ts09shyepdg3ty6tthv4unxmf5n788at',
+    category: 'news' // Override category for this note
+  },
+  { 
+  naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzden8qenqwphxy6rgv3576yund',
+    category: 'idea'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzdenxu6nwd3sxgmryv3506t7ws',
+    category: 'news'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzdejxv6nyd34xscnjd3sz05q9vc',
+    category: 'news'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzp978pfzrv6n9xhq5tvenl9e74pklmskh4xw6vxxyp3j8qkke3cezqqxnzden8y6rzvfkxg6rvdphrmylpl',
+    category: 'tutorial'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpwa4mkswz4t8j70s2s6q00wzqv7k7zamxrmj2y4fs88aktcfuf68qqnxx6rpd9hxjmn894j8vmtn94nx7u3ddehhxarj943kjcmy94cxjur9d35kuetn0uz742',
+    category: 'idea'
   }
 ];
 
-// Extract just the IDs for fetching
-const noteIds = noteConfigs.map(config => config.id);
+// Extract just the naddrs for fetching
+const naddrs = noteConfigs.map(config => config.naddr);
 
 export default function LearnPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -57,14 +77,25 @@ export default function LearnPage() {
       try {
         setLoading(true)
         
-        const events = await fetchEventsByIds(noteIds)
+        const events = await fetchEventsByNaddrs(naddrs)
         
         // Convert events to Article format and apply any manual category overrides
-        const nostrArticles = events.map(event => {
+        const nostrArticles = events.map((event: any) => {
           // Find the config for this event
+          const eventCoordinates = {
+            kind: event.kind,
+            pubkey: event.pubkey,
+            identifier: event.tags.find((t: string[]) => t[0] === 'd')?.[1] || ''
+          };
+          
+          // Find the matching naddr config
           const config = noteConfigs.find(config => {
-            const hexId = decodeNoteId(config.id);
-            return hexId === event.id;
+            const decoded = decodeNaddr(config.naddr);
+            if (!decoded) return false;
+            
+            return decoded.kind === eventCoordinates.kind && 
+                   decoded.pubkey === eventCoordinates.pubkey && 
+                   decoded.identifier === eventCoordinates.identifier;
           });
           
           // Get the article data
@@ -78,7 +109,15 @@ export default function LearnPage() {
           return article;
         });
         
-        setArticles(nostrArticles)
+        // Sort articles by creation date (newest first)
+        const sortedArticles = nostrArticles.sort((a, b) => {
+          // If createdAt is missing for either article, put it at the end
+          if (!a.createdAt) return 1;
+          if (!b.createdAt) return -1;
+          return b.createdAt - a.createdAt;
+        });
+        
+        setArticles(sortedArticles)
       } catch (error) {
         console.error('Error fetching Nostr articles:', error)
       } finally {
@@ -102,6 +141,8 @@ export default function LearnPage() {
         return "bg-green-100 text-green-800 hover:bg-green-200"
       case "news":
         return "bg-blue-100 text-blue-800 hover:bg-blue-200"
+      case "idea":
+        return "bg-purple-100 text-purple-800 hover:bg-purple-200"
       case "misc":
         return "bg-gray-100 text-gray-800 hover:bg-gray-200"
       default:
@@ -113,8 +154,10 @@ export default function LearnPage() {
     switch (category?.toLowerCase()) {
       case "tutorial":
         return <BookOpen className="h-4 w-4" />
-      case "news":
+      case "idea":
         return <Lightbulb className="h-4 w-4" />
+      case "news":
+        return <Newspaper className="h-4 w-4" />
       case "misc":
         return <Tag className="h-4 w-4" />
       default:
@@ -157,7 +200,7 @@ export default function LearnPage() {
             Learn About Data Vending Machines
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
-            Explore curated resources to master DVM concepts from beginner to advanced
+            Discover the latest news, ideas, and tutorials from the DVM community
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -178,6 +221,7 @@ export default function LearnPage() {
               <TabsTrigger value="all">All Resources</TabsTrigger>
               <TabsTrigger value="tutorial">Tutorials</TabsTrigger>
               <TabsTrigger value="news">News</TabsTrigger>
+              <TabsTrigger value="idea">Ideas</TabsTrigger>
               <TabsTrigger value="misc">Misc</TabsTrigger>
             </TabsList>
           </div>
@@ -194,42 +238,74 @@ export default function LearnPage() {
             ) : (
               <div className="grid gap-6">
                 {filteredArticles.map((article, index) => (
-                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800">
-                    <CardHeader className="pb-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2 mb-2">
-                          {getCategoryIcon(article.category)}
-                          <Badge className={`${getCategoryColor(article.category)} border-0`}>
-                            {article.category || "misc"}
-                          </Badge>
+                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800 transition-all hover:shadow-md">
+                    <div className="flex flex-col md:flex-row">
+                      {article.imageUrl && (
+                        <div className="md:w-1/3 h-48 md:h-auto overflow-hidden border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800">
+                          <img 
+                            src={article.imageUrl} 
+                            alt={article.title} 
+                            className="w-full h-full object-contain transition-transform hover:scale-105"
+                            onError={(e) => {
+                              // Hide the image container if loading fails
+                              const target = e.target as HTMLImageElement;
+                              if (target.parentElement) {
+                                target.parentElement.style.display = 'none';
+                              }
+                              // Make the content take full width
+                              const contentDiv = target.parentElement?.nextElementSibling;
+                              if (contentDiv) {
+                                contentDiv.className = 'w-full';
+                              }
+                            }}
+                          />
                         </div>
-                        <div className="flex items-center text-gray-500 text-sm">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {article.readTime}
-                        </div>
+                      )}
+                      <div className={article.imageUrl ? "md:w-2/3" : "w-full"}>
+                        <CardHeader className="pb-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getCategoryIcon(article.category)}
+                              <Badge className={`${getCategoryColor(article.category)} border-0`}>
+                                {article.category || "misc"}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center text-gray-500 text-sm">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {article.readTime}
+                            </div>
+                          </div>
+                          <CardTitle className="text-xl hover:text-primary transition-colors">
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              {article.title}
+                            </Link>
+                          </CardTitle>
+                          <CardDescription className="text-base">{article.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>Author: {article.author}</span>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="pt-2 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              Read on Habla.news
+                              <ExternalLink className="ml-2 h-3 w-3" />
+                            </Link>
+                          </Button>
+                          {article.primalUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={article.primalUrl} target="_blank" rel="noopener noreferrer">
+                                Read on Primal
+                                <ExternalLink className="ml-2 h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
+                        </CardFooter>
                       </div>
-                      <CardTitle className="text-xl hover:text-primary transition-colors">
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          {article.title}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription className="text-base">{article.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pb-2">
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        <User className="h-3 w-3 mr-1" />
-                        <span>Author: {article.author}</span>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="pt-2 flex justify-between">
-                      <div></div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          Read Article
-                          <ExternalLink className="ml-2 h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </CardFooter>
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -241,42 +317,74 @@ export default function LearnPage() {
               {filteredArticles
                 .filter((article) => article.category?.toLowerCase() === "tutorial")
                 .map((article, index) => (
-                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800">
-                    <CardHeader className="pb-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2 mb-2">
-                          {getCategoryIcon(article.category)}
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-0">
-                            Tutorial
-                          </Badge>
+                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800 transition-all hover:shadow-md">
+                    <div className="flex flex-col md:flex-row">
+                      {article.imageUrl && (
+                        <div className="md:w-1/3 h-48 md:h-auto overflow-hidden border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800">
+                          <img 
+                            src={article.imageUrl} 
+                            alt={article.title} 
+                            className="w-full h-full object-contain transition-transform hover:scale-105"
+                            onError={(e) => {
+                              // Hide the image container if loading fails
+                              const target = e.target as HTMLImageElement;
+                              if (target.parentElement) {
+                                target.parentElement.style.display = 'none';
+                              }
+                              // Make the content take full width
+                              const contentDiv = target.parentElement?.nextElementSibling;
+                              if (contentDiv) {
+                                contentDiv.className = 'w-full';
+                              }
+                            }}
+                          />
                         </div>
-                        <div className="flex items-center text-gray-500 text-sm">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {article.readTime}
-                        </div>
+                      )}
+                      <div className={article.imageUrl ? "md:w-2/3" : "w-full"}>
+                        <CardHeader className="pb-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getCategoryIcon(article.category)}
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-0">
+                                Tutorial
+                              </Badge>
+                            </div>
+                            <div className="flex items-center text-gray-500 text-sm">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {article.readTime}
+                            </div>
+                          </div>
+                          <CardTitle className="text-xl hover:text-primary transition-colors">
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              {article.title}
+                            </Link>
+                          </CardTitle>
+                          <CardDescription className="text-base">{article.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>Author: {article.author}</span>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="pt-2 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              Read on Habla.news
+                              <ExternalLink className="ml-2 h-3 w-3" />
+                            </Link>
+                          </Button>
+                          {article.primalUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={article.primalUrl} target="_blank" rel="noopener noreferrer">
+                                Read on Primal
+                                <ExternalLink className="ml-2 h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
+                        </CardFooter>
                       </div>
-                      <CardTitle className="text-xl hover:text-primary transition-colors">
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          {article.title}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription className="text-base">{article.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pb-2">
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        <User className="h-3 w-3 mr-1" />
-                        <span>Author: {article.author}</span>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="pt-2 flex justify-between">
-                      <div></div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          Read Article
-                          <ExternalLink className="ml-2 h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </CardFooter>
+                    </div>
                   </Card>
                 ))}
             </div>
@@ -287,42 +395,152 @@ export default function LearnPage() {
               {filteredArticles
                 .filter((article) => article.category?.toLowerCase() === "news")
                 .map((article, index) => (
-                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800">
-                    <CardHeader className="pb-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2 mb-2">
-                          {getCategoryIcon(article.category)}
-                          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-0">
-                            News
-                          </Badge>
+                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800 transition-all hover:shadow-md">
+                    <div className="flex flex-col md:flex-row">
+                      {article.imageUrl && (
+                        <div className="md:w-1/3 h-48 md:h-auto overflow-hidden border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800">
+                          <img 
+                            src={article.imageUrl} 
+                            alt={article.title} 
+                            className="w-full h-full object-contain transition-transform hover:scale-105"
+                            onError={(e) => {
+                              // Hide the image container if loading fails
+                              const target = e.target as HTMLImageElement;
+                              if (target.parentElement) {
+                                target.parentElement.style.display = 'none';
+                              }
+                              // Make the content take full width
+                              const contentDiv = target.parentElement?.nextElementSibling;
+                              if (contentDiv) {
+                                contentDiv.className = 'w-full';
+                              }
+                            }}
+                          />
                         </div>
-                        <div className="flex items-center text-gray-500 text-sm">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {article.readTime}
+                      )}
+                      <div className={article.imageUrl ? "md:w-2/3" : "w-full"}>
+                        <CardHeader className="pb-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getCategoryIcon(article.category)}
+                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-0">
+                                News
+                              </Badge>
+                            </div>
+                            <div className="flex items-center text-gray-500 text-sm">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {article.readTime}
+                            </div>
+                          </div>
+                          <CardTitle className="text-xl hover:text-primary transition-colors">
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              {article.title}
+                            </Link>
+                          </CardTitle>
+                          <CardDescription className="text-base">{article.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>Author: {article.author}</span>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="pt-2 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              Read on Habla.news
+                              <ExternalLink className="ml-2 h-3 w-3" />
+                            </Link>
+                          </Button>
+                          {article.primalUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={article.primalUrl} target="_blank" rel="noopener noreferrer">
+                                Read on Primal
+                                <ExternalLink className="ml-2 h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
+                        </CardFooter>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="idea">
+            <div className="grid gap-6">
+              {filteredArticles
+                .filter((article) => article.category?.toLowerCase() === "idea")
+                .map((article, index) => (
+                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800 transition-all hover:shadow-md">
+                    <div className="flex flex-col md:flex-row">
+                      {article.imageUrl && (
+                        <div className="md:w-1/3 h-48 md:h-auto overflow-hidden border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800">
+                          <img 
+                            src={article.imageUrl} 
+                            alt={article.title} 
+                            className="w-full h-full object-contain transition-transform hover:scale-105"
+                            onError={(e) => {
+                              // Hide the image container if loading fails
+                              const target = e.target as HTMLImageElement;
+                              if (target.parentElement) {
+                                target.parentElement.style.display = 'none';
+                              }
+                              // Make the content take full width
+                              const contentDiv = target.parentElement?.nextElementSibling;
+                              if (contentDiv) {
+                                contentDiv.className = 'w-full';
+                              }
+                            }}
+                          />
                         </div>
+                      )}
+                      <div className={article.imageUrl ? "md:w-2/3" : "w-full"}>
+                        <CardHeader className="pb-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getCategoryIcon(article.category)}
+                              <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200 border-0">
+                                Idea
+                              </Badge>
+                            </div>
+                            <div className="flex items-center text-gray-500 text-sm">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {article.readTime}
+                            </div>
+                          </div>
+                          <CardTitle className="text-xl hover:text-primary transition-colors">
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              {article.title}
+                            </Link>
+                          </CardTitle>
+                          <CardDescription className="text-base">{article.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>Author: {article.author}</span>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="pt-2 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              Read on Habla.news
+                              <ExternalLink className="ml-2 h-3 w-3" />
+                            </Link>
+                          </Button>
+                          {article.primalUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={article.primalUrl} target="_blank" rel="noopener noreferrer">
+                                Read on Primal
+                                <ExternalLink className="ml-2 h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
+                        </CardFooter>
                       </div>
-                      <CardTitle className="text-xl hover:text-primary transition-colors">
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          {article.title}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription className="text-base">{article.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pb-2">
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        <User className="h-3 w-3 mr-1" />
-                        <span>Author: {article.author}</span>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="pt-2 flex justify-between">
-                      <div></div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          Read Article
-                          <ExternalLink className="ml-2 h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </CardFooter>
+                    </div>
                   </Card>
                 ))}
             </div>
@@ -333,101 +551,80 @@ export default function LearnPage() {
               {filteredArticles
                 .filter((article) => article.category?.toLowerCase() === "misc" || !article.category)
                 .map((article, index) => (
-                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800">
-                    <CardHeader className="pb-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2 mb-2">
-                          {getCategoryIcon(article.category)}
-                          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-200 border-0">
-                            Misc
-                          </Badge>
+                  <Card key={index} className="overflow-hidden border border-gray-200 dark:border-gray-800 transition-all hover:shadow-md">
+                    <div className="flex flex-col md:flex-row">
+                      {article.imageUrl && (
+                        <div className="md:w-1/3 h-48 md:h-auto overflow-hidden border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800">
+                          <img 
+                            src={article.imageUrl} 
+                            alt={article.title} 
+                            className="w-full h-full object-contain transition-transform hover:scale-105"
+                            onError={(e) => {
+                              // Hide the image container if loading fails
+                              const target = e.target as HTMLImageElement;
+                              if (target.parentElement) {
+                                target.parentElement.style.display = 'none';
+                              }
+                              // Make the content take full width
+                              const contentDiv = target.parentElement?.nextElementSibling;
+                              if (contentDiv) {
+                                contentDiv.className = 'w-full';
+                              }
+                            }}
+                          />
                         </div>
-                        <div className="flex items-center text-gray-500 text-sm">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {article.readTime}
-                        </div>
+                      )}
+                      <div className={article.imageUrl ? "md:w-2/3" : "w-full"}>
+                        <CardHeader className="pb-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getCategoryIcon(article.category)}
+                              <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-200 border-0">
+                                Misc
+                              </Badge>
+                            </div>
+                            <div className="flex items-center text-gray-500 text-sm">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {article.readTime}
+                            </div>
+                          </div>
+                          <CardTitle className="text-xl hover:text-primary transition-colors">
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              {article.title}
+                            </Link>
+                          </CardTitle>
+                          <CardDescription className="text-base">{article.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>Author: {article.author}</span>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="pt-2 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                              Read on Habla.news
+                              <ExternalLink className="ml-2 h-3 w-3" />
+                            </Link>
+                          </Button>
+                          {article.primalUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={article.primalUrl} target="_blank" rel="noopener noreferrer">
+                                Read on Primal
+                                <ExternalLink className="ml-2 h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
+                        </CardFooter>
                       </div>
-                      <CardTitle className="text-xl hover:text-primary transition-colors">
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          {article.title}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription className="text-base">{article.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pb-2">
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        <User className="h-3 w-3 mr-1" />
-                        <span>Author: {article.author}</span>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="pt-2 flex justify-between">
-                      <div></div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          Read Article
-                          <ExternalLink className="ml-2 h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </CardFooter>
+                    </div>
                   </Card>
                 ))}
             </div>
           </TabsContent>
         </Tabs>
-
-        <div className="max-w-4xl mx-auto mt-16 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Ready to start building?</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Join our community and start creating your own Data Vending Machines
-          </p>
-          <div className="flex justify-center gap-4">
-            <Button>Get Started</Button>
-            <Button variant="outline">Join Community</Button>
-          </div>
-        </div>
       </main>
-
-      <footer className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-12">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-6 md:mb-0">
-              <Link href="/" className="text-xl font-bold text-gray-900 dark:text-white">
-                DVMDash
-              </Link>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">Building the future of Data Vending Machines</p>
-            </div>
-            <div className="flex gap-8">
-              <div className="grid gap-2">
-                <h3 className="font-medium text-gray-900 dark:text-white">Resources</h3>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-                  Documentation
-                </Link>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-                  Tutorials
-                </Link>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-                  API Reference
-                </Link>
-              </div>
-              <div className="grid gap-2">
-                <h3 className="font-medium text-gray-900 dark:text-white">Community</h3>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-                  GitHub
-                </Link>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-                  Discord
-                </Link>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-                  Twitter
-                </Link>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-gray-600 dark:text-gray-400">
-            <p>© {new Date().getFullYear()} DVMDash. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }
