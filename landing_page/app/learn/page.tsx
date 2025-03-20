@@ -80,7 +80,7 @@ export default function LearnPage() {
         const events = await fetchEventsByNaddrs(naddrs)
         
         // Convert events to Article format and apply any manual category overrides
-        const nostrArticles = events.map((event: any) => {
+        const articlePromises = events.map(async (event: any) => {
           // Find the config for this event
           const eventCoordinates = {
             kind: event.kind,
@@ -98,8 +98,8 @@ export default function LearnPage() {
                    decoded.identifier === eventCoordinates.identifier;
           });
           
-          // Get the article data
-          const article = eventToArticle(event);
+          // Get the article data (now async)
+          const article = await eventToArticle(event);
           
           // Apply manual category override if specified
           if (config?.category) {
@@ -109,15 +109,18 @@ export default function LearnPage() {
           return article;
         });
         
+        // Wait for all article promises to resolve
+        const nostrArticles = await Promise.all(articlePromises);
+        
         // Sort articles by creation date (newest first)
-        const sortedArticles = nostrArticles.sort((a, b) => {
+        const sortedArticles = nostrArticles.sort((a: Article, b: Article) => {
           // If createdAt is missing for either article, put it at the end
           if (!a.createdAt) return 1;
           if (!b.createdAt) return -1;
           return b.createdAt - a.createdAt;
         });
         
-        setArticles(sortedArticles)
+        setArticles(sortedArticles);
       } catch (error) {
         console.error('Error fetching Nostr articles:', error)
       } finally {
