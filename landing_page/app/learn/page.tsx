@@ -77,40 +77,78 @@ export default function LearnPage() {
       try {
         setLoading(true)
         
-        const events = await fetchEventsByNaddrs(naddrs)
+        // Fetch events with error handling
+        let events: any[] = [];
+        try {
+          events = await fetchEventsByNaddrs(naddrs);
+        } catch (fetchError) {
+          console.error('Error fetching events by naddrs:', fetchError);
+          events = []; // Use empty array if fetch fails
+        }
+        
+        if (!events || events.length === 0) {
+          console.warn('No events found or error occurred during fetch');
+          setArticles([]);
+          return;
+        }
         
         // Convert events to Article format and apply any manual category overrides
         const articlePromises = events.map(async (event: any) => {
-          // Find the config for this event
-          const eventCoordinates = {
-            kind: event.kind,
-            pubkey: event.pubkey,
-            identifier: event.tags.find((t: string[]) => t[0] === 'd')?.[1] || ''
-          };
-          
-          // Find the matching naddr config
-          const config = noteConfigs.find(config => {
-            const decoded = decodeNaddr(config.naddr);
-            if (!decoded) return false;
+          try {
+            // Find the config for this event
+            const eventCoordinates = {
+              kind: event.kind,
+              pubkey: event.pubkey,
+              identifier: event.tags?.find((t: string[]) => t[0] === 'd')?.[1] || ''
+            };
             
-            return decoded.kind === eventCoordinates.kind && 
-                   decoded.pubkey === eventCoordinates.pubkey && 
-                   decoded.identifier === eventCoordinates.identifier;
-          });
-          
-          // Get the article data (now async)
-          const article = await eventToArticle(event);
-          
-          // Apply manual category override if specified
-          if (config?.category) {
-            article.category = config.category;
+            // Find the matching naddr config
+            const config = noteConfigs.find(config => {
+              try {
+                const decoded = decodeNaddr(config.naddr);
+                if (!decoded) return false;
+                
+                return decoded.kind === eventCoordinates.kind && 
+                      decoded.pubkey === eventCoordinates.pubkey && 
+                      decoded.identifier === eventCoordinates.identifier;
+              } catch (decodeError) {
+                console.error('Error decoding naddr in config matching:', decodeError);
+                return false;
+              }
+            });
+            
+            // Get the article data (now async)
+            const article = await eventToArticle(event);
+            
+            // Apply manual category override if specified
+            if (config?.category) {
+              article.category = config.category;
+            }
+            
+            return article;
+          } catch (eventError) {
+            console.error('Error processing event:', eventError, event);
+            // Return a minimal article to avoid breaking the UI
+            return {
+              title: 'Error loading article',
+              author: 'Unknown',
+              url: '#',
+              description: 'There was an error loading this article.',
+              category: 'misc',
+              readTime: '1 min',
+              createdAt: 0
+            };
           }
-          
-          return article;
         });
         
         // Wait for all article promises to resolve
-        const nostrArticles = await Promise.all(articlePromises);
+        let nostrArticles: Article[] = [];
+        try {
+          nostrArticles = await Promise.all(articlePromises);
+        } catch (promiseError) {
+          console.error('Error resolving article promises:', promiseError);
+          nostrArticles = []; // Use empty array if promises fail
+        }
         
         // Sort articles by creation date (newest first)
         const sortedArticles = nostrArticles.sort((a: Article, b: Article) => {
@@ -122,14 +160,15 @@ export default function LearnPage() {
         
         setArticles(sortedArticles);
       } catch (error) {
-        console.error('Error fetching Nostr articles:', error)
+        console.error('Error fetching Nostr articles:', error);
+        setArticles([]); // Set empty array on error
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
     
-    fetchNostrArticles()
-  }, [])
+    fetchNostrArticles();
+  }, []);
 
   const filteredArticles = articles.filter(
     (article) =>

@@ -29,12 +29,18 @@ export function decodeNoteId(noteId: string): string {
 
 // Decode naddr to get event coordinates
 export function decodeNaddr(naddr: string): { kind: number, pubkey: string, identifier: string } | null {
+  if (!naddr || typeof naddr !== 'string') {
+    console.error('Invalid naddr provided:', naddr);
+    return null;
+  }
+  
   if (naddr.startsWith('naddr1')) {
     try {
       const { data } = nip19.decode(naddr);
       return data as { kind: number, pubkey: string, identifier: string };
     } catch (e) {
-      console.error('Failed to decode naddr:', e);
+      console.error(`Failed to decode naddr: ${naddr}`, e);
+      // Don't crash the application, just return null for this naddr
       return null;
     }
   }
@@ -58,26 +64,41 @@ export async function fetchEventsByIds(noteIds: string[]) {
 
 // Fetch events by naddr identifiers
 export async function fetchEventsByNaddrs(naddrs: string[]) {
-  await ndk.connect();
-  
-  const events = [];
-  
-  for (const naddr of naddrs) {
-    const decoded = decodeNaddr(naddr);
-    if (decoded) {
-      const { kind, pubkey, identifier } = decoded;
-      const filter = { 
-        kinds: [kind],
-        authors: [pubkey],
-        '#d': [identifier]
-      };
-      
-      const fetchedEvents = await ndk.fetchEvents(filter);
-      events.push(...Array.from(fetchedEvents));
-    }
+  if (!naddrs || !Array.isArray(naddrs) || naddrs.length === 0) {
+    console.warn('No valid naddrs provided to fetchEventsByNaddrs');
+    return [];
   }
-  
-  return events;
+
+  try {
+    await ndk.connect();
+    
+    const events = [];
+    
+    for (const naddr of naddrs) {
+      try {
+        const decoded = decodeNaddr(naddr);
+        if (decoded) {
+          const { kind, pubkey, identifier } = decoded;
+          const filter = { 
+            kinds: [kind],
+            authors: [pubkey],
+            '#d': [identifier]
+          };
+          
+          const fetchedEvents = await ndk.fetchEvents(filter);
+          events.push(...Array.from(fetchedEvents));
+        }
+      } catch (error) {
+        // Log the error but continue processing other naddrs
+        console.error(`Error processing naddr ${naddr}:`, error);
+      }
+    }
+    
+    return events;
+  } catch (error) {
+    console.error('Error in fetchEventsByNaddrs:', error);
+    return []; // Return empty array instead of crashing
+  }
 }
 
 // Manual category overrides for specific event IDs
