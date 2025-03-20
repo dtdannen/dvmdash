@@ -49,7 +49,7 @@ export default function Home() {
         <section id="apps" className="py-20 px-4">
           <div className="container mx-auto">
             <h2 className="text-4xl font-bold text-center mb-16">Explore the tools</h2>
-            <div className="grid md:grid-cols-3 gap-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               <AppCard
                 title="Stats"
                 description="Comprehensive metrics and analytics dashboard"
@@ -70,6 +70,13 @@ export default function Home() {
                 link="#"
                 isLive={false}
                 icon="🤖"
+              />
+              <AppCard
+                title="Learn"
+                description="Explore articles and resources about DVMs"
+                link="/learn"
+                isLive={true}
+                icon="📚"
               />
             </div>
           </div>
