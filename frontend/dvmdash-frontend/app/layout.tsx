@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -14,9 +14,32 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+}
+
 export const metadata: Metadata = {
-  title: "DVMDash Stats",
-  description: "Statistics for DVMs provided by DVMDash",
+  metadataBase: new URL('https://stats.dvmdash.live'),
+  title: {
+    template: '%s | DVMDash Stats',
+    default: 'DVMDash Stats',
+  },
+  description: "Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash",
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://stats.dvmdash.live',
+    title: 'DVMDash Stats',
+    description: 'Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash',
+    siteName: 'DVMDash Stats',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DVMDash Stats',
+    description: 'Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash',
+  },
 };
 
 export default function RootLayout({

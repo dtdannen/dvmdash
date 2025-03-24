@@ -3,7 +3,7 @@ import { TimeWindow, TimeWindowStats } from './types'
 
 // Determine if we should use the proxy based on environment
 const useProxy = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_USE_API_PROXY === 'true'
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 /**
  * Convert a direct API URL to a proxy URL if needed
