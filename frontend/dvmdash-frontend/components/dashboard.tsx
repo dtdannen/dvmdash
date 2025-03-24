@@ -399,7 +399,19 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
             orientation="top"
             padding={{ left: 30, right: 30 }}
           />
-          <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
+          <YAxis 
+            yAxisId="users" 
+            tickFormatter={(value) => Number(value).toLocaleString()} 
+            stroke="#8884d8"
+            label={{ value: 'Users', angle: -90, position: 'insideLeft' }}
+          />
+          <YAxis 
+            yAxisId="agents" 
+            orientation="right" 
+            tickFormatter={(value) => Number(value).toLocaleString()} 
+            stroke="#82ca9d"
+            label={{ value: 'DVMs', angle: 90, position: 'insideRight' }}
+          />
           <Tooltip 
             labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
             formatter={(value, name, props) => {
@@ -421,8 +433,8 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
             labelStyle={{ color: '#000', fontWeight: 'bold' }}
           />
           <Legend />
-          <Bar dataKey="users" fill="#8884d8" name="Users" />
-          <Bar dataKey="agents" fill="#82ca9d" name="DVMs" />
+          <Bar dataKey="users" fill="#8884d8" name="Users" yAxisId="users" />
+          <Bar dataKey="agents" fill="#82ca9d" name="DVMs" yAxisId="agents" />
         </BarChart>
       </ResponsiveContainer>
     );
@@ -456,7 +468,19 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
           orientation="top"
           padding={{ left: 30, right: 30 }}
         />
-        <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
+        <YAxis 
+          yAxisId="users" 
+          tickFormatter={(value) => Number(value).toLocaleString()} 
+          stroke="#8884d8"
+          label={{ value: 'Users', angle: -90, position: 'insideLeft' }}
+        />
+        <YAxis 
+          yAxisId="agents" 
+          orientation="right" 
+          tickFormatter={(value) => Number(value).toLocaleString()} 
+          stroke="#82ca9d"
+          label={{ value: 'DVMs', angle: 90, position: 'insideRight' }}
+        />
         <Tooltip 
           labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
           formatter={(value, name, props) => {
@@ -484,6 +508,7 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
           stroke="#8884d8" 
           name="Cumulative Users"
           strokeWidth={2}
+          yAxisId="users"
         />
         <Line 
           type="monotone" 
@@ -491,6 +516,7 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
           stroke="#82ca9d" 
           name="Cumulative DVMs"
           strokeWidth={2}
+          yAxisId="agents"
         />
       </LineChart>
     </ResponsiveContainer>
