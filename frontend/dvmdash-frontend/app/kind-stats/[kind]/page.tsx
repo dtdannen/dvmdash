@@ -54,7 +54,7 @@ export async function generateMetadata(
     : `Statistics for Nostr Kind ${kindId}`
   
   // Use a default image for kind stats
-  const imageUrl = 'https://stats.dvmdash.live/api/og-image'
+  const imageUrl = 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'
   
   return {
     title,
@@ -67,8 +67,8 @@ export async function generateMetadata(
       images: [
         {
           url: imageUrl,
-          width: 1200,
-          height: 630,
+          width: 500,
+          height: 500,
           alt: `${title} stats visualization`,
         },
         ...previousImages,

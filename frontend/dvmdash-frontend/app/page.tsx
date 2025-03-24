@@ -37,7 +37,7 @@ export async function generateMetadata(
   }
   
   // Use a default image for the dashboard
-  const imageUrl = 'https://stats.dvmdash.live/api/og-image'
+  const imageUrl = 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'
   
   return {
     description,
@@ -45,8 +45,8 @@ export async function generateMetadata(
       images: [
         {
           url: imageUrl,
-          width: 1200,
-          height: 630,
+          width: 500,
+          height: 500,
           alt: 'DVMDash Stats visualization',
         },
         ...previousImages,

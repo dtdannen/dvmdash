@@ -47,7 +47,7 @@ export async function generateMetadata(
     `Statistics for Data Vending Machine (DVM) ${dvmId.slice(0, 8)}... on Nostr`
   
   // Use DVM picture if available, otherwise use a default image
-  const imageUrl = dvmData?.dvm_picture || 'https://stats.dvmdash.live/api/og-image'
+  const imageUrl = dvmData?.dvm_picture || 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'
   
   return {
     title,
@@ -60,8 +60,8 @@ export async function generateMetadata(
       images: [
         {
           url: imageUrl,
-          width: 1200,
-          height: 630,
+          width: dvmData?.dvm_picture ? 1200 : 500,
+          height: dvmData?.dvm_picture ? 630 : 500,
           alt: `${title} stats visualization`,
         },
         ...previousImages,

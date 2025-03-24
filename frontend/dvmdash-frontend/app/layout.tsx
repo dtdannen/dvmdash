@@ -34,11 +34,20 @@ export const metadata: Metadata = {
     title: 'DVMDash Stats',
     description: 'Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash',
     siteName: 'DVMDash Stats',
+    images: [
+      {
+        url: 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png',
+        width: 500,
+        height: 500,
+        alt: 'DVMDash Stats',
+      }
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DVMDash Stats',
     description: 'Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash',
+    images: ['https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'],
   },
 };
 
