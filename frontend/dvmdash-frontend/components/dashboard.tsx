@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import type { TimeWindow, TimeRangeSelectorProps, ChartData, NavIconProps, TimeSeriesData } from '@/lib/types'
 import {
   LineChart,
@@ -199,7 +200,23 @@ const JobCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => {
           <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
           <Tooltip 
             labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-            formatter={(value) => [Number(value).toLocaleString(), undefined]}
+            formatter={(value, name, props) => {
+              // Set the color based on the dataKey
+              const color = props.dataKey === 'requests' || props.dataKey === 'users' ? '#8884d8' : '#82ca9d';
+              // Return the value with the name
+              return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+            }}
+            wrapperStyle={{ pointerEvents: 'auto' }}
+            contentStyle={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+              color: '#000', 
+              border: '1px solid #ccc',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              padding: '8px',
+              borderRadius: '4px'
+            }}
+            itemStyle={{ color: undefined }}
+            labelStyle={{ color: '#000', fontWeight: 'bold' }}
           />
           <Legend />
           <Bar dataKey="requests" fill="#8884d8" name="Requests" />
@@ -240,21 +257,37 @@ const JobCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => {
         <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
         <Tooltip 
           labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-          formatter={(value) => [Number(value).toLocaleString(), undefined]}
+          formatter={(value, name, props) => {
+            // Set the color based on the dataKey
+            const color = props.dataKey === 'requests' || props.dataKey === 'users' ? '#8884d8' : '#82ca9d';
+            // Return the value with the name
+            return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+          }}
+          wrapperStyle={{ pointerEvents: 'auto' }}
+          contentStyle={{ 
+            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+            color: '#000', 
+            border: '1px solid #ccc',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+            padding: '8px',
+            borderRadius: '4px'
+          }}
+          itemStyle={{ color: undefined }}
+          labelStyle={{ color: '#000', fontWeight: 'bold' }}
         />
         <Legend />
         <Line 
           type="monotone" 
           dataKey="requests" 
           stroke="#8884d8" 
-          name="Cumulative Requests"
+          name="Requests"
           strokeWidth={2}
         />
         <Line 
           type="monotone" 
           dataKey="responses" 
           stroke="#82ca9d" 
-          name="Cumulative Responses"
+          name="Responses"
           strokeWidth={2}
         />
       </LineChart>
@@ -369,7 +402,23 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
           <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
           <Tooltip 
             labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-            formatter={(value) => [Number(value).toLocaleString(), undefined]}
+            formatter={(value, name, props) => {
+              // Set the color based on the dataKey
+              const color = props.dataKey === 'users' ? '#8884d8' : '#82ca9d';
+              // Return the value with the name
+              return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+            }}
+            wrapperStyle={{ pointerEvents: 'auto' }}
+            contentStyle={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+              color: '#000', 
+              border: '1px solid #ccc',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              padding: '8px',
+              borderRadius: '4px'
+            }}
+            itemStyle={{ color: undefined }}
+            labelStyle={{ color: '#000', fontWeight: 'bold' }}
           />
           <Legend />
           <Bar dataKey="users" fill="#8884d8" name="Users" />
@@ -410,7 +459,23 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
         <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
         <Tooltip 
           labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-          formatter={(value) => [Number(value).toLocaleString(), undefined]}
+          formatter={(value, name, props) => {
+            // Set the color based on the dataKey
+            const color = props.dataKey === 'users' ? '#8884d8' : '#82ca9d';
+            // Return the value with the name
+            return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+          }}
+          wrapperStyle={{ pointerEvents: 'auto' }}
+          contentStyle={{ 
+            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+            color: '#000', 
+            border: '1px solid #ccc',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+            padding: '8px',
+            borderRadius: '4px'
+          }}
+          itemStyle={{ color: undefined }}
+          labelStyle={{ color: '#000', fontWeight: 'bold' }}
         />
         <Legend />
         <Line 
@@ -517,8 +582,9 @@ export function Dashboard() {
               />
             </nav>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center space-x-2">
             <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
+            <ThemeToggle />
           </div>
         </div>
       </header>

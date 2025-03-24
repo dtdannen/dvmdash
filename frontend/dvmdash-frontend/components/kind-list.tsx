@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart3, Bot, Tags, Home, Search } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { useKindList } from '@/lib/api'
 import { NavIconProps, KindListResponse, TimeWindow, KindListItem } from '@/lib/types'
 import { TimeRangeSelector } from './time-range-selector'
@@ -170,8 +171,9 @@ export function KindList() {
               />
             </nav>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center space-x-2">
             <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -179,7 +181,7 @@ export function KindList() {
       <main className="container mx-auto p-4">
         <div className="mb-6 flex justify-between items-center">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-500" />
+            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search kinds..."

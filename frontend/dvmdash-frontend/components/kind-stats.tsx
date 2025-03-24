@@ -152,7 +152,23 @@ const ActivityChart = ({ data, viewMode, timeRange }: { data: ActivityData[], vi
           <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
           <Tooltip 
             labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-            formatter={(value) => [Number(value).toLocaleString(), undefined]}
+            formatter={(value, name, props) => {
+              // Set the color based on the dataKey
+              const color = props.dataKey === 'total_requests' ? '#8884d8' : '#82ca9d';
+              // Return the value with the name
+              return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+            }}
+            wrapperStyle={{ pointerEvents: 'auto' }}
+            contentStyle={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+              color: '#000', 
+              border: '1px solid #ccc',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              padding: '8px',
+              borderRadius: '4px'
+            }}
+            itemStyle={{ color: undefined }}
+            labelStyle={{ color: '#000', fontWeight: 'bold' }}
           />
           <Legend />
           <Bar dataKey="total_requests" fill="#8884d8" name="Requests" />
@@ -193,21 +209,37 @@ const ActivityChart = ({ data, viewMode, timeRange }: { data: ActivityData[], vi
         <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
           <Tooltip 
             labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-            formatter={(value) => [Number(value).toLocaleString(), undefined]}
+            formatter={(value, name, props) => {
+              // Set the color based on the dataKey
+              const color = props.dataKey === 'total_requests' ? '#8884d8' : '#82ca9d';
+              // Return the value with the name
+              return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+            }}
+            wrapperStyle={{ pointerEvents: 'auto' }}
+            contentStyle={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+              color: '#000', 
+              border: '1px solid #ccc',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              padding: '8px',
+              borderRadius: '4px'
+            }}
+            itemStyle={{ color: undefined }}
+            labelStyle={{ color: '#000', fontWeight: 'bold' }}
           />
         <Legend />
         <Line 
           type="monotone" 
           dataKey="total_requests" 
           stroke="#8884d8" 
-          name="Cumulative Requests"
+          name="Requests"
           strokeWidth={2}
         />
         <Line 
           type="monotone" 
           dataKey="total_responses" 
           stroke="#82ca9d" 
-          name="Cumulative Responses"
+          name="Responses"
           strokeWidth={2}
         />
       </LineChart>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import {
   LineChart,
   Line,
@@ -192,10 +193,26 @@ const ActivityChart = ({ data, viewMode, timeRange }: { data: ChartData[], viewM
             padding={{ left: 30, right: 30 }}
           />
           <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
-          <Tooltip 
-            labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-            formatter={(value) => [Number(value).toLocaleString(), undefined]}
-          />
+        <Tooltip 
+          labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
+          formatter={(value, name, props) => {
+            // Set the color based on the dataKey
+            const color = props.dataKey === 'total_responses' ? '#8884d8' : '#82ca9d';
+            // Return the value with the name
+            return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+          }}
+          wrapperStyle={{ pointerEvents: 'auto' }}
+          contentStyle={{ 
+            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+            color: '#000', 
+            border: '1px solid #ccc',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+            padding: '8px',
+            borderRadius: '4px'
+          }}
+          itemStyle={{ color: undefined }}
+          labelStyle={{ color: '#000', fontWeight: 'bold' }}
+        />
           <Legend />
           <Bar dataKey="total_responses" fill="#8884d8" name="Responses" />
           <Bar dataKey="total_feedback" fill="#82ca9d" name="Feedback" />
@@ -233,23 +250,39 @@ const ActivityChart = ({ data, viewMode, timeRange }: { data: ChartData[], viewM
           padding={{ left: 30, right: 30 }}
         />
         <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
-        <Tooltip 
-          labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
-          formatter={(value) => [Number(value).toLocaleString(), undefined]}
-        />
+          <Tooltip 
+            labelFormatter={(time) => formatRelativeTime(time as string, timeRange, true)}
+            formatter={(value, name, props) => {
+              // Set the color based on the dataKey
+              const color = props.dataKey === 'total_responses' ? '#8884d8' : '#82ca9d';
+              // Return the value with the name
+              return [<span style={{ color }}>{Number(value).toLocaleString()}</span>, name];
+            }}
+            wrapperStyle={{ pointerEvents: 'auto' }}
+            contentStyle={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+              color: '#000', 
+              border: '1px solid #ccc',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              padding: '8px',
+              borderRadius: '4px'
+            }}
+            itemStyle={{ color: undefined }}
+            labelStyle={{ color: '#000', fontWeight: 'bold' }}
+          />
         <Legend />
         <Line 
           type="monotone" 
           dataKey="total_responses" 
           stroke="#8884d8" 
-          name="Cumulative Responses"
+          name="Responses"
           strokeWidth={2}
         />
         <Line 
           type="monotone" 
           dataKey="total_feedback" 
           stroke="#82ca9d" 
-          name="Cumulative Feedback"
+          name="Feedback"
           strokeWidth={2}
         />
       </LineChart>
@@ -331,8 +364,9 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
               />
             </nav>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center space-x-2">
             <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
+            <ThemeToggle />
           </div>
         </div>
       </header>

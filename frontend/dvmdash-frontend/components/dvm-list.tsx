@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart3, Bot, Tags, Home, Search, LayoutGrid, List } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { useDVMList } from '@/lib/api'
 import { TimeRangeSelector } from './time-range-selector'
 import { TimeWindow, NavIconProps, DVMListItem } from '@/lib/types'
@@ -50,13 +51,13 @@ const DVMCard = ({ dvm }: DVMCardProps) => {
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-sm font-medium truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">
                 {dvm.supported_kinds.length} supported kinds • {dvm.num_supporting_kinds} supporting
               </p>
             </div>
           </div>
-          <div className="mt-4 space-y-2 text-xs text-gray-500">
+          <div className="mt-4 space-y-2 text-xs text-muted-foreground">
             <div className="flex justify-between">
               <span>Requests: {dvm.total_requests?.toLocaleString() ?? '0'}</span>
               <span>Responses: {dvm.total_responses?.toLocaleString() ?? '0'}</span>
@@ -249,8 +250,9 @@ export function DVMList() {
               />
             </nav>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center space-x-2">
             <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -258,7 +260,7 @@ export function DVMList() {
       <main className="container mx-auto p-4">
         <div className="mb-6 flex justify-between items-center">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-500" />
+            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search DVMs..."
@@ -276,7 +278,7 @@ export function DVMList() {
               checked={isCardView}
               onCheckedChange={setIsCardView}
             />
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               {isCardView ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
             </span>
           </div>
