@@ -20,36 +20,10 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
-export const metadata: Metadata = {
-  metadataBase: new URL('https://stats.dvmdash.live'),
-  title: {
-    template: '%s | DVMDash Stats',
-    default: 'DVMDash Stats',
-  },
-  description: "Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash",
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: 'https://stats.dvmdash.live',
-    title: 'DVMDash Stats',
-    description: 'Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash',
-    siteName: 'DVMDash Stats',
-    images: [
-      {
-        url: 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png',
-        width: 500,
-        height: 500,
-        alt: 'DVMDash Stats',
-      }
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'DVMDash Stats',
-    description: 'Statistics for Data Vending Machines (DVMs) on Nostr provided by DVMDash',
-    images: ['https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'],
-  },
-};
+import { generateDashboardMetadata } from './dashboard-metadata'
+
+// Use the dynamic metadata generation function
+export const generateMetadata = generateDashboardMetadata;
 
 export default function RootLayout({
   children,

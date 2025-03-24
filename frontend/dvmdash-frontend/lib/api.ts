@@ -3,7 +3,33 @@ import { TimeWindow, TimeWindowStats } from './types'
 
 // Determine if we should use the proxy based on environment
 const useProxy = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_USE_API_PROXY === 'true'
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Always use the environment variable if available, otherwise use appropriate defaults
+const determineApiBase = () => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  const isServer = typeof window === 'undefined';
+  const defaultUrl = isServer ? 'http://api:8000' : 'http://localhost:8000';
+  
+  console.log('API_BASE determination:', {
+    NEXT_PUBLIC_API_URL: envUrl,
+    isServer,
+    defaultUrl,
+    finalUrl: envUrl || defaultUrl
+  });
+  
+  return envUrl || defaultUrl;
+};
+
+export const API_BASE = determineApiBase();
+
+/**
+ * Standardized function to get the API URL for a given path
+ * This ensures consistent API URL handling across the application
+ */
+export function getApiUrl(path: string): string {
+  const baseUrl = API_BASE
+  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`
+}
 
 /**
  * Convert a direct API URL to a proxy URL if needed
