@@ -33,6 +33,10 @@ interface NoteConfig {
 }
 
 const noteConfigs: NoteConfig[] = [
+  {
+    naddr: 'addr1qq8xgandvdcz6am0wf4hx6r0wqqsuamnwvaz7t6qdehhxtnvdakqygrtx7qw72tjuu7nwzuy50j3u74f4c6t7sff8rw0hkw97cajy9qkeqpsgqqqw4rs6uvppz',
+    category: 'tutorial'
+  },
   { 
     naddr: 'naddr1qvzqqqr4gupzq743a4atthagufhsvacq42c7yk4zmphjz2vg3mw6s055nhuwz5n4qqsyjm6594z9vnfd2d5k6atvv96x7u3d2pex76n9vd6z6ur6vajks7sa5fzxa',
     category: 'news' // Override category for this note
