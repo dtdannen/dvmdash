@@ -1,5 +1,3 @@
-'use client'
-
 import { Dashboard } from "@/components/dashboard"
 import type { Metadata, ResolvingMetadata } from 'next'
 import { API_BASE } from '@/lib/api'

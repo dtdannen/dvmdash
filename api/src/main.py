@@ -30,6 +30,8 @@ class DVMStatsResponse(BaseModel):
     dvm_about: Optional[str] = None
     dvm_picture: Optional[str] = None
     timestamp: datetime
+    period_start: datetime
+    period_end: datetime
     total_responses: int
     total_feedback: int
     time_series: List[DVMTimeSeriesData]
