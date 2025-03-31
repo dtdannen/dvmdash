@@ -277,6 +277,17 @@ async def get_latest_global_stats(
                     END
                 ) AS interval_start
             ),
+            active_dvms AS (
+                SELECT DISTINCT entity_id
+                FROM entity_activity
+                WHERE entity_type = 'dvm'
+                AND observed_at >= CASE 
+                    WHEN $1 = '1 hour' THEN NOW() - INTERVAL '1 hour'
+                    WHEN $1 = '24 hours' THEN NOW() - INTERVAL '24 hours'
+                    WHEN $1 = '7 days' THEN NOW() - INTERVAL '7 days'
+                    WHEN $1 = '30 days' THEN NOW() - INTERVAL '30 days'
+                END
+            ),
             interval_stats AS (
                 SELECT 
                     i.interval_start,
@@ -293,7 +304,7 @@ async def get_latest_global_stats(
                         THEN ea.entity_id 
                     END) as unique_users,
                     COUNT(DISTINCT CASE 
-                        WHEN ea.entity_type = 'dvm' 
+                        WHEN ea.entity_type = 'dvm' AND ea.entity_id IN (SELECT entity_id FROM active_dvms)
                         THEN ea.entity_id 
                     END) as unique_dvms
                 FROM intervals i
