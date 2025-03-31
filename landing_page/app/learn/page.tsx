@@ -34,7 +34,7 @@ interface NoteConfig {
 
 const noteConfigs: NoteConfig[] = [
   {
-    naddr: 'addr1qq8xgandvdcz6am0wf4hx6r0wqqsuamnwvaz7t6qdehhxtnvdakqygrtx7qw72tjuu7nwzuy50j3u74f4c6t7sff8rw0hkw97cajy9qkeqpsgqqqw4rs6uvppz',
+    naddr: 'naddr1qq8xgandvdcz6am0wf4hx6r0wqqsuamnwvaz7t6qdehhxtnvdakqygrtx7qw72tjuu7nwzuy50j3u74f4c6t7sff8rw0hkw97cajy9qkeqpsgqqqw4rs6uvppz',
     category: 'tutorial'
   },
   { 
