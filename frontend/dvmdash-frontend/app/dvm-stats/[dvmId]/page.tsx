@@ -1,6 +1,7 @@
 import { DVMStats } from '@/components/dvm-stats'
 import type { Metadata, ResolvingMetadata } from 'next'
-import { API_BASE } from '@/lib/api'
+import { getApiUrl } from '@/lib/api'
+import { createCompleteMetadata } from '@/lib/metadata-utils'
 
 type Props = {
   params: { dvmId: string }
@@ -10,7 +11,23 @@ type Props = {
 // Function to fetch DVM data for metadata
 async function fetchDVMData(dvmId: string) {
   try {
-    const res = await fetch(`${API_BASE}/api/stats/dvm/${dvmId}?timeRange=30d`, {
+    // For server-side metadata requests, use the metadata API URL if available
+    const metadataApiUrl = process.env.NEXT_PUBLIC_METADATA_API_URL || process.env.NEXT_PUBLIC_API_URL;
+    const apiUrl = typeof window === 'undefined' && metadataApiUrl ? metadataApiUrl : getApiUrl('');
+    
+    // Log environment information
+    console.log('Environment in fetchDVMData:', {
+      dvmId,
+      isServer: typeof window === 'undefined',
+      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+      NEXT_PUBLIC_METADATA_API_URL: process.env.NEXT_PUBLIC_METADATA_API_URL,
+      metadataApiUrl,
+      apiUrl,
+      fullUrl: `${apiUrl}/api/stats/dvm/${dvmId}?timeRange=30d`
+    });
+    
+    // Use the metadata API URL for server-side requests
+    const res = await fetch(`${apiUrl}/api/stats/dvm/${dvmId}?timeRange=30d`, {
       next: { revalidate: 60 } // Revalidate every minute
     })
     
@@ -32,52 +49,50 @@ export async function generateMetadata(
   // Get DVM ID from params
   const dvmId = params.dvmId
   
-  // Fetch DVM data
-  const dvmData = await fetchDVMData(dvmId)
-  
   // Get the canonical URL
   const canonicalUrl = `https://stats.dvmdash.live/dvm-stats/${dvmId}`
+  
+  // Default values for metadata
+  let title = `DVM ${dvmId.slice(0, 8)}...`
+  let description = `Statistics for Data Vending Machine (DVM) ${dvmId.slice(0, 8)}... on Nostr`
+  let imageUrl = 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'
+  let imageWidth = 500
+  let imageHeight = 500
+  
+  // Try to fetch DVM data, but don't let it block metadata generation
+  try {
+    const dvmData = await fetchDVMData(dvmId)
+    
+    if (dvmData) {
+      // Update values if data fetch succeeds
+      title = dvmData.dvm_name || title
+      description = dvmData.dvm_about || description
+      
+      // Use DVM picture if available
+      if (dvmData.dvm_picture) {
+        imageUrl = dvmData.dvm_picture
+        imageWidth = 1200
+        imageHeight = 630
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to fetch DVM data for metadata (${dvmId}), using default values:`, error)
+  }
   
   // Get previous images from parent metadata
   const previousImages = (await parent).openGraph?.images || []
   
-  // Default values if data fetch fails
-  const title = dvmData?.dvm_name || `DVM ${dvmId.slice(0, 8)}...`
-  const description = dvmData?.dvm_about || 
-    `Statistics for Data Vending Machine (DVM) ${dvmId.slice(0, 8)}... on Nostr`
-  
-  // Use DVM picture if available, otherwise use a default image
-  const imageUrl = dvmData?.dvm_picture || 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'
-  
-  return {
+  // Use the utility function to create complete metadata
+  return createCompleteMetadata(
     title,
     description,
-    openGraph: {
-      type: 'website',
-      url: canonicalUrl,
-      title,
-      description,
-      images: [
-        {
-          url: imageUrl,
-          width: dvmData?.dvm_picture ? 1200 : 500,
-          height: dvmData?.dvm_picture ? 630 : 500,
-          alt: `${title} stats visualization`,
-        },
-        ...previousImages,
-      ],
-      siteName: 'DVMDash Stats',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [imageUrl],
-    },
-    alternates: {
-      canonical: canonicalUrl,
-    },
-  }
+    imageUrl,
+    canonicalUrl,
+    previousImages,
+    'Dataset', // Schema.org type
+    imageWidth,
+    imageHeight
+  )
 }
 
 export default function DVMStatsPage({ params }: Props) {

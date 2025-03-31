@@ -1,6 +1,7 @@
 import { KindStats } from '@/components/kind-stats'
 import type { Metadata, ResolvingMetadata } from 'next'
-import { API_BASE } from '@/lib/api'
+import { getApiUrl } from '@/lib/api'
+import { createCompleteMetadata } from '@/lib/metadata-utils'
 
 type Props = {
   params: { kind: string }
@@ -10,7 +11,23 @@ type Props = {
 // Function to fetch Kind data for metadata
 async function fetchKindData(kindId: number) {
   try {
-    const res = await fetch(`${API_BASE}/api/stats/kind/${kindId}?timeRange=30d`, {
+    // For server-side metadata requests, use the metadata API URL if available
+    const metadataApiUrl = process.env.NEXT_PUBLIC_METADATA_API_URL || process.env.NEXT_PUBLIC_API_URL;
+    const apiUrl = typeof window === 'undefined' && metadataApiUrl ? metadataApiUrl : getApiUrl('');
+    
+    // Log environment information
+    console.log('Environment in fetchKindData:', {
+      kindId,
+      isServer: typeof window === 'undefined',
+      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+      NEXT_PUBLIC_METADATA_API_URL: process.env.NEXT_PUBLIC_METADATA_API_URL,
+      metadataApiUrl,
+      apiUrl,
+      fullUrl: `${apiUrl}/api/stats/kind/${kindId}?timeRange=30d`
+    });
+    
+    // Use the metadata API URL for server-side requests
+    const res = await fetch(`${apiUrl}/api/stats/kind/${kindId}?timeRange=30d`, {
       next: { revalidate: 60 } // Revalidate every minute
     })
     
@@ -38,53 +55,40 @@ export async function generateMetadata(
     }
   }
   
-  // Fetch Kind data
-  const kindData = await fetchKindData(kindId)
-  
   // Get the canonical URL
   const canonicalUrl = `https://stats.dvmdash.live/kind-stats/${kindId}`
+  
+  // Default values for metadata
+  const title = `Kind ${kindId}`
+  let description = `Statistics for Nostr Kind ${kindId}`
+  const imageUrl = 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'
+  
+  // Try to fetch Kind data, but don't let it block metadata generation
+  try {
+    const kindData = await fetchKindData(kindId)
+    
+    if (kindData) {
+      // Update description if data fetch succeeds
+      description = `Statistics for Nostr Kind ${kindId} with ${kindData.num_supporting_dvms} supporting DVMs`
+    }
+  } catch (error) {
+    console.error(`Failed to fetch Kind data for metadata (${kindId}), using default values:`, error)
+  }
   
   // Get previous images from parent metadata
   const previousImages = (await parent).openGraph?.images || []
   
-  // Default values if data fetch fails
-  const title = `Kind ${kindId}`
-  const description = kindData 
-    ? `Statistics for Nostr Kind ${kindId} with ${kindData.num_supporting_dvms} supporting DVMs`
-    : `Statistics for Nostr Kind ${kindId}`
-  
-  // Use a default image for kind stats
-  const imageUrl = 'https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/DVMDash.png'
-  
-  return {
+  // Use the utility function to create complete metadata
+  return createCompleteMetadata(
     title,
     description,
-    openGraph: {
-      type: 'website',
-      url: canonicalUrl,
-      title,
-      description,
-      images: [
-        {
-          url: imageUrl,
-          width: 500,
-          height: 500,
-          alt: `${title} stats visualization`,
-        },
-        ...previousImages,
-      ],
-      siteName: 'DVMDash Stats',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [imageUrl],
-    },
-    alternates: {
-      canonical: canonicalUrl,
-    },
-  }
+    imageUrl,
+    canonicalUrl,
+    previousImages,
+    'Dataset', // Schema.org type
+    500, // Image width
+    500  // Image height
+  )
 }
 
 export default function KindStatsPage({ params }: Props) {
