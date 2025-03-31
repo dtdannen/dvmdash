@@ -628,17 +628,8 @@ export function Dashboard() {
             <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
             <ThemeToggle />
           </div>
-        </div>
-      </header>
-
-      <div className="w-full bg-muted py-3">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-sm text-muted-foreground flex items-center justify-center">
-            <Clock className="h-4 w-4 mr-1" />
-            Data automatically updates every second
-          </p>
-        </div>
       </div>
+    </header>
 
       <main className="container mx-auto p-4">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
