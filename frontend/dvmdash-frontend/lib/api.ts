@@ -4,20 +4,34 @@ import { TimeWindow, TimeWindowStats } from './types'
 // Determine if we should use the proxy based on environment
 const useProxy = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_USE_API_PROXY === 'true'
 
-// Always use the environment variable if available, otherwise use appropriate defaults
+// Determine the API base URL based on environment
 const determineApiBase = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  // Get environment variables
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const metadataApiUrl = process.env.NEXT_PUBLIC_METADATA_API_URL;
   const isServer = typeof window === 'undefined';
-  const defaultUrl = isServer ? 'http://api:8000' : 'http://localhost:8000';
   
-  console.log('API_BASE determination:', {
-    NEXT_PUBLIC_API_URL: envUrl,
-    isServer,
-    defaultUrl,
-    finalUrl: envUrl || defaultUrl
-  });
+  // For server-side rendering, use the metadata API URL
+  if (isServer) {
+    const serverUrl = metadataApiUrl || 'http://api:8000'; // Default to Docker service name
+    console.log('API_BASE determination (server-side):', {
+      NEXT_PUBLIC_METADATA_API_URL: metadataApiUrl,
+      serverUrl
+    });
+    return serverUrl;
+  }
   
-  return envUrl || defaultUrl;
+  // For client-side in browser, use the public API URL
+  if (apiUrl) {
+    console.log('API_BASE determination (client-side):', {
+      NEXT_PUBLIC_API_URL: apiUrl
+    });
+    return apiUrl;
+  }
+  
+  // Fallback for development (should be avoided in production by setting env vars)
+  console.warn('NEXT_PUBLIC_API_URL not set, falling back to localhost:8000');
+  return 'http://localhost:8000';
 };
 
 export const API_BASE = determineApiBase();

@@ -230,7 +230,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      # For client-side browser requests, use localhost:8000 which is exposed by the API container
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # For server-side rendering within the container, use the Docker service name
       - NEXT_PUBLIC_METADATA_API_URL=http://api:8000
     depends_on:
       - api
