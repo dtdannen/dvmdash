@@ -1,6 +1,16 @@
 import useSWR from 'swr'
 import { TimeWindow, TimeWindowStats } from './types'
 
+// Debug mode flag
+const DEBUG = process.env.NEXT_PUBLIC_LOG_LEVEL === 'DEBUG';
+
+// Debug logging function
+const debugLog = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args);
+  }
+};
+
 // Determine if we should use the proxy based on environment
 const useProxy = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_USE_API_PROXY === 'true'
 
@@ -14,7 +24,7 @@ const determineApiBase = () => {
   // For server-side rendering, use the metadata API URL
   if (isServer) {
     const serverUrl = metadataApiUrl || 'http://api:8000'; // Default to Docker service name
-    console.log('API_BASE determination (server-side):', {
+    debugLog('API_BASE determination (server-side):', {
       NEXT_PUBLIC_METADATA_API_URL: metadataApiUrl,
       serverUrl
     });
@@ -23,7 +33,7 @@ const determineApiBase = () => {
   
   // For client-side in browser, use the public API URL
   if (apiUrl) {
-    console.log('API_BASE determination (client-side):', {
+    debugLog('API_BASE determination (client-side):', {
       NEXT_PUBLIC_API_URL: apiUrl
     });
     return apiUrl;
@@ -67,7 +77,7 @@ const getProxyUrl = (url: string): string => {
     proxyUrlObj.searchParams.set(key, value)
   })
   
-  console.log(`Proxying request: ${url} -> ${proxyUrlObj.toString()}`)
+  debugLog(`Proxying request: ${url} -> ${proxyUrlObj.toString()}`)
   return proxyUrlObj.toString()
 }
 
@@ -76,7 +86,7 @@ const fetcher = async (url: string) => {
     // Determine if we need to use the proxy
     const fetchUrl = useProxy ? getProxyUrl(url) : url
     
-    console.log('Fetching:', fetchUrl, useProxy ? `(proxied from ${url})` : '')
+    debugLog('Fetching:', fetchUrl, useProxy ? `(proxied from ${url})` : '')
     const res = await fetch(fetchUrl, {
       mode: 'cors',
       headers: {
@@ -95,7 +105,7 @@ const fetcher = async (url: string) => {
     }
 
     const data = await res.json()
-    console.log('API Success:', {
+    debugLog('API Success:', {
       url,
       status: res.status,
       headers: Object.fromEntries(res.headers.entries()),

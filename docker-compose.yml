@@ -180,6 +180,7 @@ services:
       - POSTGRES_HOST=postgres_pipeline
       - DEFAULT_RELAYS=wss://relay.damus.io,wss://relay.primal.net,wss://relay.dvmdash.live,wss://relay.f7z.xyz,wss://relayable.org
       - ENVIRONMENT=development
+      - LOG_LEVEL=INFO  # Set to DEBUG for detailed logging
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
@@ -234,6 +235,8 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       # For server-side rendering within the container, use the Docker service name
       - NEXT_PUBLIC_METADATA_API_URL=http://api:8000
+      # Logging level (set to DEBUG for detailed logging)
+      - NEXT_PUBLIC_LOG_LEVEL=INFO
     depends_on:
       - api
     healthcheck:

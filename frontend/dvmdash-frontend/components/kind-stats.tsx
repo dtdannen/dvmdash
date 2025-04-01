@@ -267,7 +267,11 @@ export function KindStats({ kindId }: { kindId: number }) {
   const [viewMode, setViewMode] = useState<ViewMode>('bar')
   const { stats, isLoading, isError } = useKindStats(kindId, timeRange)
 
-  console.log('KindStats render:', { kindId, timeRange, isLoading, isError, hasStats: !!stats });
+  // Debug logging
+  const DEBUG = process.env.NEXT_PUBLIC_LOG_LEVEL === 'DEBUG';
+  if (DEBUG) {
+    console.log('KindStats render:', { kindId, timeRange, isLoading, isError, hasStats: !!stats });
+  }
 
   if (isError) return (
     <div className="min-h-screen bg-background flex items-center justify-center">

@@ -13,6 +13,18 @@ import json
 from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
+from loguru import logger
+
+# Configure loguru based on LOG_LEVEL environment variable
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logger.remove()  # Remove default handler
+logger.add(
+    sink=lambda msg: print(msg),  # Use print as the sink to maintain console output
+    level=log_level,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+)
+
+logger.info(f"Logging configured with level: {log_level}")
 
 from admin_routes import router as admin_router
 from relay_config import RelayConfigManager
@@ -448,7 +460,7 @@ async def get_dvm_stats(
         description="Time window for stats",
     ),
 ):
-    print(f"[DVM Stats] Getting stats for DVM {dvm_id} with timeRange {timeRange}")
+    logger.debug(f"Getting stats for DVM {dvm_id} with timeRange {timeRange}")
 
     async with app.state.pool.acquire() as conn:
         # First check if DVM exists
@@ -456,15 +468,15 @@ async def get_dvm_stats(
             "SELECT id, is_active, last_profile_event_raw_json FROM dvms WHERE id = $1", dvm_id
         )
         if not dvm_check:
-            print(f"[DVM Stats] DVM {dvm_id} not found")
+            logger.debug(f"DVM {dvm_id} not found")
             raise HTTPException(status_code=404, detail=f"DVM {dvm_id} not found")
         if not dvm_check["is_active"]:
-            print(f"[DVM Stats] DVM {dvm_id} is no longer active")
+            logger.debug(f"DVM {dvm_id} is no longer active")
             raise HTTPException(
                 status_code=404, detail=f"DVM {dvm_id} is no longer active"
             )
 
-        print(f"[DVM Stats] Found active DVM {dvm_id}")
+        logger.debug(f"Found active DVM {dvm_id}")
         
         # Extract profile information
         dvm_name = None
@@ -491,9 +503,9 @@ async def get_dvm_stats(
                 elif "image" in profile_json:
                     dvm_picture = profile_json["image"]
                 
-                print(f"[DVM Stats] Extracted profile data: name={dvm_name}, has_about={bool(dvm_about)}, has_picture={bool(dvm_picture)}")
+                logger.debug(f"Extracted profile data: name={dvm_name}, has_about={bool(dvm_about)}, has_picture={bool(dvm_picture)}")
             except Exception as e:
-                print(f"[DVM Stats] Error parsing profile JSON: {e}")
+                logger.error(f"Error parsing profile JSON: {e}")
 
         # Get latest stats from dvm_time_window_stats
         stats_query = """
@@ -511,11 +523,11 @@ async def get_dvm_stats(
             LIMIT 1
         """
         
-        print(f"[DVM Stats] Fetching stats with window size {timeRange.to_db_value()}")
+        logger.debug(f"Fetching stats with window size {timeRange.to_db_value()}")
         stats = await conn.fetchrow(stats_query, dvm_id, timeRange.to_db_value())
 
         if not stats:
-            print(f"[DVM Stats] No stats found, returning empty stats")
+            logger.debug(f"No stats found, returning empty stats")
             # Return empty stats if no data exists
             stats = {
                 "dvm_id": dvm_id,
@@ -526,10 +538,10 @@ async def get_dvm_stats(
                 "total_feedback": 0
             }
 
-        print(f"[DVM Stats] Found stats: {stats}")
+        logger.debug(f"Found stats: {stats}")
 
         # Calculate time series data from entity_activity
-        print(f"[DVM Stats] Calculating time series data")
+        logger.debug(f"Calculating time series data")
         timeseries_query = """
             WITH intervals AS (
                 SELECT generate_series(
@@ -585,7 +597,7 @@ async def get_dvm_stats(
             timeseries_query, dvm_id, timeRange.to_db_value()
         )
         time_series = [dict(row) for row in timeseries_rows]
-        print(f"[DVM Stats] Found {len(time_series)} time series data points")
+        logger.debug(f"Found {len(time_series)} time series data points")
 
         # Get supported kinds for this DVM
         supported_kinds_query = """
@@ -595,10 +607,10 @@ async def get_dvm_stats(
             GROUP BY dvm
         """
         
-        print(f"[DVM Stats] Fetching supported kinds")
+        logger.debug(f"Fetching supported kinds")
         supported_kinds_row = await conn.fetchrow(supported_kinds_query, dvm_id)
         supported_kinds = supported_kinds_row["supported_kinds"] if supported_kinds_row else []
-        print(f"[DVM Stats] Found {len(supported_kinds) if supported_kinds else 0} supported kinds")
+        logger.debug(f"Found {len(supported_kinds) if supported_kinds else 0} supported kinds")
 
         result = {
             **dict(stats), 
@@ -608,7 +620,7 @@ async def get_dvm_stats(
             "dvm_picture": dvm_picture,
             "supported_kinds": supported_kinds or []
         }
-        print(f"[DVM Stats] Returning result with {len(result['time_series'])} time series points")
+        logger.debug(f"Returning result with {len(result['time_series'])} time series points")
         return result
 
 

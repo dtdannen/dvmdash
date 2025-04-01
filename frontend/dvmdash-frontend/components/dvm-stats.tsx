@@ -309,7 +309,11 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
   const [viewMode, setViewMode] = useState<ViewMode>('bar')
   const { stats, isLoading, isError } = useDVMStats(dvmId, timeRange)
 
-  console.log('DVMStats render:', { dvmId, timeRange, isLoading, isError, hasStats: !!stats });
+  // Debug logging
+  const DEBUG = process.env.NEXT_PUBLIC_LOG_LEVEL === 'DEBUG';
+  if (DEBUG) {
+    console.log('DVMStats render:', { dvmId, timeRange, isLoading, isError, hasStats: !!stats });
+  }
 
 
   if (isError) return (
