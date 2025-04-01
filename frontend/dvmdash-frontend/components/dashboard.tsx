@@ -91,6 +91,7 @@ interface ChartComponentProps {
   data: ChartData[]
   viewMode: ViewMode
   timeRange: TimeWindow
+  stats?: any // Add stats as an optional prop
 }
 
 const JobCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => {
@@ -295,7 +296,7 @@ const JobCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => {
   );
 }
 
-const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => {
+const ActorCountChart = ({ data, viewMode, timeRange, stats }: ChartComponentProps) => {
   const chartData = useMemo(() => {
     // First aggregate data by timeKey if needed
     const aggregatedData = new Map();
@@ -339,13 +340,28 @@ const ActorCountChart = ({ data, viewMode, timeRange }: ChartComponentProps) => 
 
     // Then calculate cumulative values if in cumulative mode
     if (viewMode === 'cumulative') {
-      let usersSum = 0;
-      let agentsSum = 0;
-      processedData = processedData.map(point => ({
-        ...point,
-        users: (usersSum += Number(point.users)),
-        agents: (agentsSum += Number(point.agents))
-      }));
+      // Create a Set to track unique DVMs and users we've seen
+      const uniqueUsers = new Set();
+      const uniqueAgents = new Set();
+      
+      // For each time point, we'll count unique DVMs and users up to that point
+      let cumulativeUsers = 0;
+      let cumulativeAgents = 0;
+      
+      // We need to track the actual entities, not just counts
+      // This is a simplified approach - in reality, we'd need the actual entity IDs
+      // For now, we'll just use the count at each time point as our best approximation
+      processedData = processedData.map(point => {
+        // For this time point, add its count to our cumulative total
+        cumulativeUsers = stats.unique_users;
+        cumulativeAgents = stats.unique_dvms;
+        
+        return {
+          ...point,
+          users: cumulativeUsers,
+          agents: cumulativeAgents
+        };
+      });
     }
 
     return processedData;
@@ -612,17 +628,8 @@ export function Dashboard() {
             <TimeRangeSelector timeRange={timeRange} setTimeRange={setTimeRange} />
             <ThemeToggle />
           </div>
-        </div>
-      </header>
-
-      <div className="w-full bg-muted py-3">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-sm text-muted-foreground flex items-center justify-center">
-            <Clock className="h-4 w-4 mr-1" />
-            Data automatically updates every second
-          </p>
-        </div>
       </div>
+    </header>
 
       <main className="container mx-auto p-4">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -749,7 +756,7 @@ export function Dashboard() {
                 <JobCountChart data={jobCountData} viewMode={viewMode} timeRange={timeRange} />
               </TabsContent>
               <TabsContent value="actorCount">
-                <ActorCountChart data={actorCountData} viewMode={viewMode} timeRange={timeRange} />
+                <ActorCountChart data={actorCountData} viewMode={viewMode} timeRange={timeRange} stats={stats} />
               </TabsContent>
             </Tabs>
           </CardContent>

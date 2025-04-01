@@ -15,16 +15,18 @@ async function fetchKindData(kindId: number) {
     const metadataApiUrl = process.env.NEXT_PUBLIC_METADATA_API_URL || process.env.NEXT_PUBLIC_API_URL;
     const apiUrl = typeof window === 'undefined' && metadataApiUrl ? metadataApiUrl : getApiUrl('');
     
-    // Log environment information
-    console.log('Environment in fetchKindData:', {
-      kindId,
-      isServer: typeof window === 'undefined',
-      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-      NEXT_PUBLIC_METADATA_API_URL: process.env.NEXT_PUBLIC_METADATA_API_URL,
-      metadataApiUrl,
-      apiUrl,
-      fullUrl: `${apiUrl}/api/stats/kind/${kindId}?timeRange=30d`
-    });
+    // Log environment information only in debug mode
+    if (process.env.NEXT_PUBLIC_LOG_LEVEL === 'DEBUG') {
+      console.log('Environment in fetchKindData:', {
+        kindId,
+        isServer: typeof window === 'undefined',
+        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+        NEXT_PUBLIC_METADATA_API_URL: process.env.NEXT_PUBLIC_METADATA_API_URL,
+        metadataApiUrl,
+        apiUrl,
+        fullUrl: `${apiUrl}/api/stats/kind/${kindId}?timeRange=30d`
+      });
+    }
     
     // Use the metadata API URL for server-side requests
     const res = await fetch(`${apiUrl}/api/stats/kind/${kindId}?timeRange=30d`, {

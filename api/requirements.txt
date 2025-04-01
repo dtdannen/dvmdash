@@ -5,3 +5,4 @@ asyncpg==0.29.0
 pydantic==2.5.2
 docker==7.0.0
 redis==5.0.1
+loguru==0.7.3

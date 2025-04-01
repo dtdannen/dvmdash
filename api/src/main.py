@@ -13,6 +13,18 @@ import json
 from typing import Optional, List, Union
 from enum import Enum
 from fastapi import Query
+from loguru import logger
+
+# Configure loguru based on LOG_LEVEL environment variable
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logger.remove()  # Remove default handler
+logger.add(
+    sink=lambda msg: print(msg),  # Use print as the sink to maintain console output
+    level=log_level,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+)
+
+logger.info(f"Logging configured with level: {log_level}")
 
 from admin_routes import router as admin_router
 from relay_config import RelayConfigManager
@@ -30,8 +42,11 @@ class DVMStatsResponse(BaseModel):
     dvm_about: Optional[str] = None
     dvm_picture: Optional[str] = None
     timestamp: datetime
+    period_start: datetime
+    period_end: datetime
     total_responses: int
     total_feedback: int
+    supported_kinds: List[int] = []
     time_series: List[DVMTimeSeriesData]
 
 
@@ -40,6 +55,7 @@ class DVMListItem(BaseModel):
     last_seen: datetime
     is_active: bool
     supported_kinds: List[int]
+    num_supporting_kinds: int
     total_responses: Optional[int] = None
     total_feedback: Optional[int] = None
     total_events: Optional[int] = None
@@ -275,6 +291,17 @@ async def get_latest_global_stats(
                     END
                 ) AS interval_start
             ),
+            active_dvms AS (
+                SELECT DISTINCT entity_id
+                FROM entity_activity
+                WHERE entity_type = 'dvm'
+                AND observed_at >= CASE 
+                    WHEN $1 = '1 hour' THEN NOW() - INTERVAL '1 hour'
+                    WHEN $1 = '24 hours' THEN NOW() - INTERVAL '24 hours'
+                    WHEN $1 = '7 days' THEN NOW() - INTERVAL '7 days'
+                    WHEN $1 = '30 days' THEN NOW() - INTERVAL '30 days'
+                END
+            ),
             interval_stats AS (
                 SELECT 
                     i.interval_start,
@@ -291,7 +318,7 @@ async def get_latest_global_stats(
                         THEN ea.entity_id 
                     END) as unique_users,
                     COUNT(DISTINCT CASE 
-                        WHEN ea.entity_type = 'dvm' 
+                        WHEN ea.entity_type = 'dvm' AND ea.entity_id IN (SELECT entity_id FROM active_dvms)
                         THEN ea.entity_id 
                     END) as unique_dvms
                 FROM intervals i
@@ -331,74 +358,65 @@ async def list_dvms(
         default=100, ge=1, le=1000, description="Number of DVMs to return"
     ),
     offset: int = Query(default=0, ge=0, description="Number of DVMs to skip"),
-    timeRange: Optional[TimeWindow] = Query(
-        default=None,
+    timeRange: TimeWindow = Query(
+        default=TimeWindow.ONE_MONTH,
         alias="timeRange",
-        description="Optional time window for stats",
+        description="Time window for stats and activity filtering",
     ),
 ):
     """
-    Get a list of all DVMs we've ever seen with their supported kinds.
-    Optionally includes stats for a specific time window.
+    Get a list of DVMs that have had activity within the specified time range.
     Returns DVMs ordered by last seen timestamp.
     """
     async with app.state.pool.acquire() as conn:
-        base_query = """
-            WITH dvm_kinds AS (
+        query = """
+            WITH active_dvms AS (
+                SELECT DISTINCT entity_id as dvm_id
+                FROM entity_activity
+                WHERE entity_type = 'dvm'
+                AND observed_at >= CASE 
+                    WHEN $3 = '1 hour' THEN NOW() - INTERVAL '1 hour'
+                    WHEN $3 = '24 hours' THEN NOW() - INTERVAL '24 hours'
+                    WHEN $3 = '7 days' THEN NOW() - INTERVAL '7 days'
+                    WHEN $3 = '30 days' THEN NOW() - INTERVAL '30 days'
+                END
+            ),
+            dvm_kinds AS (
                 SELECT 
                     dvm,
                     array_agg(kind ORDER BY kind) as supported_kinds
                 FROM kind_dvm_support
                 GROUP BY dvm
+            ),
+            latest_stats AS (
+                SELECT DISTINCT ON (dvm_id)
+                    dvm_id,
+                    total_responses,
+                    total_feedback
+                FROM dvm_time_window_stats
+                WHERE window_size = $3
+                ORDER BY dvm_id, timestamp DESC
             )
+            SELECT 
+                d.id,
+                d.last_seen,
+                d.is_active,
+                d.last_profile_event_raw_json,
+                COALESCE(dk.supported_kinds, ARRAY[]::integer[]) as supported_kinds,
+                (SELECT COUNT(*) FROM kind_dvm_support WHERE dvm = d.id) as num_supporting_kinds,
+                s.total_responses,
+                s.total_feedback,
+                (COALESCE(s.total_responses, 0) + COALESCE(s.total_feedback, 0)) as total_events
+            FROM dvms d
+            JOIN active_dvms ad ON d.id = ad.dvm_id
+            LEFT JOIN dvm_kinds dk ON dk.dvm = d.id
+            LEFT JOIN latest_stats s ON s.dvm_id = d.id
+            ORDER BY d.last_seen DESC
+            LIMIT $1
+            OFFSET $2
         """
-
-        if timeRange:
-            query = base_query + """
-                , latest_stats AS (
-                    SELECT DISTINCT ON (dvm_id)
-                        dvm_id,
-                        total_responses,
-                        total_feedback
-                    FROM dvm_time_window_stats
-                    WHERE window_size = $3
-                    ORDER BY dvm_id, timestamp DESC
-                )
-                SELECT 
-                    d.id,
-                    d.last_seen,
-                    d.is_active,
-                    d.last_profile_event_raw_json,
-                    COALESCE(dk.supported_kinds, ARRAY[]::integer[]) as supported_kinds,
-                    s.total_responses,
-                    s.total_feedback,
-                    (COALESCE(s.total_responses, 0) + COALESCE(s.total_feedback, 0)) as total_events
-                FROM dvms d
-                LEFT JOIN dvm_kinds dk ON dk.dvm = d.id
-                LEFT JOIN latest_stats s ON s.dvm_id = d.id
-                ORDER BY d.last_seen DESC
-                LIMIT $1
-                OFFSET $2
-            """
-            rows = await conn.fetch(query, limit, offset, timeRange.to_db_value())
-        else:
-            query = base_query + """
-                SELECT 
-                    d.id,
-                    d.last_seen,
-                    d.is_active,
-                    d.last_profile_event_raw_json,
-                    COALESCE(dk.supported_kinds, ARRAY[]::integer[]) as supported_kinds,
-                    NULL::integer as total_responses,
-                    NULL::integer as total_feedback,
-                    NULL::integer as total_events
-                FROM dvms d
-                LEFT JOIN dvm_kinds dk ON dk.dvm = d.id
-                ORDER BY d.last_seen DESC
-                LIMIT $1
-                OFFSET $2
-            """
-            rows = await conn.fetch(query, limit, offset)
+        
+        rows = await conn.fetch(query, limit, offset, timeRange.to_db_value())
 
         # Process rows to extract profile information
         processed_rows = []
@@ -442,7 +460,7 @@ async def get_dvm_stats(
         description="Time window for stats",
     ),
 ):
-    print(f"[DVM Stats] Getting stats for DVM {dvm_id} with timeRange {timeRange}")
+    logger.debug(f"Getting stats for DVM {dvm_id} with timeRange {timeRange}")
 
     async with app.state.pool.acquire() as conn:
         # First check if DVM exists
@@ -450,15 +468,15 @@ async def get_dvm_stats(
             "SELECT id, is_active, last_profile_event_raw_json FROM dvms WHERE id = $1", dvm_id
         )
         if not dvm_check:
-            print(f"[DVM Stats] DVM {dvm_id} not found")
+            logger.debug(f"DVM {dvm_id} not found")
             raise HTTPException(status_code=404, detail=f"DVM {dvm_id} not found")
         if not dvm_check["is_active"]:
-            print(f"[DVM Stats] DVM {dvm_id} is no longer active")
+            logger.debug(f"DVM {dvm_id} is no longer active")
             raise HTTPException(
                 status_code=404, detail=f"DVM {dvm_id} is no longer active"
             )
 
-        print(f"[DVM Stats] Found active DVM {dvm_id}")
+        logger.debug(f"Found active DVM {dvm_id}")
         
         # Extract profile information
         dvm_name = None
@@ -485,9 +503,9 @@ async def get_dvm_stats(
                 elif "image" in profile_json:
                     dvm_picture = profile_json["image"]
                 
-                print(f"[DVM Stats] Extracted profile data: name={dvm_name}, has_about={bool(dvm_about)}, has_picture={bool(dvm_picture)}")
+                logger.debug(f"Extracted profile data: name={dvm_name}, has_about={bool(dvm_about)}, has_picture={bool(dvm_picture)}")
             except Exception as e:
-                print(f"[DVM Stats] Error parsing profile JSON: {e}")
+                logger.error(f"Error parsing profile JSON: {e}")
 
         # Get latest stats from dvm_time_window_stats
         stats_query = """
@@ -505,11 +523,11 @@ async def get_dvm_stats(
             LIMIT 1
         """
         
-        print(f"[DVM Stats] Fetching stats with window size {timeRange.to_db_value()}")
+        logger.debug(f"Fetching stats with window size {timeRange.to_db_value()}")
         stats = await conn.fetchrow(stats_query, dvm_id, timeRange.to_db_value())
 
         if not stats:
-            print(f"[DVM Stats] No stats found, returning empty stats")
+            logger.debug(f"No stats found, returning empty stats")
             # Return empty stats if no data exists
             stats = {
                 "dvm_id": dvm_id,
@@ -520,10 +538,10 @@ async def get_dvm_stats(
                 "total_feedback": 0
             }
 
-        print(f"[DVM Stats] Found stats: {stats}")
+        logger.debug(f"Found stats: {stats}")
 
         # Calculate time series data from entity_activity
-        print(f"[DVM Stats] Calculating time series data")
+        logger.debug(f"Calculating time series data")
         timeseries_query = """
             WITH intervals AS (
                 SELECT generate_series(
@@ -579,16 +597,30 @@ async def get_dvm_stats(
             timeseries_query, dvm_id, timeRange.to_db_value()
         )
         time_series = [dict(row) for row in timeseries_rows]
-        print(f"[DVM Stats] Found {len(time_series)} time series data points")
+        logger.debug(f"Found {len(time_series)} time series data points")
+
+        # Get supported kinds for this DVM
+        supported_kinds_query = """
+            SELECT array_agg(kind ORDER BY kind) as supported_kinds
+            FROM kind_dvm_support
+            WHERE dvm = $1
+            GROUP BY dvm
+        """
+        
+        logger.debug(f"Fetching supported kinds")
+        supported_kinds_row = await conn.fetchrow(supported_kinds_query, dvm_id)
+        supported_kinds = supported_kinds_row["supported_kinds"] if supported_kinds_row else []
+        logger.debug(f"Found {len(supported_kinds) if supported_kinds else 0} supported kinds")
 
         result = {
             **dict(stats), 
             "time_series": time_series,
             "dvm_name": dvm_name,
             "dvm_about": dvm_about,
-            "dvm_picture": dvm_picture
+            "dvm_picture": dvm_picture,
+            "supported_kinds": supported_kinds or []
         }
-        print(f"[DVM Stats] Returning result with {len(result['time_series'])} time series points")
+        logger.debug(f"Returning result with {len(result['time_series'])} time series points")
         return result
 
 
@@ -709,64 +741,64 @@ async def list_kinds(
         default=100, ge=1, le=1000, description="Number of kinds to return"
     ),
     offset: int = Query(default=0, ge=0, description="Number of kinds to skip"),
-    timeRange: Optional[TimeWindow] = Query(
-        default=None,
+    timeRange: TimeWindow = Query(
+        default=TimeWindow.ONE_MONTH,
         alias="timeRange",
-        description="Optional time window for stats",
+        description="Time window for stats and activity filtering",
     ),
 ):
     """
-    Get a list of all kinds we've ever seen with their supporting DVM counts.
+    Get a list of kinds that have had activity within the specified time range.
     Returns kinds ordered by last seen timestamp.
     """
     async with app.state.pool.acquire() as conn:
-        base_query = """
-            WITH dvm_counts AS (
+        query = """
+            WITH active_kinds AS (
+                SELECT DISTINCT kind
+                FROM entity_activity
+                WHERE observed_at >= CASE 
+                    WHEN $3 = '1 hour' THEN NOW() - INTERVAL '1 hour'
+                    WHEN $3 = '24 hours' THEN NOW() - INTERVAL '24 hours'
+                    WHEN $3 = '7 days' THEN NOW() - INTERVAL '7 days'
+                    WHEN $3 = '30 days' THEN NOW() - INTERVAL '30 days'
+                END
+                AND (
+                    (kind BETWEEN 5000 AND 5999) OR  -- Request kinds
+                    (kind BETWEEN 6000 AND 6999)     -- Response kinds
+                )
+            ),
+            dvm_counts AS (
                 SELECT 
                     kind,
                     COUNT(DISTINCT dvm) as num_supporting_dvms,
                     MAX(last_seen) as last_seen
                 FROM kind_dvm_support
                 GROUP BY kind
-            )
-        """
-
-        if timeRange:
-            query = base_query + """
-                , latest_stats AS (
-                    SELECT DISTINCT ON (kind)
-                        kind,
-                        total_requests,
-                        total_responses
-                    FROM kind_time_window_stats
-                    WHERE window_size = $3
-                    ORDER BY kind, timestamp DESC
-                )
-                SELECT 
-                    dc.kind,
-                    dc.last_seen,
-                    dc.num_supporting_dvms,
-                    s.total_requests,
-                    s.total_responses
-                FROM dvm_counts dc
-                LEFT JOIN latest_stats s ON s.kind = dc.kind
-                ORDER BY dc.last_seen DESC
-                LIMIT $1
-                OFFSET $2
-            """
-            rows = await conn.fetch(query, limit, offset, timeRange.to_db_value())
-        else:
-            query = base_query + """
-                SELECT 
+            ),
+            latest_stats AS (
+                SELECT DISTINCT ON (kind)
                     kind,
-                    last_seen,
-                    num_supporting_dvms
-                FROM dvm_counts
-                ORDER BY last_seen DESC
-                LIMIT $1
-                OFFSET $2
-            """
-            rows = await conn.fetch(query, limit, offset)
+                    total_requests,
+                    total_responses
+                FROM kind_time_window_stats
+                WHERE window_size = $3
+                ORDER BY kind, timestamp DESC
+            )
+            SELECT 
+                dc.kind,
+                dc.last_seen,
+                dc.num_supporting_dvms,
+                s.total_requests,
+                s.total_responses
+            FROM dvm_counts dc
+            JOIN active_kinds ak ON dc.kind = ak.kind
+            LEFT JOIN latest_stats s ON s.kind = dc.kind
+            ORDER BY dc.last_seen DESC
+            LIMIT $1
+            OFFSET $2
+        """
+        
+        rows = await conn.fetch(query, limit, offset, timeRange.to_db_value())
 
         return {"kinds": [dict(row) for row in rows]}
 
