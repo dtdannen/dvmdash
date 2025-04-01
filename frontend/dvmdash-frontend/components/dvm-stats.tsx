@@ -432,7 +432,19 @@ export function DVMStats({ dvmId }: { dvmId: string }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.supported_kinds?.length.toLocaleString() ?? '0'}</div>
-              <p className="text-xs text-muted-foreground">Number of kinds supported</p>
+              <div className="mt-2">
+                <div className="flex flex-wrap gap-2">
+                  {stats.supported_kinds?.map((kind) => (
+                    <Link 
+                      key={kind} 
+                      href={`/kind-stats/${kind}`}
+                      className="inline-flex items-center px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-xs font-medium transition-colors"
+                    >
+                      {kind}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

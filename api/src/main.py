@@ -34,6 +34,7 @@ class DVMStatsResponse(BaseModel):
     period_end: datetime
     total_responses: int
     total_feedback: int
+    supported_kinds: List[int] = []
     time_series: List[DVMTimeSeriesData]
 
 
@@ -42,6 +43,7 @@ class DVMListItem(BaseModel):
     last_seen: datetime
     is_active: bool
     supported_kinds: List[int]
+    num_supporting_kinds: int
     total_responses: Optional[int] = None
     total_feedback: Optional[int] = None
     total_events: Optional[int] = None
@@ -389,6 +391,7 @@ async def list_dvms(
                 d.is_active,
                 d.last_profile_event_raw_json,
                 COALESCE(dk.supported_kinds, ARRAY[]::integer[]) as supported_kinds,
+                (SELECT COUNT(*) FROM kind_dvm_support WHERE dvm = d.id) as num_supporting_kinds,
                 s.total_responses,
                 s.total_feedback,
                 (COALESCE(s.total_responses, 0) + COALESCE(s.total_feedback, 0)) as total_events
@@ -584,12 +587,26 @@ async def get_dvm_stats(
         time_series = [dict(row) for row in timeseries_rows]
         print(f"[DVM Stats] Found {len(time_series)} time series data points")
 
+        # Get supported kinds for this DVM
+        supported_kinds_query = """
+            SELECT array_agg(kind ORDER BY kind) as supported_kinds
+            FROM kind_dvm_support
+            WHERE dvm = $1
+            GROUP BY dvm
+        """
+        
+        print(f"[DVM Stats] Fetching supported kinds")
+        supported_kinds_row = await conn.fetchrow(supported_kinds_query, dvm_id)
+        supported_kinds = supported_kinds_row["supported_kinds"] if supported_kinds_row else []
+        print(f"[DVM Stats] Found {len(supported_kinds) if supported_kinds else 0} supported kinds")
+
         result = {
             **dict(stats), 
             "time_series": time_series,
             "dvm_name": dvm_name,
             "dvm_about": dvm_about,
-            "dvm_picture": dvm_picture
+            "dvm_picture": dvm_picture,
+            "supported_kinds": supported_kinds or []
         }
         print(f"[DVM Stats] Returning result with {len(result['time_series'])} time series points")
         return result
