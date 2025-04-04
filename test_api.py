@@ -1,33 +1,72 @@
+#!/usr/bin/env python3
+"""
+Test script for the updated API endpoints that filter out inactive DVMs and kinds.
+This script calls the API endpoints with different time ranges and prints the results.
+"""
+
 import requests
 import json
-import urllib.parse
+from datetime import datetime
 
-# The relay URL we want to remove
-relay_url = "wss://relay.vertexlab.io"
+# API base URL
+API_BASE = "http://localhost:8000"
 
-# The API base URL
-api_base = "http://localhost:8000"  # Use localhost since we're running this on the host
+def print_json(data):
+    """Pretty print JSON data"""
+    print(json.dumps(data, indent=2))
 
-# Test 1: Try with the new query parameter endpoint
-test1_url = f"{api_base}/api/admin/relay?url={urllib.parse.quote(relay_url)}"
-print(f"Test 1: DELETE {test1_url}")
-response = requests.delete(test1_url)
-print(f"Status: {response.status_code}")
-print(f"Response: {response.text}")
-print()
+def test_dvm_list_endpoint():
+    """Test the /api/dvms endpoint with different time ranges"""
+    print("\n=== Testing /api/dvms endpoint ===")
+    
+    time_ranges = ["1h", "24h", "7d", "30d"]
+    
+    for time_range in time_ranges:
+        print(f"\nTime range: {time_range}")
+        response = requests.get(f"{API_BASE}/api/dvms?timeRange={time_range}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Total DVMs returned: {len(data['dvms'])}")
+            
+            # Print first few DVMs if available
+            if data['dvms']:
+                print("Sample DVMs:")
+                for dvm in data['dvms'][:3]:  # Show first 3 DVMs
+                    print(f"  - {dvm.get('dvm_name') or dvm['id']}: {dvm.get('total_responses', 0)} responses")
+            else:
+                print("No DVMs returned for this time range")
+        else:
+            print(f"Error: {response.status_code} - {response.text}")
 
-# Test 5: Get all relays to see what's actually in the database
-test5_url = f"{api_base}/api/admin/relays"
-print(f"Test 5: GET {test5_url}")
-response = requests.get(test5_url)
-print(f"Status: {response.status_code}")
-print(f"Response: {json.dumps(response.json(), indent=2)}")
-print()
+def test_kind_list_endpoint():
+    """Test the /api/kinds endpoint with different time ranges"""
+    print("\n=== Testing /api/kinds endpoint ===")
+    
+    time_ranges = ["1h", "24h", "7d", "30d"]
+    
+    for time_range in time_ranges:
+        print(f"\nTime range: {time_range}")
+        response = requests.get(f"{API_BASE}/api/kinds?timeRange={time_range}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Total kinds returned: {len(data['kinds'])}")
+            
+            # Print first few kinds if available
+            if data['kinds']:
+                print("Sample kinds:")
+                for kind in data['kinds'][:3]:  # Show first 3 kinds
+                    print(f"  - Kind {kind['kind']}: {kind.get('total_requests', 0)} requests, {kind.get('total_responses', 0)} responses")
+            else:
+                print("No kinds returned for this time range")
+        else:
+            print(f"Error: {response.status_code} - {response.text}")
 
-# Test 6: Get Redis debug info to see what's in Redis
-test6_url = f"{api_base}/api/admin/debug/redis"
-print(f"Test 6: GET {test6_url}")
-response = requests.get(test6_url)
-print(f"Status: {response.status_code}")
-print(f"Response: {json.dumps(response.json(), indent=2)}")
-print()
+if __name__ == "__main__":
+    print(f"Testing API at {API_BASE} at {datetime.now()}")
+    
+    test_dvm_list_endpoint()
+    test_kind_list_endpoint()
+    
+    print("\nTests completed.")

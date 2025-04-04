@@ -1,5 +1,36 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Configuration
+
+The application uses environment variables to determine API endpoints:
+
+- `NEXT_PUBLIC_API_URL`: Used for client-side API calls from the browser
+- `NEXT_PUBLIC_METADATA_API_URL`: Used for server-side API calls during SSR
+
+### Running in Production
+
+When running in production (separate cloud instances):
+
+- Set `NEXT_PUBLIC_API_URL` to your public API endpoint (e.g., `https://api.dvmdash.com`)
+- Set `NEXT_PUBLIC_METADATA_API_URL` to the internal API endpoint if needed
+
+### Running with Docker Compose
+
+When using the provided docker-compose.yml file:
+
+- Environment variables are automatically set in the docker-compose configuration
+- No additional configuration is needed
+
+### Running Frontend Locally (Outside Docker)
+
+When running the frontend locally but connecting to containerized backend services:
+
+1. Create a `.env.local` file in the frontend directory with:
+   ```
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   ```
+2. Adjust the port if your API is running on a different port
+
 ## Getting Started
 
 First, run the development server:

@@ -1,23 +1,47 @@
 import useSWR from 'swr'
 import { TimeWindow, TimeWindowStats } from './types'
 
+// Debug mode flag
+const DEBUG = process.env.NEXT_PUBLIC_LOG_LEVEL === 'DEBUG';
+
+// Debug logging function
+const debugLog = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args);
+  }
+};
+
 // Determine if we should use the proxy based on environment
 const useProxy = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_USE_API_PROXY === 'true'
 
-// Always use the environment variable if available, otherwise use appropriate defaults
+// Determine the API base URL based on environment
 const determineApiBase = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  // Get environment variables
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const metadataApiUrl = process.env.NEXT_PUBLIC_METADATA_API_URL;
   const isServer = typeof window === 'undefined';
-  const defaultUrl = isServer ? 'http://api:8000' : 'http://localhost:8000';
   
-  console.log('API_BASE determination:', {
-    NEXT_PUBLIC_API_URL: envUrl,
-    isServer,
-    defaultUrl,
-    finalUrl: envUrl || defaultUrl
-  });
+  // For server-side rendering, use the metadata API URL
+  if (isServer) {
+    const serverUrl = metadataApiUrl || 'http://api:8000'; // Default to Docker service name
+    debugLog('API_BASE determination (server-side):', {
+      NEXT_PUBLIC_METADATA_API_URL: metadataApiUrl,
+      serverUrl
+    });
+    return serverUrl;
+  }
   
-  return envUrl || defaultUrl;
+  // For client-side in browser, use the public API URL
+  if (apiUrl) {
+    debugLog('API_BASE determination (client-side):', {
+      NEXT_PUBLIC_API_URL: apiUrl
+    });
+    return apiUrl;
+  }
+  
+  // Fallback for development (should be avoided in production by setting env vars)
+  console.warn('NEXT_PUBLIC_API_URL not set, falling back to localhost:8000');
+  return 'http://localhost:8000';
 };
 
 export const API_BASE = determineApiBase();
@@ -53,7 +77,7 @@ const getProxyUrl = (url: string): string => {
     proxyUrlObj.searchParams.set(key, value)
   })
   
-  console.log(`Proxying request: ${url} -> ${proxyUrlObj.toString()}`)
+  debugLog(`Proxying request: ${url} -> ${proxyUrlObj.toString()}`)
   return proxyUrlObj.toString()
 }
 
@@ -62,7 +86,7 @@ const fetcher = async (url: string) => {
     // Determine if we need to use the proxy
     const fetchUrl = useProxy ? getProxyUrl(url) : url
     
-    console.log('Fetching:', fetchUrl, useProxy ? `(proxied from ${url})` : '')
+    debugLog('Fetching:', fetchUrl, useProxy ? `(proxied from ${url})` : '')
     const res = await fetch(fetchUrl, {
       mode: 'cors',
       headers: {
@@ -81,7 +105,7 @@ const fetcher = async (url: string) => {
     }
 
     const data = await res.json()
-    console.log('API Success:', {
+    debugLog('API Success:', {
       url,
       status: res.status,
       headers: Object.fromEntries(res.headers.entries()),
