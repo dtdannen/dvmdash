@@ -4,6 +4,7 @@ import sys
 import psycopg2
 import json
 import time
+import random
 from collections import defaultdict, Counter
 from datetime import datetime
 import argparse
@@ -85,7 +86,7 @@ def analyze_field_structure(events, kind):
     field_counter = Counter()
     tag_type_counter = Counter()
     tag_structure_counter = defaultdict(Counter)
-    
+
     # Track which events have which tag types
     events_with_tag_type = defaultdict(set)
 
@@ -109,12 +110,12 @@ def analyze_field_structure(events, kind):
             if isinstance(tags, list):
                 # Track which tag types are in this event
                 event_tag_types = set()
-                
+
                 for tag in tags:
                     if isinstance(tag, list) and len(tag) > 0:
                         tag_type = tag[0]
                         tag_type_counter[tag_type] += 1
-                        
+
                         # Add this event to the set of events with this tag type
                         events_with_tag_type[tag_type].add(i)
 
@@ -156,7 +157,7 @@ def analyze_field_structure(events, kind):
     }
 
 
-def process_events(cursor, kind, batch_size=1000, limit=None):
+def process_events(cursor, kind, batch_size=5000, limit=None):
     """
     Process events of a specific kind in batches.
 
@@ -167,9 +168,10 @@ def process_events(cursor, kind, batch_size=1000, limit=None):
         limit: Maximum number of events to process (for testing)
 
     Returns:
-        list: Processed events
+        tuple: (list of processed events, list of event IDs)
     """
     events = []
+    event_ids = []
     total_count = get_event_count(cursor, kind)
 
     if limit and limit < total_count:
@@ -179,7 +181,7 @@ def process_events(cursor, kind, batch_size=1000, limit=None):
         logger.info(f"Processing {total_count:,} events of kind {kind}")
 
     if total_count == 0:
-        return events
+        return events, event_ids
 
     processed = 0
     start_time = time.time()
@@ -190,10 +192,14 @@ def process_events(cursor, kind, batch_size=1000, limit=None):
         # Adjust batch size for the last batch
         current_batch_size = min(batch_size, total_count - processed)
 
+        # Add a random sleep to prevent hammering the database
+        sleep_time = random.uniform(0.5, 2.0)
+        time.sleep(sleep_time)
+
         # Query for a batch of events
         cursor.execute(
             """
-            SELECT raw_data
+            SELECT id, raw_data
             FROM raw_events
             WHERE kind = %s
             ORDER BY created_at DESC
@@ -208,8 +214,10 @@ def process_events(cursor, kind, batch_size=1000, limit=None):
 
         # Process each event in the batch
         for row in batch:
-            raw_data = row[0]  # Get the raw JSON data
+            event_id = row[0]  # Get the event ID
+            raw_data = row[1]  # Get the raw JSON data
             events.append(raw_data)
+            event_ids.append(event_id)
 
         processed += len(batch)
         offset += batch_size
@@ -230,16 +238,156 @@ def process_events(cursor, kind, batch_size=1000, limit=None):
             f"Est. remaining: {estimated_remaining/60:.2f} minutes"
         )
 
-    return events
+    return events, event_ids
 
 
-def generate_asciidoc(kind_5050_analysis, kind_6050_analysis, output_file):
+def process_feedback_events(cursor, request_event_ids, batch_size=5000, limit=None):
+    """
+    Process feedback events (kind 7000) that reference the given request event IDs.
+    This function fetches kind 7000 events in batches and filters them locally.
+
+    Args:
+        cursor: Database cursor
+        request_event_ids: List of request event IDs to look for in the 'e' tag
+        batch_size: Number of events to process in each batch
+        limit: Maximum number of events to process (for testing)
+
+    Returns:
+        list: Processed feedback events
+    """
+    if not request_event_ids:
+        logger.info("No request event IDs provided, skipping feedback events")
+        return []
+
+    # Create a set of request event IDs for faster lookups
+    request_id_set = set(request_event_ids)
+
+    # Count total number of kind 7000 events
+    cursor.execute("SELECT COUNT(*) FROM raw_events WHERE kind = 7000")
+    total_kind_7000 = cursor.fetchone()[0]
+
+    logger.info(f"Found {total_kind_7000:,} total kind 7000 events")
+    logger.info(f"Looking for events referencing {len(request_id_set):,} request IDs")
+
+    # Apply limit if specified
+    if limit and limit < total_kind_7000:
+        total_to_check = limit
+        logger.info(f"Limited to checking {limit:,} kind 7000 events")
+    else:
+        total_to_check = total_kind_7000
+
+    feedback_events = []
+    processed = 0
+    matched = 0
+    start_time = time.time()
+
+    # Process in batches
+    offset = 0
+    last_db_query_time = None
+    while processed < total_to_check:
+        # Adjust batch size for the last batch
+        current_batch_size = min(batch_size, total_to_check - processed)
+
+        # Add a random sleep to prevent hammering the database
+        if last_db_query_time:
+            sleep_time = last_db_query_time
+        else:
+            sleep_time = random.uniform(0.5, 2.0)
+
+        time.sleep(sleep_time)
+
+        # Measure database query time
+        db_query_start = time.time()
+
+        # Query for a batch of kind 7000 events
+        cursor.execute(
+            """
+            SELECT raw_data
+            FROM raw_events
+            WHERE kind = 7000
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            (current_batch_size, offset),
+        )
+
+        batch = cursor.fetchall()
+
+        db_query_time = time.time() - db_query_start
+        last_db_query_time = db_query_time
+        db_rows_per_second = len(batch) / db_query_time if db_query_time > 0 else 0
+
+        if not batch:
+            break
+
+        # Measure local processing time
+        local_processing_start = time.time()
+
+        # Filter events locally
+        batch_matched = 0
+        for row in batch:
+            raw_data = row[0]  # Get the raw JSON data
+
+            # Check if this event references any of our request IDs
+            if "tags" in raw_data and isinstance(raw_data["tags"], list):
+                for tag in raw_data["tags"]:
+                    if (
+                        isinstance(tag, list)
+                        and len(tag) > 1
+                        and tag[0] == "e"
+                        and tag[1] in request_id_set
+                    ):
+                        feedback_events.append(raw_data)
+                        matched += 1
+                        batch_matched += 1
+                        break
+
+        local_processing_time = time.time() - local_processing_start
+        local_rows_per_second = (
+            len(batch) / local_processing_time if local_processing_time > 0 else 0
+        )
+
+        processed += len(batch)
+        offset += batch_size
+
+        # Calculate and display progress
+        elapsed_time = time.time() - start_time
+        events_per_second = processed / elapsed_time if elapsed_time > 0 else 0
+        estimated_remaining = (
+            (total_to_check - processed) / events_per_second
+            if events_per_second > 0
+            else 0
+        )
+
+        logger.info(
+            f"Checked {processed:,}/{total_to_check:,} kind 7000 events "
+            f"({(processed/total_to_check)*100:.2f}%) - "
+            f"Found {matched:,} matching events - "
+            f"Speed: {events_per_second:.2f} events/sec - "
+            f"DB query: {db_rows_per_second:.2f} rows/sec ({db_query_time:.2f}s) - "
+            f"Local processing: {local_rows_per_second:.2f} rows/sec ({local_processing_time:.2f}s) - "
+            f"Est. remaining: {estimated_remaining/60:.2f} minutes"
+        )
+
+        # If we've reached the limit of matching events, stop
+        if limit and matched >= limit:
+            logger.info(f"Reached limit of {limit:,} matching events, stopping")
+            break
+
+    logger.info(f"Found {matched:,} kind 7000 events referencing the request events")
+    return feedback_events
+
+
+def generate_asciidoc(
+    kind_5050_analysis, kind_6050_analysis, kind_7000_analysis, output_file
+):
     """
     Generate an AsciiDoc file with the analysis results.
 
     Args:
         kind_5050_analysis: Analysis results for kind 5050
         kind_6050_analysis: Analysis results for kind 6050
+        kind_7000_analysis: Analysis results for kind 7000
         output_file: Path to the output file
     """
     with open(output_file, "w") as f:
@@ -264,6 +412,7 @@ def generate_asciidoc(kind_5050_analysis, kind_6050_analysis, output_file):
         # Generate sections for each kind
         generate_kind_section(f, 5050, kind_5050_analysis)
         generate_kind_section(f, 6050, kind_6050_analysis)
+        generate_kind_section(f, 7000, kind_7000_analysis)
 
 
 def generate_kind_section(f, kind, analysis):
@@ -276,7 +425,9 @@ def generate_kind_section(f, kind, analysis):
         analysis: Analysis results for this kind
     """
     kind_name = (
-        "Text Generation Requests" if kind == 5050 else "Text Generation Responses"
+        "Text Generation Requests"
+        if kind == 5050
+        else ("Text Generation Responses" if kind == 6050 else "Feedback Events")
     )
 
     f.write(f"== Kind {kind}: {kind_name}\n\n")
@@ -315,9 +466,7 @@ def generate_kind_section(f, kind, analysis):
             if len(example_str) > 50:
                 example_str = example_str[:47] + "..."
 
-        f.write(
-            f"|{field}|{stats['percentage']:.2f}%|`{example_str}`\n"
-        )
+        f.write(f"|{field}|{stats['percentage']:.2f}%|`{example_str}`\n")
 
     f.write("|===\n\n")
 
@@ -325,26 +474,26 @@ def generate_kind_section(f, kind, analysis):
     if analysis["tag_stats"]:
         f.write("=== Tag Structure Analysis\n\n")
         f.write("This section analyzes the structure of tags found in the events.\n\n")
-        
+
         # Create a table for tag types
         f.write('[options="header"]\n')
         f.write("|===\n")
         f.write("|Tag Type|Percentage|Example\n")
-        
+
         # Sort tag types by prevalence (descending)
         sorted_tags = sorted(
             analysis["tag_stats"].items(), key=lambda x: x[1]["count"], reverse=True
         )
-        
+
         for tag_type, stats in sorted_tags:
             # Get example for this tag type
             example_tag = analysis["tag_examples"].get(tag_type, [])
             example_str = json.dumps(example_tag, ensure_ascii=False)
             if len(example_str) > 50:
                 example_str = example_str[:47] + "..."
-            
+
             f.write(f"|`{tag_type}`|{stats['percentage']:.2f}%|`{example_str}`\n")
-        
+
         f.write("|===\n\n")
 
     # Complete example event (at the end of the section)
@@ -374,8 +523,8 @@ def main():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=1000,
-        help="Batch size for processing (default: 1000)",
+        default=5000,
+        help="Batch size for processing (default: 5000)",
     )
     parser.add_argument(
         "--limit",
@@ -404,7 +553,9 @@ def main():
     try:
         # Process events of kind 5050
         logger.info("Processing events of kind 5050")
-        kind_5050_events = process_events(cursor, 5050, args.batch_size, args.limit)
+        kind_5050_events, kind_5050_ids = process_events(
+            cursor, 5050, args.batch_size, args.limit
+        )
         kind_5050_analysis = analyze_field_structure(kind_5050_events, 5050)
         logger.info(
             f"Analyzed {kind_5050_analysis['total_events']:,} events of kind 5050"
@@ -412,15 +563,29 @@ def main():
 
         # Process events of kind 6050
         logger.info("Processing events of kind 6050")
-        kind_6050_events = process_events(cursor, 6050, args.batch_size, args.limit)
+        kind_6050_events, kind_6050_ids = process_events(
+            cursor, 6050, args.batch_size, args.limit
+        )
         kind_6050_analysis = analyze_field_structure(kind_6050_events, 6050)
         logger.info(
             f"Analyzed {kind_6050_analysis['total_events']:,} events of kind 6050"
         )
 
+        # Process feedback events (kind 7000) that reference kind 5050 events
+        logger.info("Processing feedback events (kind 7000)")
+        kind_7000_events = process_feedback_events(
+            cursor, kind_5050_ids, args.batch_size, args.limit
+        )
+        kind_7000_analysis = analyze_field_structure(kind_7000_events, 7000)
+        logger.info(
+            f"Analyzed {kind_7000_analysis['total_events']:,} feedback events of kind 7000"
+        )
+
         # Generate AsciiDoc output
         logger.info(f"Generating AsciiDoc output to {args.output}")
-        generate_asciidoc(kind_5050_analysis, kind_6050_analysis, args.output)
+        generate_asciidoc(
+            kind_5050_analysis, kind_6050_analysis, kind_7000_analysis, args.output
+        )
 
         # Log summary
         elapsed_time = time.time() - start_time
