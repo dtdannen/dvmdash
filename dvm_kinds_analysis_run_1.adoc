@@ -1,0 +1,645 @@
+= Nostr DVM Kind 5050 and 6050 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+This document provides an analysis of Nostr Data Vending Machine (DVM) events of kinds 5050 and 6050.
+Kind 5050 represents text generation requests, while kind 6050 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5050: Text Generation Requests
+
+=== Summary
+
+Total events analyzed: 930
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Count|Percentage
+|id|930|100.00%
+|sig|930|100.00%
+|kind|930|100.00%
+|tags|930|100.00%
+|pubkey|930|100.00%
+|content|930|100.00%
+|created_at|930|100.00%
+|_id|842|90.54%
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+==== Tag Type: `relays`
+
+Found in 700 events (75.27% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|5|373|53.29%
+|4|130|18.57%
+|12|53|7.57%
+|3|43|6.14%
+|11|41|5.86%
+|2|36|5.14%
+|16|15|2.14%
+|8|9|1.29%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "relays",
+  "wss://relay.nostrdvm.com",
+  "wss://nostr.mom",
+  "wss://nostr.oxtr.dev"
+]
+----
+
+==== Tag Type: `i`
+
+Found in 591 events (63.55% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|3|591|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "i",
+  "hello",
+  "text"
+]
+----
+
+==== Tag Type: `p`
+
+Found in 286 events (30.75% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|286|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "p",
+  "ab66431b1dfbaeb805a6bd24365c2046c7a2268de643bd0690a494ca042b705c"
+]
+----
+
+==== Tag Type: `alt`
+
+Found in 270 events (29.03% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|270|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "alt",
+  "This is a NIP90 DVM AI task to generate TTSt"
+]
+----
+
+==== Tag Type: `param`
+
+Found in 136 events (14.62% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|3|133|97.79%
+|4|3|2.21%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "param",
+  "prompt",
+  "Test DVM request 1 from production test"
+]
+----
+
+==== Tag Type: `output`
+
+Found in 83 events (8.92% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|83|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "output",
+  "text/plain"
+]
+----
+
+==== Tag Type: `encrypted`
+
+Found in 71 events (7.63% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|1|71|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "encrypted"
+]
+----
+
+==== Tag Type: `wss://nostr.oxtr.dev`
+
+Found in 64 events (6.88% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|64|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "wss://nostr.oxtr.dev",
+  "wss://relay.primal.net"
+]
+----
+
+==== Tag Type: `t`
+
+Found in 15 events (1.61% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|15|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "t",
+  "#8"
+]
+----
+
+==== Tag Type: `client`
+
+Found in 14 events (1.51% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|3|14|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "client",
+  "nostr_bot_cli",
+  "1.0.0"
+]
+----
+
+==== Tag Type: `u`
+
+Found in 14 events (1.51% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|14|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "u",
+  "test-5d22be5b"
+]
+----
+
+==== Tag Type: `relay`
+
+Found in 10 events (1.08% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|10|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "relay",
+  "wss://nostr-pub.wellorder.net"
+]
+----
+
+==== Tag Type: `input`
+
+Found in 6 events (0.65% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|3|6|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "input",
+  "text",
+  "Hi"
+]
+----
+
+=== Example Event
+
+Example event with ID: `98db1c54a9288906cced9c13e38f89c271fd03a703c4004e79ccfb9c7f566e31`
+
+[source,json]
+----
+{
+  "id": "98db1c54a9288906cced9c13e38f89c271fd03a703c4004e79ccfb9c7f566e31",
+  "sig": "d5bec1d48c7e8baabcb40678260dccee11382020335122376a57998b60552d3289f14b5a4274cf32a2656a950faf1489de84bfa293b9208851ea978514b0dc20",
+  "kind": 5050,
+  "tags": [
+    [
+      "i",
+      "hello",
+      "text"
+    ],
+    [
+      "relays",
+      "wss://relay.nostrdvm.com",
+      "wss://nostr.mom",
+      "wss://nostr.oxtr.dev"
+    ]
+  ],
+  "pubkey": "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6",
+  "content": "NIP 90 Text Generation Request",
+  "created_at": 1744050582,
+  "_id": {
+    "$oid": "67a0db01f7a26d61cff9a4c5"
+  }
+}
+----
+
+== Kind 6050: Text Generation Responses
+
+=== Summary
+
+Total events analyzed: 1,218
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Count|Percentage
+|id|1,218|100.00%
+|sig|1,218|100.00%
+|kind|1,218|100.00%
+|tags|1,218|100.00%
+|pubkey|1,218|100.00%
+|content|1,218|100.00%
+|created_at|1,218|100.00%
+|_id|1,000|82.10%
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+==== Tag Type: `p`
+
+Found in 1,505 events (123.56% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|1,505|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "p",
+  "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6"
+]
+----
+
+==== Tag Type: `request`
+
+Found in 1,217 events (99.92% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|1,217|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "request",
+  "98db1c54a9288906cced9c13e38f89c271fd03a703c4004e79ccfb9c7f566e31"
+]
+----
+
+==== Tag Type: `e`
+
+Found in 1,217 events (99.92% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|1,217|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "e",
+  "98db1c54a9288906cced9c13e38f89c271fd03a703c4004e79ccfb9c7f566e31"
+]
+----
+
+==== Tag Type: `status`
+
+Found in 1,081 events (88.75% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|1,081|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "status",
+  "success"
+]
+----
+
+==== Tag Type: `i`
+
+Found in 1,026 events (84.24% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|3|954|92.98%
+|2|72|7.02%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "i",
+  "hello",
+  "text"
+]
+----
+
+==== Tag Type: `alt`
+
+Found in 1,015 events (83.33% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|1,015|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "alt",
+  "This is the result of a NIP90 DVM task with kind 5050"
+]
+----
+
+==== Tag Type: `relays`
+
+Found in 868 events (71.26% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|5|610|70.28%
+|4|185|21.31%
+|3|26|3.00%
+|2|17|1.96%
+|12|13|1.50%
+|8|12|1.38%
+|11|5|0.58%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "relays",
+  "wss://relay.nostrdvm.com",
+  "wss://nostr.mom",
+  "wss://nostr.oxtr.dev"
+]
+----
+
+==== Tag Type: `amount`
+
+Found in 190 events (15.60% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|3|95|50.00%
+|2|95|50.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "amount",
+  "100_000",
+  "botlab@zeuspay.com"
+]
+----
+
+==== Tag Type: `output`
+
+Found in 95 events (7.80% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|95|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "output",
+  "text/plain"
+]
+----
+
+==== Tag Type: `count`
+
+Found in 72 events (5.91% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|2|72|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "count",
+  "1"
+]
+----
+
+==== Tag Type: `encrypted`
+
+Found in 15 events (1.23% of total)
+
+[options="header"]
+|===
+|Structure (# of elements)|Count|Percentage
+|1|15|100.00%
+|===
+
+Example:
+
+[source,json]
+----
+[
+  "encrypted"
+]
+----
+
+=== Example Event
+
+Example event with ID: `6d78a1626030800045f59dcd845a7a62c3f13c063d55c204a999302c2bda1305`
+
+[source,json]
+----
+{
+  "id": "6d78a1626030800045f59dcd845a7a62c3f13c063d55c204a999302c2bda1305",
+  "sig": "f52c505b814afaabf0ccf4535adf7619ec2c14295723a7879f88630951afc3e004675ac7a54b10999be40d6db18e98bd5ffa1c9d4c2b46db2367e1bd2ee43860",
+  "kind": 6050,
+  "tags": [
+    [
+      "request",
+      "98db1c54a9288906cced9c13e38f89c271fd03a703c4004e79ccfb9c7f566e31"
+    ],
+    [
+      "e",
+      "98db1c54a9288906cced9c13e38f89c271fd03a703c4004e79ccfb9c7f566e31"
+    ],
+    [
+      "p",
+      "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6"
+    ],
+    [
+      "i",
+      "hello",
+      "text"
+    ],
+    [
+      "output",
+      "text/plain"
+    ],
+    [
+      "amount",
+      "100_000",
+      "botlab@zeuspay.com"
+    ]
+  ],
+  "pubkey": "ab66431b1dfbaeb805a6bd24365c2046c7a2268de643bd0690a494ca042b705c",
+  "content": "Hello there!",
+  "created_at": 1744050584,
+  "_id": {
+    "$oid": "67a0db03f7a26d61cff9a4c9"
+  }
+}
+----
+

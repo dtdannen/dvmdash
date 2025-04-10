@@ -1,0 +1,68 @@
+= Nostr DVM Kind 6275 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 6275.
+Kind 6275 represents DVM responses (without a corresponding request kind).
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 6275: DVM Response Events (Kind 6275)
+
+=== Summary
+
+Total events analyzed: 6
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`3ab564cff219d846c9f6880809a49be1c9f7b18a8993612...`
+|_id|100.00%|`{"$oid": "66fe0d2eb6e0b689779565dd"}`
+|sig|100.00%|`f6c25953fb4f736f08bf7263513f5b21547a8fb270a79a7...`
+|kind|100.00%|`6275`
+|tags|100.00%|`[["t", "118378531b8ae3219748a14305081f0c294bc4d...`
+|pubkey|100.00%|`45465dd7aa50f5ddf0554352680484f2ccec5cadfb0e6af...`
+|content|100.00%|`{"nonce":"ad51ebc48520fff15131b4292ae6f2f08e1b8...`
+|created_at|100.00%|`1727925548`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`t`|100.00%|`["t", "118378531b8ae3219748a14305081f0c294bc4d5...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `3ab564cff219d846c9f6880809a49be1c9f7b18a899361221f5637fc6bc94a5b`
+
+[source,json]
+----
+{
+  "id": "3ab564cff219d846c9f6880809a49be1c9f7b18a899361221f5637fc6bc94a5b",
+  "_id": {
+    "$oid": "66fe0d2eb6e0b689779565dd"
+  },
+  "sig": "f6c25953fb4f736f08bf7263513f5b21547a8fb270a79a70d137619d612165d23d460f466c7f17d85d0af0766f44d67d94bc08ec2a8833417b6f43792b21a7a8",
+  "kind": 6275,
+  "tags": [
+    [
+      "t",
+      "118378531b8ae3219748a14305081f0c294bc4d5fc9b0ef775f1767589cd5097"
+    ]
+  ],
+  "pubkey": "45465dd7aa50f5ddf0554352680484f2ccec5cadfb0e6af907a58e94c98f0331",
+  "content": "{\"nonce\":\"ad51ebc48520fff15131b4292ae6f2f08e1b829e35bb60908ae7df557ffe8c9c\",\"outcome_count\":2,\"units_to_payout\":1,\"information\":\"none\"}",
+  "created_at": 1727925548
+}
+----
+

@@ -1,0 +1,230 @@
+= Nostr DVM Kind 5206 and 6206 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5206 and 6206.
+Kind 5206 represents DVM requests, while kind 6206 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5206: DVM Request Events (Kind 5206)
+
+=== Summary
+
+Total events analyzed: 10
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`f42d106f30f10a4774ef553a466606a39be3142eac7d549...`
+|sig|100.00%|`2a07a7ef3ebd2f2ce7462da7c2e5b414811a1cd11403586...`
+|kind|100.00%|`5206`
+|tags|100.00%|`[["i", "02ff8d0c2cbe6684e2fea4642ed1978c2d77cd4...`
+|pubkey|100.00%|`b7c6f6915cfa9a62fff6a1f02604de88c23c6c6c6d1b8f6...`
+|content|100.00%|``
+|created_at|100.00%|`1743020166`
+|_id|50.00%|`{"$oid": "675fb293f69a332fce47a595"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|100.00%|`["i", "02ff8d0c2cbe6684e2fea4642ed1978c2d77cd4b...`
+|`param`|100.00%|`["param", "x", "1aa5f3f3bbdacc1ae313abb34088403...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `f42d106f30f10a4774ef553a466606a39be3142eac7d549c6a4e72c0ac897678`
+
+[source,json]
+----
+{
+  "id": "f42d106f30f10a4774ef553a466606a39be3142eac7d549c6a4e72c0ac897678",
+  "sig": "2a07a7ef3ebd2f2ce7462da7c2e5b414811a1cd11403586e0ea46c9f531cc3e0e3d2b356e0c60dafa86da364bf45254cc658b820ccdefe31d1288f00c39d13e8",
+  "kind": 5206,
+  "tags": [
+    [
+      "i",
+      "02ff8d0c2cbe6684e2fea4642ed1978c2d77cd4b4da9629fd1911eb84b9fb830",
+      "event",
+      "wss://haven.slidestr.net/"
+    ],
+    [
+      "param",
+      "x",
+      "1aa5f3f3bbdacc1ae313abb34088403b053a5934c6f8ec780a9c4b6fc6fa5ccd"
+    ],
+    [
+      "param",
+      "target",
+      "https://route96.apps.slidestr.net"
+    ]
+  ],
+  "pubkey": "b7c6f6915cfa9a62fff6a1f02604de88c23c6c6c6d1b8f62c7cc10749f307e81",
+  "content": "",
+  "created_at": 1743020166,
+  "_id": {
+    "$oid": "675fb293f69a332fce47a595"
+  }
+}
+----
+
+== Kind 6206: DVM Response Events (Kind 6206)
+
+=== Summary
+
+Total events analyzed: 11
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`efdbd4fa579ab25bf5e2130b8cbd41c4f3c06622495d50d...`
+|sig|100.00%|`3b15685c98154e87466bed80234d775832f4c4a9bdb7486...`
+|kind|100.00%|`6206`
+|tags|100.00%|`[["request", "{\"kind\":5206,\"id\":\"ecff24e35...`
+|pubkey|100.00%|`3d70ed1c5f9a9103487c16f575bcd21d7cf4642e2e86539...`
+|content|100.00%|`{"nevent":"nevent1qyvhwumn8ghj76rpwejkutnnd35kg...`
+|created_at|100.00%|`1743019881`
+|_id|90.91%|`{"$oid": "67a1431a5377a33ffd437b8e"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`request`|100.00%|`["request", "{\"kind\":5206,\"id\":\"ecff24e35f...`
+|`e`|100.00%|`["e", "ecff24e35ff915e7eecd3a18fc184f299b3e4c80...`
+|`p`|100.00%|`["p", "b7c6f6915cfa9a62fff6a1f02604de88c23c6c6c...`
+|`i`|100.00%|`["i", "27bf4ceeaf2b90733d9905a59a85e9a60819ed7a...`
+|`expiration`|100.00%|`["expiration", "1743451881"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `efdbd4fa579ab25bf5e2130b8cbd41c4f3c06622495d50dedc96b8c36229e66c`
+
+[source,json]
+----
+{
+  "id": "efdbd4fa579ab25bf5e2130b8cbd41c4f3c06622495d50dedc96b8c36229e66c",
+  "sig": "3b15685c98154e87466bed80234d775832f4c4a9bdb748638116583f7bc7346213b89ceb940e4bd0f051b96aaed6a52535be3a42e84495dddfc6ed16d9e531be",
+  "kind": 6206,
+  "tags": [
+    [
+      "request",
+      "{\"kind\":5206,\"id\":\"ecff24e35ff915e7eecd3a18fc184f299b3e4c8026546bc62dc2beda4f236676\",\"pubkey\":\"b7c6f6915cfa9a62fff6a1f02604de88c23c6c6c6d1b8f62c7cc10749f307e81\",\"created_at\":1743019867,\"tags\":[[\"i\",\"27bf4ceeaf2b90733d9905a59a85e9a60819ed7acaeb2a8967c7e3c85103fe8f\",\"event\",\"wss://haven.slidestr.net/\"],[\"param\",\"x\",\"12f23ba8cfb3ec45b31b7e54e4ec1abfb6d29df0d06b8f079aedb558c7add0e8\"],[\"param\",\"target\",\"https://route96.apps.slidestr.net\"]],\"content\":\"\",\"sig\":\"61a5b93a8bb63b07fce272e619df69769d6d67f9a2e83e9df0d81573b56fbe6b1f23febc80fbd468b4d668d862ecf8766b7204b27296940910dfcf5599db0ba4\"}"
+    ],
+    [
+      "e",
+      "ecff24e35ff915e7eecd3a18fc184f299b3e4c8026546bc62dc2beda4f236676"
+    ],
+    [
+      "p",
+      "b7c6f6915cfa9a62fff6a1f02604de88c23c6c6c6d1b8f62c7cc10749f307e81"
+    ],
+    [
+      "i",
+      "27bf4ceeaf2b90733d9905a59a85e9a60819ed7acaeb2a8967c7e3c85103fe8f",
+      "event",
+      "wss://haven.slidestr.net/"
+    ],
+    [
+      "expiration",
+      "1743451881"
+    ]
+  ],
+  "pubkey": "3d70ed1c5f9a9103487c16f575bcd21d7cf4642e2e86539915cee78b2d68948c",
+  "content": "{\"nevent\":\"nevent1qyvhwumn8ghj76rpwejkutnnd35kgetnw3ezumn9wshsqgp8haxwatetjpenmxg95kdgt6dxpqv767k2av4gje78u0y9zql73u9k8dhd\",\"video\":\"12f23ba8cfb3ec45b31b7e54e4ec1abfb6d29df0d06b8f079aedb558c7add0e8\",\"thumb\":\"83d4f29174ce8780c959f354295334c902cd65c60a1b766f2a0e07a3a31083b8\",\"info\":\"f96d4a952c5b8f2ddc4106f6a41cbb26178b6b5c405d926e38167401e6aa8f0d\"}",
+  "created_at": 1743019881,
+  "_id": {
+    "$oid": "67a1431a5377a33ffd437b8e"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 4
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`a54a140105146e65f86a26934c169200b7596c5b995191e...`
+|sig|100.00%|`cf3a9fdbd95f46f2dbebb71cc6cb2aad490b9951df4d3d2...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "partial"], ["e", "f03c1e4b705eb2a2...`
+|pubkey|100.00%|`3d70ed1c5f9a9103487c16f575bcd21d7cf4642e2e86539...`
+|content|100.00%|`{"msg":"Upload to https://route96.apps.slidestr...`
+|created_at|100.00%|`1743019797`
+|_id|75.00%|`{"$oid": "675f8b0bf69a332fce479dce"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`status`|100.00%|`["status", "partial"]`
+|`e`|100.00%|`["e", "f03c1e4b705eb2a28f2a0ccbfd52e89007114b0a...`
+|`p`|100.00%|`["p", "b7c6f6915cfa9a62fff6a1f02604de88c23c6c6c...`
+|`expiration`|100.00%|`["expiration", "1743106197"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `a54a140105146e65f86a26934c169200b7596c5b995191e98a5884c66a8c6903`
+
+[source,json]
+----
+{
+  "id": "a54a140105146e65f86a26934c169200b7596c5b995191e98a5884c66a8c6903",
+  "sig": "cf3a9fdbd95f46f2dbebb71cc6cb2aad490b9951df4d3d2ec49b607f4eddd176774f1c2a928b7e80884bf729751fa2de60b8dfbbcded2ff68f9a407c0d53252d",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "partial"
+    ],
+    [
+      "e",
+      "f03c1e4b705eb2a28f2a0ccbfd52e89007114b0a5f8ccac67b3721d7f9f2d7c9"
+    ],
+    [
+      "p",
+      "b7c6f6915cfa9a62fff6a1f02604de88c23c6c6c6d1b8f62c7cc10749f307e81"
+    ],
+    [
+      "expiration",
+      "1743106197"
+    ]
+  ],
+  "pubkey": "3d70ed1c5f9a9103487c16f575bcd21d7cf4642e2e86539915cee78b2d68948c",
+  "content": "{\"msg\":\"Upload to https://route96.apps.slidestr.net: 100.00% done at 794.49MB/s\"}",
+  "created_at": 1743019797,
+  "_id": {
+    "$oid": "675f8b0bf69a332fce479dce"
+  }
+}
+----
+

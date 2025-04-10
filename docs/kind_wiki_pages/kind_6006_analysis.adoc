@@ -1,0 +1,69 @@
+= Nostr DVM Kind 6006 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 6006.
+Kind 6006 represents DVM responses (without a corresponding request kind).
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 6006: DVM Response Events (Kind 6006)
+
+=== Summary
+
+Total events analyzed: 246
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`cdc0d0241acef67fa23342715c03921608d15dccc03a748...`
+|_id|100.00%|`{"$oid": "66b9f8b812393c5623697fad"}`
+|sig|100.00%|`b9dda9176e6be3e8d8afa38ad92459187534821dcd85b18...`
+|kind|100.00%|`6006`
+|tags|100.00%|`[["p", "f40832e26b1d12f8a27717b606996baef68bc4b...`
+|pubkey|100.00%|`e3d39237f8aeaf90c90636789a03500430726251b063825...`
+|content|100.00%|`addfollow`
+|created_at|100.00%|`1703940274`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|99.59%|`["p", "f40832e26b1d12f8a27717b606996baef68bc4b6...`
+|`cecdsa`|0.41%|`["cecdsa", "027a04890efeba85b4cd86b8a584b118568...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `cdc0d0241acef67fa23342715c03921608d15dccc03a7488fa1c78fe5b089a8e`
+
+[source,json]
+----
+{
+  "id": "cdc0d0241acef67fa23342715c03921608d15dccc03a7488fa1c78fe5b089a8e",
+  "_id": {
+    "$oid": "66b9f8b812393c5623697fad"
+  },
+  "sig": "b9dda9176e6be3e8d8afa38ad92459187534821dcd85b180760b85d38e2cededac07e067d8117d452fc75144ebd7256242f44b1902693fcb209ada6d5c4b74ae",
+  "kind": 6006,
+  "tags": [
+    [
+      "p",
+      "f40832e26b1d12f8a27717b606996baef68bc4b6b86c4a35ca827f6fbcbf511e"
+    ]
+  ],
+  "pubkey": "e3d39237f8aeaf90c90636789a03500430726251b06382508f17ad8a041103ff",
+  "content": "addfollow",
+  "created_at": 1703940274
+}
+----
+

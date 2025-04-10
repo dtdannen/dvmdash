@@ -1,0 +1,110 @@
+= Nostr DVM Kind 5068 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5068.
+Kind 5068 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5068: DVM Request Events (Kind 5068)
+
+=== Summary
+
+Total events analyzed: 29
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`600f05a630afce23ab31266b6a64faf22489cc15084bd65...`
+|_id|100.00%|`{"$oid": "66fe85e32ae69a9fb3a35136"}`
+|sig|100.00%|`6011f9415c895dda52dad442eeb5dc7f277b48876364b6f...`
+|kind|100.00%|`5068`
+|tags|100.00%|`[["i", "ab44521858727b4a8a9e7a71fea567bdee2c323...`
+|pubkey|100.00%|`98c43e02c74ae3283854b50a4e43531273a374c524accda...`
+|content|100.00%|``
+|created_at|100.00%|`1727956443`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|100.00%|`["i", "ab44521858727b4a8a9e7a71fea567bdee2c323a...`
+|`output`|100.00%|`["output", "application/json"]`
+|`relays`|100.00%|`["relays", "wss://relay.fanfares.io", "wss://re...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `600f05a630afce23ab31266b6a64faf22489cc15084bd65a334be7ce702a7e82`
+
+[source,json]
+----
+{
+  "id": "600f05a630afce23ab31266b6a64faf22489cc15084bd65a334be7ce702a7e82",
+  "_id": {
+    "$oid": "66fe85e32ae69a9fb3a35136"
+  },
+  "sig": "6011f9415c895dda52dad442eeb5dc7f277b48876364b6f642e8423017ffeccc54eb64b82946ede4432f05f8c7505e3807da0b31d6a3c059dc762e793334a01d",
+  "kind": 5068,
+  "tags": [
+    [
+      "i",
+      "ab44521858727b4a8a9e7a71fea567bdee2c323a0bf4c21e771eba1a8e7c2af0",
+      "event",
+      "relay.fanfares.io",
+      "zap_target"
+    ],
+    [
+      "i",
+      "206",
+      "text",
+      "",
+      "payload_size"
+    ],
+    [
+      "i",
+      "1",
+      "text",
+      "",
+      "zap_threshold"
+    ],
+    [
+      "output",
+      "application/json"
+    ],
+    [
+      "relays",
+      "wss://relay.fanfares.io",
+      "wss://relay.satoshidnc.com"
+    ],
+    [
+      "i",
+      "f0dfb724ca1deb563b92355712506a8fb0f10d65a8894d832c48fb414a231998",
+      "text",
+      "",
+      "encryption_pubkey"
+    ],
+    [
+      "i",
+      "AglDlHv0Jx1OtdHc3CFYIFBtXhdsK9JJufcxBzubdyqrSojGPx1Be/xHB3gX0GpaSdLw6DE0VrJUKxwuWYTxFOhGeDTGfbiHi6f1WzdgQa+q7hDu21tbuLFgYeeVvNxMPQD9d6uJsjek/9DcHVP9y3UQglyYeMyeGOYiZwmG6NZZfAtt/2c4LVZLrx831+S1ncqvXjcA2aS/0X9HGYg+3z8CxN0Xrbafo14rLFkG9VF6f7kV8aroKJB6kh0c+IJmBE0rW+pCcTQQKPWuZ6IKhCGsKooEkxW8JzGJXgsMs2qucGFCJgwl+QOuc8ygiikGaQ8yMJT7R9TGrHJTQJ99DNKeiAGUSDTqyQB0J5uqBMH91KyCy+SbVT2zk/f6jhTVX3E8",
+      "text",
+      "",
+      "encrypted_payload"
+    ]
+  ],
+  "pubkey": "98c43e02c74ae3283854b50a4e43531273a374c524accda7f0d8bd9a8c4c27b9",
+  "content": "",
+  "created_at": 1727956443
+}
+----
+

@@ -1,0 +1,242 @@
+= Nostr DVM Kind 5250 and 6250 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5250 and 6250.
+Kind 5250 represents DVM requests, while kind 6250 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5250: DVM Request Events (Kind 5250)
+
+=== Summary
+
+Total events analyzed: 368
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`8ae46d5b5935b649347f676d95819478b42c61f2dd6c5b6...`
+|sig|100.00%|`b415a2b11d7561409e53ab1dc1b406459cb8007e806664c...`
+|kind|100.00%|`5250`
+|tags|100.00%|`[["i", "7cec354394d69105dd38eadcabae0f80e5505a6...`
+|pubkey|100.00%|`17c97bcecb11ead2648bccad9d38da322fd7381754bc849...`
+|content|100.00%|``
+|created_at|100.00%|`1744253798`
+|_id|95.11%|`{"$oid": "67a7a9a51b0335eb62b698ee"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|96.20%|`["i", "7cec354394d69105dd38eadcabae0f80e5505a6b...`
+|`param`|92.66%|`["param", "language", "en"]`
+|`relays`|92.66%|`["relays", "wss://relay.damus.io/", "wss://nost...`
+|`author`|16.03%|`["author", "e97aaffa4001ba5db86e7c6bfc4f97c4278...`
+|`title`|15.22%|`["title", "Créditos na era Bitcoin"]`
+|`summary`|12.77%|`["summary", "Uma reflexão sobre o mercado de cr...`
+|`p`|8.42%|`["p", "7c3be2769c76eecd6c6e27276722dfae0d8ad201...`
+|`bid`|7.61%|`["bid", "1000000", "1000000"]`
+|`alt`|7.61%|`["alt", "This is a NIP90 DVM AI task to generat...`
+|`encrypted`|3.80%|`["encrypted"]`
+|`client`|2.99%|`["client", "noStrudel", "31990:266815e0c9210dfa...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `8ae46d5b5935b649347f676d95819478b42c61f2dd6c5b6c64872f189129f0e7`
+
+[source,json]
+----
+{
+  "id": "8ae46d5b5935b649347f676d95819478b42c61f2dd6c5b6c64872f189129f0e7",
+  "sig": "b415a2b11d7561409e53ab1dc1b406459cb8007e806664cc8c6849dd49b6428ae66ec4729390360a84df65f72a99041eafa1518d1a6d25ba00f652c5dcd9f065",
+  "kind": 5250,
+  "tags": [
+    [
+      "i",
+      "7cec354394d69105dd38eadcabae0f80e5505a6bb5345154a940fd2f06c6378c",
+      "event"
+    ],
+    [
+      "param",
+      "language",
+      "en"
+    ],
+    [
+      "relays",
+      "wss://relay.damus.io/",
+      "wss://nostr.bitcoiner.social/",
+      "wss://relay.nostr.bg/",
+      "wss://nostr.oxtr.dev/",
+      "wss://nostr-pub.wellorder.net/",
+      "wss://nostr.mom/",
+      "wss://nos.lol/",
+      "wss://relay.snort.social/"
+    ]
+  ],
+  "pubkey": "17c97bcecb11ead2648bccad9d38da322fd7381754bc8498d7f5751bbdc0b2d3",
+  "content": "",
+  "created_at": 1744253798,
+  "_id": {
+    "$oid": "67a7a9a51b0335eb62b698ee"
+  }
+}
+----
+
+== Kind 6250: DVM Response Events (Kind 6250)
+
+=== Summary
+
+Total events analyzed: 237
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`2f5bea1d7f5b2f644e8cd729759cdc43e62e93a4e7f679b...`
+|sig|100.00%|`311fdde6977a1e766626b34c96ee1a6cbb72330e47ced19...`
+|kind|100.00%|`6250`
+|tags|100.00%|`[["request", "{'id': '7b094207e5956806c1634941d...`
+|pubkey|100.00%|`8ff8ea176479cd3c208593959f51121852b1560c016ece5...`
+|content|100.00%|`https://privatevideotranslation.s3.us-west-1.am...`
+|created_at|100.00%|`1739979021`
+|_id|99.58%|`{"$oid": "677c190e9543d03ec92da315"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "7b094207e5956806c1634941de734c30164a4410...`
+|`p`|100.00%|`["p", "266815e0c9210dfa324c6cba3573b14bee49da42...`
+|`request`|96.20%|`["request", "{'id': '7b094207e5956806c1634941de...`
+|`alt`|93.25%|`["alt", "This is the result of a NIP90 DVM AI t...`
+|`status`|93.25%|`["status", "success"]`
+|`i`|90.30%|`["i", "780f883aace7634e7cf5a9d11f690c66506d7fa7...`
+|`count`|69.62%|`["count", "1"]`
+|`relays`|18.99%|`["relays", "wss://relay.damus.io/", "wss://nost...`
+|`encrypted`|2.95%|`["encrypted"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `2f5bea1d7f5b2f644e8cd729759cdc43e62e93a4e7f679b716fed7c36e123564`
+
+[source,json]
+----
+{
+  "id": "2f5bea1d7f5b2f644e8cd729759cdc43e62e93a4e7f679b716fed7c36e123564",
+  "sig": "311fdde6977a1e766626b34c96ee1a6cbb72330e47ced19bf001a3ef40536c07e4a52a2fa09fae2f43746b724b60c9d8ee88954aa617e4b54acfbacb840582c5",
+  "kind": 6250,
+  "tags": [
+    [
+      "request",
+      "{'id': '7b094207e5956806c1634941de734c30164a4410c96309035509fca1d13a76c9', 'pubkey': '266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5', 'created_at': 1739978997, 'kind': 5250, 'tags': [['i', 'ec20e185319ee240d341fef14ba55027e1496c2ba2dc721832ffe7f5445d4218', 'event'], ['param', 'language', 'en'], ['relays', 'wss://relay.damus.io/', 'wss://nostr.wine/', 'wss://relay.snort.social/', 'wss://nos.lol/', 'wss://purplerelay.com/', 'wss://nostr.land/']], 'content': '', 'sig': '2a48363bb8d850ecfc6c184285e568d02e0c071bdd5d203ed2611f56748779d5c9a805e02050b1908a23d7634d40efe58566c47bc9e9861d144b2016d5ac4bc1'}"
+    ],
+    [
+      "e",
+      "7b094207e5956806c1634941de734c30164a4410c96309035509fca1d13a76c9"
+    ],
+    [
+      "p",
+      "266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5"
+    ]
+  ],
+  "pubkey": "8ff8ea176479cd3c208593959f51121852b1560c016ece56198a6fbe9c572098",
+  "content": "https://privatevideotranslation.s3.us-west-1.amazonaws.com/Swann7b094207e5956806c1634941de734c30164a4410c96309035509fca1d13a76c9.wav",
+  "created_at": 1739979021,
+  "_id": {
+    "$oid": "677c190e9543d03ec92da315"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 662
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`f9fe21e88c562625017f8f211fd902e59d547e11de15eab...`
+|sig|100.00%|`7b97a2dd520f3abe3183fdb4ae431ad87a487b4835af3af...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "payment-required", "Swann DVM"], [...`
+|pubkey|100.00%|`8ff8ea176479cd3c208593959f51121852b1560c016ece5...`
+|content|100.00%|`🍋`
+|created_at|100.00%|`1743793620`
+|_id|98.19%|`{"$oid": "67a34d7b3475b8841c6866de"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "426e7002723818145bd642d682093d4192b6d092...`
+|`p`|100.00%|`["p", "3c0b851e8aaab46b1c0c6e51c6a6a631060f1a9c...`
+|`status`|99.55%|`["status", "payment-required", "Swann DVM"]`
+|`amount`|62.39%|`["amount", "28125", "lnbc250n1pnlqtwnpp5uze0a7a...`
+|`alt`|41.09%|`["alt", "NIP90 DVM task text-to-speech started ...`
+|`relays`|33.53%|`["relays", "wss://relay.damus.io/", "wss://nost...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `f9fe21e88c562625017f8f211fd902e59d547e11de15eabdd506e9de5e59d058`
+
+[source,json]
+----
+{
+  "id": "f9fe21e88c562625017f8f211fd902e59d547e11de15eabdd506e9de5e59d058",
+  "sig": "7b97a2dd520f3abe3183fdb4ae431ad87a487b4835af3afa8487623a2b10088bd578b3cfc3d25a87d34ccb4e472257bc990cde222c071e2108d274367d66c211",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "payment-required",
+      "Swann DVM"
+    ],
+    [
+      "amount",
+      "28125",
+      "lnbc250n1pnlqtwnpp5uze0a7ael9tj5tpmdrmlkyrnt73pw4snkme4ed896ef07pwajn6qdq02dmkzmnwypz9vngcqzzsxqzpmsp52cve6qnegz2npyp3mcwjk8mmskt7y89vv03ldfmrzqred56y8vzq9qxpqysgqmfx5v5npcfffg5k6z5489nr3sdd3svu42dgng7yrqy9kzzttvlvs4lh45h0wky9nt2mhx5kam89u4w0u9z3va5qp3w2d43thfa6da3gpuhj7uu"
+    ],
+    [
+      "e",
+      "426e7002723818145bd642d682093d4192b6d092e60d6219f0f2c64fe490b4f4"
+    ],
+    [
+      "p",
+      "3c0b851e8aaab46b1c0c6e51c6a6a631060f1a9cc8c110fc5507e4c8c96877a1"
+    ]
+  ],
+  "pubkey": "8ff8ea176479cd3c208593959f51121852b1560c016ece56198a6fbe9c572098",
+  "content": "\ud83c\udf4b",
+  "created_at": 1743793620,
+  "_id": {
+    "$oid": "67a34d7b3475b8841c6866de"
+  }
+}
+----
+

@@ -1,0 +1,73 @@
+= Nostr DVM Kind 6503 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 6503.
+Kind 6503 represents DVM responses (without a corresponding request kind).
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 6503: DVM Response Events (Kind 6503)
+
+=== Summary
+
+Total events analyzed: 33
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`36a9b0d47b11cc2d929ee7bb0a6fa0013f3922a97a2328b...`
+|_id|100.00%|`{"$oid": "677253f5a2662bb7a78d80e9"}`
+|sig|100.00%|`9d7304ee137f3324f5d9f79d776116cf0ce01bf9e498864...`
+|kind|100.00%|`6503`
+|tags|100.00%|`[["provider", "apnews.com"], ["l", "world"]]`
+|pubkey|100.00%|`d837a4a00095e2c14d2bfb9e63b30c5b16b7d4fd09fd867...`
+|content|100.00%|`{"subject":"world","provider":"apnews.com","ran...`
+|created_at|100.00%|`1735545794`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`provider`|100.00%|`["provider", "apnews.com"]`
+|`l`|100.00%|`["l", "world"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `36a9b0d47b11cc2d929ee7bb0a6fa0013f3922a97a2328bf10262a6438ac5a71`
+
+[source,json]
+----
+{
+  "id": "36a9b0d47b11cc2d929ee7bb0a6fa0013f3922a97a2328bf10262a6438ac5a71",
+  "_id": {
+    "$oid": "677253f5a2662bb7a78d80e9"
+  },
+  "sig": "9d7304ee137f3324f5d9f79d776116cf0ce01bf9e49886420820951a7a7908b359b79931b6538b799c10bd8877455c4b82dcedeb60e38735f8366c246c16b34c",
+  "kind": 6503,
+  "tags": [
+    [
+      "provider",
+      "apnews.com"
+    ],
+    [
+      "l",
+      "world"
+    ]
+  ],
+  "pubkey": "d837a4a00095e2c14d2bfb9e63b30c5b16b7d4fd09fd8677c8788883f3c777ae",
+  "content": "{\"subject\":\"world\",\"provider\":\"apnews.com\",\"ranked\":[{\"id\":\"6947eee6-68e9-4874-add0-8c315292396a\",\"rank\":\"8.3417\",\"title\":\"A passenger plane crashed in South Korea with 181 on board / At least 85 people were killed / Media reports suggest that a collision with birds may have caused interference with the plane's landing.\",\"related\":[{\"id\":\"70d31061-bcff-4682-b761-677baf91e7e6\",\"title\":\"A passenger plane with 181 passengers in South Korea went off the runway during landing and caught fire, resulting in 179 fatalities, with only 2 survivors. Media reports suggest that a possible cause of the incident may have been a bird strike that disrupted the plane's landing.\",\"score\":0.8276477},{\"id\":\"8b874793-5667-4001-ab61-55195f58b3da\",\"title\":\"What we know about a passenger plane crash in South Korea\",\"score\":0.8253081},{\"id\":\"9c534145-a295-4689-91be-c0cd435cd143\",\"title\":\"Plane veers off airport runway in South Korea and crashes, killing at least 176: reports\",\"score\":0.8180721},{\"id\":\"18dde0d3-3446-4d40-b501-f8d4e1099339\",\"title\":\"The latest statistics on the victims of the Korean plane that left the airport runway / 179 people were killed, 2 people survived\",\"score\":0.8105054},{\"id\":\"f3ef5936-7772-47f1-80e0-9d0a63791be3\",\"title\":\"28 people lost their lives as a result of the plane's departure from the runway in South Korea\",\"score\":0.8009784},{\"id\":\"7c7f2a9a-c375-4d06-95ef-30be4c8a3806\",\"title\":\"Yonhap news agency says 28 people are dead after a plane caught fire at a South Korean airport\",\"score\":0.79427123},{\"id\":\"c799084a-a5b6-43bd-92f8-ea9e5d4e44c3\",\"title\":\"At least 62 dead after plane crashes while landing in South Korea\",\"score\":0.792989},{\"id\":\"80269c3f-fff0-451c-a7f4-7566556db96a\",\"title\":\"The death toll in a plane fire at a South Korean airport has risen to 85\",\"score\":0.78981614},{\"id\":\"69619548-a15e-484f-ad39-98ccc706a9ab\",\"title\":\"Plane crash kills 120 in South Korea as Jeju Air flight veers off runway\",\"score\":0.7864084}]},{\"id\":\"b3dc85fd-22a3-469d-b6f3-84eedad97ab2\",\"rank\":\"7.8802\",\"title\":\"Freezing to death of the fifth newborn in the Gaza Strip in the past week\",\"related\":[{\"id\":\"ae654b26-7359-43d0-aa35-c255866c374d\",\"title\":\"Another Infant Dies in Gaza\u2019s Cold as Israeli Airstrike Targets Hospital\",\"score\":0.8528211}]},{\"id\":\"69619548-a15e-484f-ad39-98ccc706a9ab\",\"rank\":\"6.5479\",\"title\":\"Plane crash kills 120 in South Korea as Jeju Air flight veers off runway\",\"related\":[{\"id\":\"8b874793-5667-4001-ab61-55195f58b3da\",\"title\":\"What we know about a passenger plane crash in South Korea\",\"score\":0.81726},{\"id\":\"c799084a-a5b6-43bd-92f8-ea9e5d4e44c3\",\"title\":\"At least 62 dead after plane crashes while landing in South Korea\",\"score\":0.81560016},{\"id\":\"e156b8a7-b560-42ba-a499-94b708dcd336\",\"title\":\"Watch local media images of the moment when a South Korean Boeing aircraft collided with a flock of birds.\",\"score\":0.8119421},{\"id\":\"f3ef5936-7772-47f1-80e0-9d0a63791be3\",\"title\":\"28 people lost their lives as a result of the plane's departure from the runway in South Korea\",\"score\":0.80916786},{\"id\":\"6947eee6-68e9-4874-add0-8c315292396a\",\"title\":\"A passenger plane crashed in South Korea with 181 on board / At least 85 people were killed / Media reports suggest that a collision with birds may have caused interference with the plane's landing.\",\"score\":0.7981417},{\"id\":\"9c534145-a295-4689-91be-c0cd435cd143\",\"title\":\"Plane veers off airport runway in South Korea and crashes, killing at least 176: reports\",\"score\":0.7945986},{\"id\":\"d64d64b9-43fe-45ce-847e-19f5fb5e604d\",\"title\":\"Plane burst into flames after skidding off runway at an airport in South Korea, killing at least 62\",\"score\":0.7860017},{\"id\":\"2385a9c8-aafb-44c4-919c-fae65dc41bb8\",\"title\":\"The most impactful videos and photos of the plane that crashed in South Korea: the exact moment of the accident\",\"score\":0.782048},{\"id\":\"70d31061-bcff-4682-b761-677baf91e7e6\",\"title\":\"A passenger plane with 181 passengers in South Korea went off the runway during landing and caught fire, resulting in 179 fatalities, with only 2 survivors. Media reports suggest that a possible cause of the incident may have been a bird strike that disrupted the plane's landing.\",\"score\":0.7817962}]},{\"id\":\"aab6d136-abcd-4af2-8c60-dd91b84e24b3\",\"rank\":\"6.3844\",\"title\":\"Azerbaijan's president says plane that crashed was shot at from Russia\",\"related\":[{\"id\":\"7c643464-bf01-40b7-af5c-292c0f3d63bd\",\"title\":\"Crashed Azerbaijan Airlines plane was damaged over Russia 'due to shooting from the ground', says president\",\"score\":0.8790076},{\"id\":\"a990a702-d08c-4923-9dc9-44ed18f66be7\",\"title\":\"Azerbaijani President blames Russia for plane crash, demands action and acknowledgment\",\"score\":0.8333719},{\"id\":\"65bad9e5-e5e1-4382-aee1-f3f0646cff62\",\"title\":\"Putin's apology for the downing of the Azerbaijani plane is unacceptable.\",\"score\":0.7948251},{\"id\":\"7f44b1d7-23db-496a-8c88-0d281116735d\",\"title\":\"The Azerbaijani Foreign Ministry: It is possible that technical and physical issues may have been involved in the plane crash.\",\"score\":0.7711177}]},{\"id\":\"898fb0d5-13e0-45d4-8a97-26bc55690d73\",\"rank\":\"5.4802\",\"title\":\"Jolani: Holding Elections in Syria Could Take Up to Four Years\",\"related\":[]}]}",
+  "created_at": 1735545794
+}
+----
+

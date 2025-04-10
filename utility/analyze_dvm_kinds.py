@@ -5,6 +5,7 @@ import psycopg2
 import json
 import time
 import random
+import pathlib
 from collections import defaultdict, Counter
 from datetime import datetime
 import argparse
@@ -28,6 +29,30 @@ DB_PORT = os.getenv("PROD_POSTGRES_PORT")
 DB_NAME = os.getenv("PROD_POSTGRES_DB")
 DB_USER = os.getenv("PROD_POSTGRES_USER")
 DB_PASSWORD = os.getenv("PROD_POSTGRES_PASS")
+
+# Cache directory for kind 7000 events
+CACHE_DIR = os.path.join("utility", "cache", "kind_7000")
+
+# Output directory for kind wiki pages
+OUTPUT_DIR = os.path.join("docs", "kind_wiki_pages")
+
+
+def get_distinct_kinds(cursor, prefix):
+    """
+    Get all distinct kinds with a specific prefix (e.g., '5%' or '6%').
+
+    Args:
+        cursor: Database cursor
+        prefix: Kind prefix (e.g., 5 for 5xxx kinds)
+
+    Returns:
+        list: List of distinct kinds
+    """
+    cursor.execute(
+        "SELECT DISTINCT kind FROM raw_events WHERE kind >= %s AND kind < %s ORDER BY kind",
+        (prefix * 1000, (prefix + 1) * 1000),
+    )
+    return [row[0] for row in cursor.fetchall()]
 
 
 def connect_to_database():
@@ -157,7 +182,7 @@ def analyze_field_structure(events, kind):
     }
 
 
-def process_events(cursor, kind, batch_size=5000, limit=None):
+def process_events(cursor, kind, batch_size=5000, limit=None, max_events=100000):
     """
     Process events of a specific kind in batches.
 
@@ -174,11 +199,20 @@ def process_events(cursor, kind, batch_size=5000, limit=None):
     event_ids = []
     total_count = get_event_count(cursor, kind)
 
+    # Apply limits
+    if total_count > max_events:
+        logger.info(
+            f"Limiting to {max_events:,} events (out of {total_count:,}) for kind {kind} due to max_events limit"
+        )
+        total_count = max_events
+
     if limit and limit < total_count:
         total_count = limit
-        logger.info(f"Limited to processing {limit:,} events of kind {kind}")
-    else:
-        logger.info(f"Processing {total_count:,} events of kind {kind}")
+        logger.info(
+            f"Further limiting to {limit:,} events for kind {kind} due to --limit argument"
+        )
+
+    logger.info(f"Processing {total_count:,} events of kind {kind}")
 
     if total_count == 0:
         return events, event_ids
@@ -241,10 +275,88 @@ def process_events(cursor, kind, batch_size=5000, limit=None):
     return events, event_ids
 
 
-def process_feedback_events(cursor, request_event_ids, batch_size=5000, limit=None):
+def get_cache_file_path(batch_number, batch_size):
+    """
+    Get the path to a cache file for a specific batch of kind 7000 events.
+
+    Args:
+        batch_number: The batch number (0-based)
+        batch_size: The size of each batch
+
+    Returns:
+        str: Path to the cache file
+    """
+    start_offset = batch_number * batch_size
+    end_offset = start_offset + batch_size - 1
+    return os.path.join(
+        CACHE_DIR, f"kind_7000_batch_{start_offset}_to_{end_offset}.json"
+    )
+
+
+def check_cache_exists(batch_number, batch_size):
+    """
+    Check if a cache file exists for a specific batch of kind 7000 events.
+
+    Args:
+        batch_number: The batch number (0-based)
+        batch_size: The size of each batch
+
+    Returns:
+        bool: True if the cache file exists, False otherwise
+    """
+    cache_file = get_cache_file_path(batch_number, batch_size)
+    return os.path.exists(cache_file)
+
+
+def load_from_cache(batch_number, batch_size):
+    """
+    Load kind 7000 events from a cache file.
+
+    Args:
+        batch_number: The batch number (0-based)
+        batch_size: The size of each batch
+
+    Returns:
+        list: List of events loaded from the cache file
+    """
+    cache_file = get_cache_file_path(batch_number, batch_size)
+    try:
+        with open(cache_file, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading from cache: {str(e)}")
+        return None
+
+
+def save_to_cache(batch_number, batch_size, events):
+    """
+    Save kind 7000 events to a cache file.
+
+    Args:
+        batch_number: The batch number (0-based)
+        batch_size: The size of each batch
+        events: List of events to save
+
+    Returns:
+        bool: True if the events were saved successfully, False otherwise
+    """
+    cache_file = get_cache_file_path(batch_number, batch_size)
+    try:
+        with open(cache_file, "w") as f:
+            json.dump(events, f)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving to cache: {str(e)}")
+        return False
+
+
+def process_feedback_events(
+    cursor, request_event_ids, batch_size=5000, limit=None, use_cache=True
+):
     """
     Process feedback events (kind 7000) that reference the given request event IDs.
     This function fetches kind 7000 events in batches and filters them locally.
+    It uses a cache to avoid repeatedly querying the database for the same events.
 
     Args:
         cursor: Database cursor
@@ -288,6 +400,65 @@ def process_feedback_events(cursor, request_event_ids, batch_size=5000, limit=No
         # Adjust batch size for the last batch
         current_batch_size = min(batch_size, total_to_check - processed)
 
+        # Calculate batch number from offset
+        batch_number = offset // batch_size
+
+        # Check if this batch is already cached and use_cache is enabled
+        if use_cache and check_cache_exists(batch_number, batch_size):
+            logger.info(f"Loading batch {batch_number} from cache")
+            batch_events = load_from_cache(batch_number, batch_size)
+
+            if batch_events is not None:
+                # Measure local processing time
+                local_processing_start = time.time()
+
+                # Filter events locally
+                batch_matched = 0
+                for raw_data in batch_events:
+                    # Check if this event references any of our request IDs
+                    if "tags" in raw_data and isinstance(raw_data["tags"], list):
+                        for tag in raw_data["tags"]:
+                            if (
+                                isinstance(tag, list)
+                                and len(tag) > 1
+                                and tag[0] == "e"
+                                and tag[1] in request_id_set
+                            ):
+                                feedback_events.append(raw_data)
+                                matched += 1
+                                batch_matched += 1
+                                break
+
+                local_processing_time = time.time() - local_processing_start
+                local_rows_per_second = (
+                    len(batch_events) / local_processing_time
+                    if local_processing_time > 0
+                    else 0
+                )
+
+                processed += len(batch_events)
+
+                # Calculate and display progress
+                elapsed_time = time.time() - start_time
+                events_per_second = processed / elapsed_time if elapsed_time > 0 else 0
+                estimated_remaining = (
+                    (total_to_check - processed) / events_per_second
+                    if events_per_second > 0
+                    else 0
+                )
+
+                logger.info(
+                    f"Checked {processed:,}/{total_to_check:,} kind 7000 events "
+                    f"({(processed/total_to_check)*100:.2f}%) - "
+                    f"Found {matched:,} matching events - "
+                    f"Speed: {events_per_second:.2f} events/sec - "
+                    f"[CACHED] Local processing: {local_rows_per_second:.2f} rows/sec ({local_processing_time:.2f}s) - "
+                    f"Est. remaining: {estimated_remaining/60:.2f} minutes"
+                )
+
+                offset += batch_size
+                continue
+
         # Add a random sleep to prevent hammering the database
         if last_db_query_time:
             sleep_time = last_db_query_time
@@ -320,14 +491,20 @@ def process_feedback_events(cursor, request_event_ids, batch_size=5000, limit=No
         if not batch:
             break
 
+        # Extract raw data from the batch
+        batch_events = [row[0] for row in batch]
+
+        # Save this batch to cache if use_cache is enabled
+        if use_cache:
+            logger.info(f"Saving batch {batch_number} to cache")
+            save_to_cache(batch_number, batch_size, batch_events)
+
         # Measure local processing time
         local_processing_start = time.time()
 
         # Filter events locally
         batch_matched = 0
-        for row in batch:
-            raw_data = row[0]  # Get the raw JSON data
-
+        for raw_data in batch_events:
             # Check if this event references any of our request IDs
             if "tags" in raw_data and isinstance(raw_data["tags"], list):
                 for tag in raw_data["tags"]:
@@ -344,10 +521,12 @@ def process_feedback_events(cursor, request_event_ids, batch_size=5000, limit=No
 
         local_processing_time = time.time() - local_processing_start
         local_rows_per_second = (
-            len(batch) / local_processing_time if local_processing_time > 0 else 0
+            len(batch_events) / local_processing_time
+            if local_processing_time > 0
+            else 0
         )
 
-        processed += len(batch)
+        processed += len(batch_events)
         offset += batch_size
 
         # Calculate and display progress
@@ -379,40 +558,74 @@ def process_feedback_events(cursor, request_event_ids, batch_size=5000, limit=No
 
 
 def generate_asciidoc(
-    kind_5050_analysis, kind_6050_analysis, kind_7000_analysis, output_file
+    request_kind,
+    request_analysis,
+    response_kind,
+    response_analysis,
+    feedback_analysis,
+    output_file,
 ):
     """
     Generate an AsciiDoc file with the analysis results.
 
     Args:
-        kind_5050_analysis: Analysis results for kind 5050
-        kind_6050_analysis: Analysis results for kind 6050
-        kind_7000_analysis: Analysis results for kind 7000
+        request_kind: Kind number for request events (5xxx), or None if no corresponding kind
+        request_analysis: Analysis results for request kind, or None if no corresponding kind
+        response_kind: Kind number for response events (6xxx), or None if no corresponding kind
+        response_analysis: Analysis results for response kind, or None if no corresponding kind
+        feedback_analysis: Analysis results for feedback events (kind 7000), or None if no feedback events
         output_file: Path to the output file
     """
     with open(output_file, "w") as f:
         # Document header
-        f.write("= Nostr DVM Kind 5050 and 6050 Analysis\n")
+        if request_kind:
+            f.write(f"= Nostr DVM Kind {request_kind}")
+            if response_kind:
+                f.write(f" and {response_kind}")
+        else:
+            f.write(f"= Nostr DVM Kind {response_kind}")
+        f.write(" Analysis\n")
         f.write(":toc:\n")
         f.write(":toclevels: 3\n")
         f.write(":source-highlighter: highlight.js\n\n")
 
         # Introduction
         f.write("== Introduction\n\n")
-        f.write(
-            "This document provides an analysis of Nostr Data Vending Machine (DVM) events of kinds 5050 and 6050.\n"
-        )
-        f.write(
-            "Kind 5050 represents text generation requests, while kind 6050 represents the corresponding responses.\n\n"
-        )
+        if request_kind:
+            f.write(
+                f"An analysis of Nostr Data Vending Machine (DVM) events of kind {request_kind}"
+            )
+            if response_kind:
+                f.write(f" and {response_kind}")
+        else:
+            f.write(
+                f"An analysis of Nostr Data Vending Machine (DVM) events of kind {response_kind}"
+            )
+        f.write(".\n")
+
+        if request_kind:
+            f.write(f"Kind {request_kind} represents DVM requests")
+            if response_kind:
+                f.write(
+                    f", while kind {response_kind} represents the corresponding responses"
+                )
+        else:
+            f.write(
+                f"Kind {response_kind} represents DVM responses (without a corresponding request kind)"
+            )
+        f.write(".\n\n")
+
         f.write(
             "The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.\n\n"
         )
 
         # Generate sections for each kind
-        generate_kind_section(f, 5050, kind_5050_analysis)
-        generate_kind_section(f, 6050, kind_6050_analysis)
-        generate_kind_section(f, 7000, kind_7000_analysis)
+        if request_kind and request_analysis:
+            generate_kind_section(f, request_kind, request_analysis)
+        if response_kind and response_analysis:
+            generate_kind_section(f, response_kind, response_analysis)
+        if feedback_analysis and feedback_analysis["total_events"] > 0:
+            generate_kind_section(f, 7000, feedback_analysis)
 
 
 def generate_kind_section(f, kind, analysis):
@@ -424,11 +637,15 @@ def generate_kind_section(f, kind, analysis):
         kind: Event kind (integer)
         analysis: Analysis results for this kind
     """
-    kind_name = (
-        "Text Generation Requests"
-        if kind == 5050
-        else ("Text Generation Responses" if kind == 6050 else "Feedback Events")
-    )
+    # Determine kind name based on the kind number
+    if kind == 7000:
+        kind_name = "Feedback Events"
+    elif kind >= 5000 and kind < 6000:
+        kind_name = f"DVM Request Events (Kind {kind})"
+    elif kind >= 6000 and kind < 7000:
+        kind_name = f"DVM Response Events (Kind {kind})"
+    else:
+        kind_name = f"Events (Kind {kind})"
 
     f.write(f"== Kind {kind}: {kind_name}\n\n")
 
@@ -518,7 +735,7 @@ def generate_kind_section(f, kind, analysis):
 def main():
     """Main function to analyze DVM events."""
     parser = argparse.ArgumentParser(
-        description="Analyze Nostr DVM events of kinds 5050 and 6050."
+        description="Analyze Nostr DVM events of all kinds with prefixes 5xxx and 6xxx."
     )
     parser.add_argument(
         "--batch-size",
@@ -532,16 +749,44 @@ def main():
         help="Limit the number of events to process per kind (for testing)",
     )
     parser.add_argument(
-        "--output",
+        "--output-dir",
         type=str,
-        default="dvm_kinds_analysis.adoc",
-        help="Output file path (default: dvm_kinds_analysis.adoc)",
+        default=OUTPUT_DIR,
+        help=f"Output directory path (default: {OUTPUT_DIR})",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable using cached kind 7000 events (cache is used by default)",
+    )
+    parser.add_argument(
+        "--specific-kind",
+        type=int,
+        help="Process only a specific kind (e.g., 5050)",
+    )
+    parser.add_argument(
+        "--start-kind",
+        type=int,
+        default=5000,
+        help="Start processing from this kind number (e.g., 5050)",
+    )
+    parser.add_argument(
+        "--max-events",
+        type=int,
+        default=100000,
+        help="Maximum number of events to process per kind (default: 100000)",
+    )
     args = parser.parse_args()
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
+
+    # Ensure cache directory exists
+    os.makedirs(CACHE_DIR, exist_ok=True)
+
+    # Ensure output directory exists
+    os.makedirs(args.output_dir, exist_ok=True)
 
     start_time = time.time()
     logger.info("Starting DVM kinds analysis")
@@ -551,46 +796,143 @@ def main():
     cursor = conn.cursor()
 
     try:
-        # Process events of kind 5050
-        logger.info("Processing events of kind 5050")
-        kind_5050_events, kind_5050_ids = process_events(
-            cursor, 5050, args.batch_size, args.limit
-        )
-        kind_5050_analysis = analyze_field_structure(kind_5050_events, 5050)
+        # Get all distinct kinds with prefixes 5xxx and 6xxx
+        if args.specific_kind:
+            # If a specific kind is provided, only process that kind
+            prefix = args.specific_kind // 1000
+            if prefix not in [5, 6]:
+                logger.error(
+                    f"Specific kind must be 5xxx or 6xxx, got {args.specific_kind}"
+                )
+                return
+
+            if prefix == 5:
+                request_kinds = [args.specific_kind]
+                response_kinds = []
+            else:  # prefix == 6
+                request_kinds = []
+                response_kinds = [args.specific_kind]
+        else:
+            # Otherwise, get all distinct kinds
+            request_kinds = get_distinct_kinds(cursor, 5)
+            response_kinds = get_distinct_kinds(cursor, 6)
+
         logger.info(
-            f"Analyzed {kind_5050_analysis['total_events']:,} events of kind 5050"
+            f"Found {len(request_kinds)} distinct request kinds (5xxx): {request_kinds}"
+        )
+        logger.info(
+            f"Found {len(response_kinds)} distinct response kinds (6xxx): {response_kinds}"
         )
 
-        # Process events of kind 6050
-        logger.info("Processing events of kind 6050")
-        kind_6050_events, kind_6050_ids = process_events(
-            cursor, 6050, args.batch_size, args.limit
-        )
-        kind_6050_analysis = analyze_field_structure(kind_6050_events, 6050)
-        logger.info(
-            f"Analyzed {kind_6050_analysis['total_events']:,} events of kind 6050"
-        )
+        # Check for corresponding pairs
+        request_to_response = {}
+        for req_kind in request_kinds:
+            # The corresponding response kind would be req_kind + 1000
+            resp_kind = req_kind + 1000
+            if resp_kind in response_kinds:
+                request_to_response[req_kind] = resp_kind
+            else:
+                request_to_response[req_kind] = None
+                logger.warning(
+                    f"Request kind {req_kind} has no corresponding response kind {resp_kind}"
+                )
 
-        # Process feedback events (kind 7000) that reference kind 5050 events
-        logger.info("Processing feedback events (kind 7000)")
-        kind_7000_events = process_feedback_events(
-            cursor, kind_5050_ids, args.batch_size, args.limit
-        )
-        kind_7000_analysis = analyze_field_structure(kind_7000_events, 7000)
-        logger.info(
-            f"Analyzed {kind_7000_analysis['total_events']:,} feedback events of kind 7000"
-        )
+        # Check for response kinds without a corresponding request kind
+        for resp_kind in response_kinds:
+            req_kind = resp_kind - 1000
+            if req_kind not in request_kinds:
+                logger.warning(
+                    f"Response kind {resp_kind} has no corresponding request kind {req_kind}"
+                )
 
-        # Generate AsciiDoc output
-        logger.info(f"Generating AsciiDoc output to {args.output}")
-        generate_asciidoc(
-            kind_5050_analysis, kind_6050_analysis, kind_7000_analysis, args.output
-        )
+        # Filter request kinds based on start_kind
+        if args.start_kind:
+            logger.info(f"Starting from kind {args.start_kind}")
+            request_to_response = {k: v for k, v in request_to_response.items() if k >= args.start_kind}
+            
+        # Process each request kind and its corresponding response kind (if any)
+        for req_kind, resp_kind in sorted(request_to_response.items()):
+            # Process request events
+            logger.info(f"Processing events of kind {req_kind}")
+            req_events, req_ids = process_events(
+                cursor, req_kind, args.batch_size, args.limit, args.max_events
+            )
+            req_analysis = analyze_field_structure(req_events, req_kind)
+            logger.info(
+                f"Analyzed {req_analysis['total_events']:,} events of kind {req_kind}"
+            )
+
+            # Process corresponding response events (if any)
+            resp_analysis = None
+            if resp_kind:
+                logger.info(f"Processing events of kind {resp_kind}")
+                resp_events, resp_ids = process_events(
+                    cursor, resp_kind, args.batch_size, args.limit, args.max_events
+                )
+                resp_analysis = analyze_field_structure(resp_events, resp_kind)
+                logger.info(
+                    f"Analyzed {resp_analysis['total_events']:,} events of kind {resp_kind}"
+                )
+
+            # Process feedback events (kind 7000) that reference request events
+            logger.info(f"Processing feedback events (kind 7000) for kind {req_kind}")
+            feedback_events = process_feedback_events(
+                cursor, req_ids, args.batch_size, args.limit, not args.no_cache
+            )
+            feedback_analysis = analyze_field_structure(feedback_events, 7000)
+            logger.info(
+                f"Analyzed {feedback_analysis['total_events']:,} feedback events of kind 7000 for kind {req_kind}"
+            )
+
+            # Generate AsciiDoc output for this kind pair
+            output_file = os.path.join(
+                args.output_dir, f"kind_{req_kind}_analysis.adoc"
+            )
+            logger.info(f"Generating AsciiDoc output to {output_file}")
+            generate_asciidoc(
+                req_kind,
+                req_analysis,
+                resp_kind,
+                resp_analysis,
+                feedback_analysis,
+                output_file,
+            )
+
+            logger.info(f"Results for kind {req_kind} written to {output_file}")
+
+        # Process response kinds without a corresponding request kind
+        # Filter response kinds based on start_kind
+        filtered_response_kinds = [k for k in response_kinds if k >= args.start_kind]
+        for resp_kind in sorted(filtered_response_kinds):
+            req_kind = resp_kind - 1000
+            if req_kind not in request_kinds:
+                # Process response events
+                logger.info(
+                    f"Processing events of kind {resp_kind} (no corresponding request kind)"
+                )
+                resp_events, resp_ids = process_events(
+                    cursor, resp_kind, args.batch_size, args.limit, args.max_events
+                )
+                resp_analysis = analyze_field_structure(resp_events, resp_kind)
+                logger.info(
+                    f"Analyzed {resp_analysis['total_events']:,} events of kind {resp_kind}"
+                )
+
+                # Generate AsciiDoc output for this response kind
+                output_file = os.path.join(
+                    args.output_dir, f"kind_{resp_kind}_analysis.adoc"
+                )
+                logger.info(f"Generating AsciiDoc output to {output_file}")
+                generate_asciidoc(
+                    None, None, resp_kind, resp_analysis, None, output_file
+                )
+
+                logger.info(f"Results for kind {resp_kind} written to {output_file}")
 
         # Log summary
         elapsed_time = time.time() - start_time
         logger.info(f"Analysis completed in {elapsed_time:.2f} seconds")
-        logger.info(f"Results written to {args.output}")
+        logger.info(f"Results written to {args.output_dir}")
 
     except Exception as e:
         logger.error(f"Error during analysis: {str(e)}")

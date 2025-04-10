@@ -1,0 +1,157 @@
+= Nostr DVM Kind 5304 and 6304 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5304 and 6304.
+Kind 5304 represents DVM requests, while kind 6304 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5304: DVM Request Events (Kind 5304)
+
+=== Summary
+
+Total events analyzed: 20
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`72bcfb2982ec647af5c5fd59e2d13778cd48634bafab9df...`
+|_id|100.00%|`{"$oid": "674eff3dbb65e33dfce6134b"}`
+|sig|100.00%|`6e8d268e3b2781de1158f0ec34ae9654e859c268d4436a5...`
+|kind|100.00%|`5304`
+|tags|100.00%|`[["wss://relay.damus.io", "wss://dvms.f7z.io"],...`
+|pubkey|100.00%|`5546524c0a067ffea5d9265d3c4773dc67ee6539884340f...`
+|content|100.00%|`Give me visuals`
+|created_at|100.00%|`1733230396`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`alt`|100.00%|`["alt", "This is a NIP90 DVM AI task to find us...`
+|`param`|100.00%|`["param", "user", "99bb5591c9116600f845107d31f9...`
+|`p`|100.00%|`["p", "4add3944eb596a27a650f9b954f5ed8dfefeec6c...`
+|`wss://relay.damus.io`|90.00%|`["wss://relay.damus.io", "wss://dvms.f7z.io"]`
+|`relays`|10.00%|`["relays", "wss://nostr.oxtr.dev/", "wss://nost...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `72bcfb2982ec647af5c5fd59e2d13778cd48634bafab9df9ccd3282ec4ee15af`
+
+[source,json]
+----
+{
+  "id": "72bcfb2982ec647af5c5fd59e2d13778cd48634bafab9df9ccd3282ec4ee15af",
+  "_id": {
+    "$oid": "674eff3dbb65e33dfce6134b"
+  },
+  "sig": "6e8d268e3b2781de1158f0ec34ae9654e859c268d4436a5dd5eeb6a1cc71027ce180666df449e824c303161069bc318f39c9f56d2682cf3971b735791047dcbd",
+  "kind": 5304,
+  "tags": [
+    [
+      "wss://relay.damus.io",
+      "wss://dvms.f7z.io"
+    ],
+    [
+      "alt",
+      "This is a NIP90 DVM AI task to find users"
+    ],
+    [
+      "param",
+      "user",
+      "99bb5591c9116600f845107d31f9b59e2f7c7e09a1ff802e84f1d43da557ca64"
+    ],
+    [
+      "p",
+      "4add3944eb596a27a650f9b954f5ed8dfefeec6ca50473605b0fbb058dd11306"
+    ]
+  ],
+  "pubkey": "5546524c0a067ffea5d9265d3c4773dc67ee6539884340febc30f1bf1375f0af",
+  "content": "Give me visuals",
+  "created_at": 1733230396
+}
+----
+
+== Kind 6304: DVM Response Events (Kind 6304)
+
+=== Summary
+
+Total events analyzed: 4
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`e8dcef208d6daf276df3d1f503eb4a54006198bad52a61f...`
+|_id|100.00%|`{"$oid": "66ba5d731a9c8db6d451817e"}`
+|sig|100.00%|`1d680227677c0b41d4629eb11dab0080064701f1ac3ad44...`
+|kind|100.00%|`6304`
+|tags|100.00%|`[["wss://relay.damus.io", "wss://dvms.f7z.io"],...`
+|pubkey|100.00%|`89a08c79c13e78432ca83e7182923446015e4fdfa9f1316...`
+|content|100.00%|`Give me visuals`
+|created_at|100.00%|`1720783774`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`wss://relay.damus.io`|100.00%|`["wss://relay.damus.io", "wss://dvms.f7z.io"]`
+|`alt`|100.00%|`["alt", "This is a NIP90 DVM AI task to find us...`
+|`param`|100.00%|`["param", "user", "99bb5591c9116600f845107d31f9...`
+|`p`|100.00%|`["p", "4add3944eb596a27a650f9b954f5ed8dfefeec6c...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `e8dcef208d6daf276df3d1f503eb4a54006198bad52a61f318643c7aee17d696`
+
+[source,json]
+----
+{
+  "id": "e8dcef208d6daf276df3d1f503eb4a54006198bad52a61f318643c7aee17d696",
+  "_id": {
+    "$oid": "66ba5d731a9c8db6d451817e"
+  },
+  "sig": "1d680227677c0b41d4629eb11dab0080064701f1ac3ad44c6cc248ab7cc86d099de4db3e1d1ba9ec38db6bfcf3a8a093dc15e8699abfc68c408229679188f3a7",
+  "kind": 6304,
+  "tags": [
+    [
+      "wss://relay.damus.io",
+      "wss://dvms.f7z.io"
+    ],
+    [
+      "alt",
+      "This is a NIP90 DVM AI task to find users"
+    ],
+    [
+      "param",
+      "user",
+      "99bb5591c9116600f845107d31f9b59e2f7c7e09a1ff802e84f1d43da557ca64"
+    ],
+    [
+      "p",
+      "4add3944eb596a27a650f9b954f5ed8dfefeec6ca50473605b0fbb058dd11306"
+    ]
+  ],
+  "pubkey": "89a08c79c13e78432ca83e7182923446015e4fdfa9f1316e4be42c89ada92333",
+  "content": "Give me visuals",
+  "created_at": 1720783774
+}
+----
+

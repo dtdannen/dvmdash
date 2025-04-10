@@ -1,0 +1,53 @@
+= Nostr DVM Kind 6013 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 6013.
+Kind 6013 represents DVM responses (without a corresponding request kind).
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 6013: DVM Response Events (Kind 6013)
+
+=== Summary
+
+Total events analyzed: 537
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`ee2d3552619848017e7c149aaca77f9983edec988986c8a...`
+|_id|100.00%|`{"$oid": "66b9f5c312393c5623697e59"}`
+|sig|100.00%|`d6df98c08d4a84d4f951fa64337c58ad002db4c6b8422b9...`
+|kind|100.00%|`6013`
+|tags|100.00%|`[]`
+|pubkey|100.00%|`dacc52a0f640e295a5dd9dee8e7f97f354a7a607c97888f...`
+|content|100.00%|`person`
+|created_at|100.00%|`1703767597`
+|===
+
+=== Complete Example Event
+
+Event with ID: `ee2d3552619848017e7c149aaca77f9983edec988986c8ad642ddb786c820f24`
+
+[source,json]
+----
+{
+  "id": "ee2d3552619848017e7c149aaca77f9983edec988986c8ad642ddb786c820f24",
+  "_id": {
+    "$oid": "66b9f5c312393c5623697e59"
+  },
+  "sig": "d6df98c08d4a84d4f951fa64337c58ad002db4c6b8422b93c15bfb1a9345d710887583932131ffe8c3d00459f4bb93e7248887b89a2fbe7e9953bfbd948d5cad",
+  "kind": 6013,
+  "tags": [],
+  "pubkey": "dacc52a0f640e295a5dd9dee8e7f97f354a7a607c97888f3a7c7a6628b9b2f7a",
+  "content": "person",
+  "created_at": 1703767597
+}
+----
+
