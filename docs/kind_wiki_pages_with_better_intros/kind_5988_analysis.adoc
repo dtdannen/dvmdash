@@ -1,0 +1,72 @@
+= Nostr DVM Kind 5xxx
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5988 events represent Data Vending Machine (DVM) requests on the Nostr network. The input for a kind 5988 event includes a tag with the URL of the requested resource, along with other standard Nostr event fields such as id, sig, pubkey, and created_at. The output of a kind 5988 event is typically an empty content field, as the event itself is a request and does not contain the requested data.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5988.
+Kind 5988 represents DVM requests.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5988: DVM Request Events (Kind 5988)
+
+=== Summary
+
+Total events analyzed: 4
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`684391c4316c4a2143221503e44f7b55a7610e5b9f09f9d...`
+|_id|100.00%|`{"$oid": "66ba5c4b1a9c8db6d444e96c"}`
+|sig|100.00%|`272b2463b41ddb819a81c952e73c81e34899f8a09de1424...`
+|kind|100.00%|`5988`
+|tags|100.00%|`[["i", "https://github.com/benthecarman/wasm-dv...`
+|pubkey|100.00%|`6d91b1a4ca1cd35ba358f0b6b1058f6192ee4bf9cf029ab...`
+|content|100.00%|``
+|created_at|100.00%|`1706487942`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|100.00%|`["i", "https://github.com/benthecarman/wasm-dvm...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `684391c4316c4a2143221503e44f7b55a7610e5b9f09f9d8def2165679963667`
+
+[source,json]
+----
+{
+  "id": "684391c4316c4a2143221503e44f7b55a7610e5b9f09f9d8def2165679963667",
+  "_id": {
+    "$oid": "66ba5c4b1a9c8db6d444e96c"
+  },
+  "sig": "272b2463b41ddb819a81c952e73c81e34899f8a09de14240de1cab9b22b5529abdf772e3ad41871a1f707612845b8ddb5b9247690cd03b8fb774232c55b4b9c7",
+  "kind": 5988,
+  "tags": [
+    [
+      "i",
+      "https://github.com/benthecarman/wasm-dvm/raw/master/wasi_hello_world.wasm"
+    ]
+  ],
+  "pubkey": "6d91b1a4ca1cd35ba358f0b6b1058f6192ee4bf9cf029abaa37654e26a0733c8",
+  "content": "",
+  "created_at": 1706487942
+}
+----
+

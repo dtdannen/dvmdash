@@ -1,0 +1,78 @@
+= Nostr DVM Kind 5xxx
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5393 represents DVM request events in the Nostr protocol. The input for these events includes fields such as id, sig, kind, tags, pubkey, content, and created_at. The output is an analysis of the prevalence of different fields and tag structures found in a sample of 39 kind 5393 events.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5393.
+Kind 5393 represents DVM requests.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5393: DVM Request Events (Kind 5393)
+
+=== Summary
+
+Total events analyzed: 39
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`84953957ca0a16436fa0b51a7e8acb9624fc5bbb25af19e...`
+|_id|100.00%|`{"$oid": "6744c34665cdac2eea1ea610"}`
+|sig|100.00%|`af7eae8a1de052674391b3eddf78cbd91a56a0c5dffb8b6...`
+|kind|100.00%|`5393`
+|tags|100.00%|`[]`
+|pubkey|100.00%|`dee7cd029619f4cc0a9a64bf6aca8cda6f784872d709245...`
+|content|100.00%|`body {
+  margin:0;
+  width:100vw;
+  height: 100...`
+|created_at|100.00%|`1732559686`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`gnostr`|79.49%|`["gnostr", "gnostr"]`
+|`gnostr-web`|79.49%|`["gnostr-web", "gnostr-web"]`
+|`weeble`|12.82%|`["weeble", "2097"]`
+|`wobble`|12.82%|`["wobble", "27169"]`
+|`d`|10.26%|`["d", "nostree-theme-668a86fb-77db-4fd6-965b-02...`
+|`title`|5.13%|`["title", "Red"]`
+|`L`|5.13%|`["L", "nostree-theme"]`
+|`l`|5.13%|`["l", "customTheme"]`
+|`t`|5.13%|`["t", "2097"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `84953957ca0a16436fa0b51a7e8acb9624fc5bbb25af19ebd59429a26e4730cb`
+
+[source,json]
+----
+{
+  "id": "84953957ca0a16436fa0b51a7e8acb9624fc5bbb25af19ebd59429a26e4730cb",
+  "_id": {
+    "$oid": "6744c34665cdac2eea1ea610"
+  },
+  "sig": "af7eae8a1de052674391b3eddf78cbd91a56a0c5dffb8b62d92bcda912d6aa99ffc2bbdc55122bf48c1d3ccf11029db218473c2e27d30f9e9c9268f74ae5df8c",
+  "kind": 5393,
+  "tags": [],
+  "pubkey": "dee7cd029619f4cc0a9a64bf6aca8cda6f784872d70924509b93092023bbbec2",
+  "content": "body {\n  margin:0;\n  width:100vw;\n  height: 100vh;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  overflow:hidden;\n  background-size: cover;\n  background-color:#000000;\n  color:white;\n  font-family: Verdana, Geneva, Tahoma, sans-serif;\n  font-weight: bold;\n}\n.background-text {\n  font-size: 200px;\n  letter-spacing: 20px;\n\n  color:transparent;\n  background-clip: text;\n  -webkit-text-fill-color: transparent;\n  -webkit-background-clip: text;\n\n  background-image: url(\"3c55892674bd88431fd0d9b611e96e65c91802a128596bf3bcd6ca6c4aa2d5c7\");\n  background-size: 120%;  \n  animation: bg-animation 30s cubic-bezier(0.3,0,0.7,1) infinite;\n}\n@keyframes bg-animation {\n  0% {background-position: 50% 50%;}\n  33% {background-position: 100% 100%;}\n  66% {background-position: 0% 0%;}\n  100% {background-position: 50% 50%;}\n}",
+  "created_at": 1732559686
+}
+----
+

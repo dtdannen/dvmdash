@@ -1,0 +1,271 @@
+// GENERATED_TITLE: Image Composition
+= Nostr DVM Kind 5102/6102 - Image Composition
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+DVM kind 5102 represents a request to generate an image by compositing multiple images together. The input consists of references to background and foreground images, along with parameters specifying how to position the foreground image. The output is a URL pointing to the generated composite image in PNG format.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5102 and 6102.
+Kind 5102 represents DVM requests, while kind 6102 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5102: DVM Request Events (Kind 5102)
+
+=== Summary
+
+Total events analyzed: 82
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`7e6dfd2f685b0d680482cdc50617bdbdeeeb4ac6380e241...`
+|_id|100.00%|`{"$oid": "66ba5c611a9c8db6d445d4cc"}`
+|sig|100.00%|`e11ef468b6e53acfc90efea8289f137f154ea4a8dac7e70...`
+|kind|100.00%|`5102`
+|tags|100.00%|`[["i", "02ac926a3493aecb52845dfd74c343ff2f7576f...`
+|pubkey|100.00%|`b7338786233dc721a49608878ef82e497eceef4952b6753...`
+|content|100.00%|``
+|created_at|100.00%|`1707164626`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|100.00%|`["i", "02ac926a3493aecb52845dfd74c343ff2f7576f1...`
+|`param`|100.00%|`["param", "position", "0:0"]`
+|`nonce`|100.00%|`["nonce", "9929337"]`
+|`relays`|100.00%|`["relays", "wss://nostrue.com", "wss://relayabl...`
+|`output`|100.00%|`["output", "image/png;format=url"]`
+|`bid`|100.00%|`["bid", "10000000"]`
+|`t`|100.00%|`["t", "bitcoin"]`
+|`p`|43.90%|`["p", "d483935d6bfcef3645195c04c97bbb70aedb6e65...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `7e6dfd2f685b0d680482cdc50617bdbdeeeb4ac6380e2418905bde7c1287e6e2`
+
+[source,json]
+----
+{
+  "id": "7e6dfd2f685b0d680482cdc50617bdbdeeeb4ac6380e2418905bde7c1287e6e2",
+  "_id": {
+    "$oid": "66ba5c611a9c8db6d445d4cc"
+  },
+  "sig": "e11ef468b6e53acfc90efea8289f137f154ea4a8dac7e70698d4635ea2399cb3044a6efd2fba663aa5db590189a7cdded36c9b7baadc523960631398cfb6f1d9",
+  "kind": 5102,
+  "tags": [
+    [
+      "i",
+      "02ac926a3493aecb52845dfd74c343ff2f7576f12a3244505717446660894117",
+      "job"
+    ],
+    [
+      "i",
+      "22f5651ee90dbfe6d3d8000f6744f553ff3d7bde91fb1d37828ba304883d6a9c",
+      "job",
+      "background"
+    ],
+    [
+      "param",
+      "position",
+      "0:0"
+    ],
+    [
+      "nonce",
+      "9929337"
+    ],
+    [
+      "relays",
+      "wss://nostrue.com",
+      "wss://relayable.org",
+      "wss://nos.lol",
+      "wss://relay.conxole.io",
+      "wss://pablof7z.nostr1.com/",
+      "wss://relay.f7z.io",
+      "wss://offchain.pub"
+    ],
+    [
+      "output",
+      "image/png;format=url"
+    ],
+    [
+      "bid",
+      "10000000"
+    ],
+    [
+      "t",
+      "bitcoin"
+    ]
+  ],
+  "pubkey": "b7338786233dc721a49608878ef82e497eceef4952b67532374f5bb1fdb5bff3",
+  "content": "",
+  "created_at": 1707164626
+}
+----
+
+== Kind 6102: DVM Response Events (Kind 6102)
+
+=== Summary
+
+Total events analyzed: 20
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`0d8f934c85c7a1569b251aa7d2c9b75f4a882b5ece64861...`
+|_id|100.00%|`{"$oid": "66b9d3fd12393c562369725b"}`
+|sig|100.00%|`56642a50c366b1ffac50d6bf92955104a7c6e7465a8bb9d...`
+|kind|100.00%|`6102`
+|tags|100.00%|`[["request", "{\"id\":\"1b48aa4b4ca33ed778a1eff...`
+|pubkey|100.00%|`d483935d6bfcef3645195c04c97bbb70aedb6e65665c5ea...`
+|content|100.00%|`https://api.tasktiger.io/media/98288582-0780-48...`
+|created_at|100.00%|`1701091903`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`request`|100.00%|`["request", "{\"id\":\"1b48aa4b4ca33ed778a1effa...`
+|`e`|100.00%|`["e", "1b48aa4b4ca33ed778a1effad3672b058b127c07...`
+|`p`|100.00%|`["p", "35269ea605a7605d6ad6b31bef45cc6500b911aa...`
+|`i`|40.00%|`["i", "7da7829faf2b21b4a0073660d2e1bd1b9f416e6f...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `0d8f934c85c7a1569b251aa7d2c9b75f4a882b5ece64861f0fcee9b0200a67d1`
+
+[source,json]
+----
+{
+  "id": "0d8f934c85c7a1569b251aa7d2c9b75f4a882b5ece64861f0fcee9b0200a67d1",
+  "_id": {
+    "$oid": "66b9d3fd12393c562369725b"
+  },
+  "sig": "56642a50c366b1ffac50d6bf92955104a7c6e7465a8bb9df5ef72c460953216b6e8bda38aa789b27cc94d7cef294419aafaf907553baf28e45f020371df7c694",
+  "kind": 6102,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"1b48aa4b4ca33ed778a1effad3672b058b127c075834cbc374051fcd77d20ea4\",\"pubkey\":\"35269ea605a7605d6ad6b31bef45cc6500b911aaf249146bd23105f9963bb3d4\",\"created_at\":1701091855,\"kind\":5102,\"tags\":[[\"i\",\"7da7829faf2b21b4a0073660d2e1bd1b9f416e6f2ff38ea5c27630c07b647d6d\",\"job\",\"background\"],[\"i\",\"ec5a53d349b8bbfd69049ababbd14d68a31e9e3c1efabae1d98a8afdbff4bcfe\",\"job\"],[\"param\",\"position\",\"512:512\"],[\"nonce\",\"1328113\"],[\"p\",\"d483935d6bfcef3645195c04c97bbb70aedb6e65665c5ea83e562ca3c7acb978\"],[\"relays\",\"wss://nostrue.com\",\"wss://relayable.org\",\"wss://nos.lol\",\"wss://relay.conxole.io\",\"wss://pablof7z.nostr1.com/\",\"wss://relay.f7z.io\",\"wss://offchain.pub\"],[\"output\",\"image/png;format=url\"],[\"bid\",\"10000000\"],[\"t\",\"bitcoin\"]],\"content\":\"\",\"sig\":\"e25cf8936ea7f65774e2755d012d7001e63d7e26313c945423416a4935089b2a9a7a37ad3b6ce69b567ae07625fceb6ca51208caa7148d305800fe3ce1d24ef1\"}"
+    ],
+    [
+      "e",
+      "1b48aa4b4ca33ed778a1effad3672b058b127c075834cbc374051fcd77d20ea4",
+      "wss://relay.conxole.io"
+    ],
+    [
+      "p",
+      "35269ea605a7605d6ad6b31bef45cc6500b911aaf249146bd23105f9963bb3d4"
+    ],
+    [
+      "i",
+      "7da7829faf2b21b4a0073660d2e1bd1b9f416e6f2ff38ea5c27630c07b647d6d",
+      "job",
+      "background"
+    ],
+    [
+      "i",
+      "ec5a53d349b8bbfd69049ababbd14d68a31e9e3c1efabae1d98a8afdbff4bcfe",
+      "job"
+    ]
+  ],
+  "pubkey": "d483935d6bfcef3645195c04c97bbb70aedb6e65665c5ea83e562ca3c7acb978",
+  "content": "https://api.tasktiger.io/media/98288582-0780-482a-93e7-e2549fa4bad9.png",
+  "created_at": 1701091903
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 121
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`822dda3bb35ee29502aef907d4b6b1f167259e7ed2ab0c0...`
+|_id|100.00%|`{"$oid": "66b9d78d12393c5623697bbc"}`
+|sig|100.00%|`49616a75c9d7f08a987ee34a57637605fe06e78bc46188d...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "payment-required", "I would like t...`
+|pubkey|100.00%|`d483935d6bfcef3645195c04c97bbb70aedb6e65665c5ea...`
+|content|100.00%|``
+|created_at|100.00%|`1701636149`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`status`|100.00%|`["status", "payment-required", "I would like to...`
+|`e`|100.00%|`["e", "8c59b8c908a0ea0ca64abb63ead658f6892465c3...`
+|`p`|100.00%|`["p", "24a03063672c27cd17ec9f3194a76dabb6b4b02d...`
+|`amount`|66.94%|`["amount", "25000", "lnbc250n1pjke6p4pp5048k839...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `822dda3bb35ee29502aef907d4b6b1f167259e7ed2ab0c052ff85b09d91ed6d3`
+
+[source,json]
+----
+{
+  "id": "822dda3bb35ee29502aef907d4b6b1f167259e7ed2ab0c052ff85b09d91ed6d3",
+  "_id": {
+    "$oid": "66b9d78d12393c5623697bbc"
+  },
+  "sig": "49616a75c9d7f08a987ee34a57637605fe06e78bc46188d38ca364ba3b0756b84f916ac472cbcbacc20bc34bad1d80135e1b387c91673f49d55c2b26ec857cba",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "payment-required",
+      "I would like to process this job!"
+    ],
+    [
+      "e",
+      "8c59b8c908a0ea0ca64abb63ead658f6892465c35c46f8e63a1a0a0c6a2bf07e",
+      "wss://relay.conxole.io"
+    ],
+    [
+      "p",
+      "24a03063672c27cd17ec9f3194a76dabb6b4b02dc3d366c5939fabd61225330e"
+    ],
+    [
+      "amount",
+      "25000",
+      "lnbc250n1pjke6p4pp5048k839gzra977l3vv0f24e8xd95r3sjpuwl67q2uzt3pukafvksdpz23shx665d9nk2u3q2djhyanfvdjjq3n9v5cqzzsxqyz5vqsp5y80eh9fen9g6jtuelecsvw49z9jaam6uhkk3x6873mhxawh7pvzq9qyyssqvxufaagse8xxrmskttps642tavuya905zj0tqagv80tmacp2qlrr5nwqmfuqrn84pnr3fuadl0c78e72nxvnwl227tvzs50j22saq5cpt6vh7q"
+    ]
+  ],
+  "pubkey": "d483935d6bfcef3645195c04c97bbb70aedb6e65665c5ea83e562ca3c7acb978",
+  "content": "",
+  "created_at": 1701636149
+}
+----
+

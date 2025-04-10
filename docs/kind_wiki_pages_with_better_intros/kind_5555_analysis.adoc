@@ -1,0 +1,72 @@
+= Nostr DVM Kind 5xxx
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5555 events represent Data Vending Machine (DVM) requests in the Nostr protocol. The input for a kind 5555 event includes a public key, a content field containing a secret seed, and a tag specifying the recipient's public key. The output of processing a kind 5555 event is the fulfillment of the DVM request, which may involve providing data or performing an action based on the secret seed provided in the content field.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5555.
+Kind 5555 represents DVM requests.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5555: DVM Request Events (Kind 5555)
+
+=== Summary
+
+Total events analyzed: 1
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`9677300c71978ab96d0ceff0d7ac6a7b12fbe7d26b43c9b...`
+|_id|100.00%|`{"$oid": "66ba5d8c1a9c8db6d45289ba"}`
+|sig|100.00%|`49e12185f24619c778c6c2506460b9d74c90f07e79b55af...`
+|kind|100.00%|`5555`
+|tags|100.00%|`[["p", "1ecf147c4c8038aa0966bec95ca155a2cdb5ea8...`
+|pubkey|100.00%|`1ecf147c4c8038aa0966bec95ca155a2cdb5ea82a7ece67...`
+|content|100.00%|`secret seed 17`
+|created_at|100.00%|`1721886617`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "1ecf147c4c8038aa0966bec95ca155a2cdb5ea82...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `9677300c71978ab96d0ceff0d7ac6a7b12fbe7d26b43c9b3862ae01fc4c39776`
+
+[source,json]
+----
+{
+  "id": "9677300c71978ab96d0ceff0d7ac6a7b12fbe7d26b43c9b3862ae01fc4c39776",
+  "_id": {
+    "$oid": "66ba5d8c1a9c8db6d45289ba"
+  },
+  "sig": "49e12185f24619c778c6c2506460b9d74c90f07e79b55af499af8f4e737ab73715a3d784a7d7fa123bbd5744cba2c8023ea247ddd7b906bc28d4cd3a84dd0a2f",
+  "kind": 5555,
+  "tags": [
+    [
+      "p",
+      "1ecf147c4c8038aa0966bec95ca155a2cdb5ea82a7ece679ff7363eab2f35437"
+    ]
+  ],
+  "pubkey": "1ecf147c4c8038aa0966bec95ca155a2cdb5ea82a7ece679ff7363eab2f35437",
+  "content": "secret seed 17",
+  "created_at": 1721886617
+}
+----
+

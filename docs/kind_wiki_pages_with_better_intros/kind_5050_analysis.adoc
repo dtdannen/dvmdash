@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5050/6050
+// GENERATED_TITLE: Text Generation
+= Nostr DVM Kind 5050/6050 - Text Generation
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5050 is a job request to generate text using AI models. The input for kind 5050 typically includes a seed sentence or prompt in the "i" tag field for the AI to continue generating from. The output for kind 5050 is the AI-generated text, which can be in formats like plain text or Markdown.
+Kind 5050 is a job request to generate text using AI models. The input typically includes a seed sentence or prompt in the "i" tag field for the AI to continue generating from. The output is the generated text, which can be in plain text or markdown format.
 
 === Analysis
 

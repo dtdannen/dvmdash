@@ -1,0 +1,263 @@
+= Nostr DVM Kind 5600/6600
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+DVM kind 5600 represents a request to run a CI/CD workflow on a git repository. The request includes parameters such as the git repository address, git ref, workflow file path, and workflow timeout. The response, represented by DVM kind 6600, provides status updates and partial logs of the workflow execution.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5600 and 6600.
+Kind 5600 represents DVM requests, while kind 6600 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5600: DVM Request Events (Kind 5600)
+
+=== Summary
+
+Total events analyzed: 304
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`f650ba809e75a999c148ff0cb054868ce0f9ad7886eab31...`
+|sig|100.00%|`0979c17ba927a23df6ddd5545569185cd3552e84bbff158...`
+|kind|100.00%|`5600`
+|tags|100.00%|`[["a", "30617:bbb5dda0e15567979f0543407bdc2033d...`
+|pubkey|100.00%|`bbb5dda0e15567979f0543407bdc2033d6f0bbb30f72512...`
+|content|100.00%|`AtIoFrVsUDCaETK9iHCYUov6h8Nnd5ijLtCT21QQLaSIplv...`
+|created_at|100.00%|`1742322688`
+|_id|49.67%|`{"$oid": "67912cde5cf93d56e88ae8f7"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`a`|50.33%|`["a", "30617:bbb5dda0e15567979f0543407bdc2033d6...`
+|`param`|50.33%|`["param", "git_address", "naddr1qvzqqqrhnypzpwa...`
+|`i`|49.67%|`["i", "{\"url\":\"https://github.com/benthecarm...`
+|`p`|38.49%|`["p", "bd76df9caca303c2f0bf6b124ec7315bb38eb310...`
+|`encrypted`|38.49%|`["encrypted"]`
+|`ref`|23.36%|`["ref", "refs/heads/main"]`
+|`branch`|12.83%|`["branch", "fix-add-payments"]`
+|`commit-id`|12.83%|`["commit-id", "91719ab2cfdcaebb07e0c6133796caf1...`
+|`payment`|7.89%|`["payment", "TODO"]`
+|`commit`|2.63%|`["commit", "7243f8b17ef001fc3f65254acc28535ceb2...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `f650ba809e75a999c148ff0cb054868ce0f9ad7886eab314b7be8d97e5a976ec`
+
+[source,json]
+----
+{
+  "id": "f650ba809e75a999c148ff0cb054868ce0f9ad7886eab314b7be8d97e5a976ec",
+  "sig": "0979c17ba927a23df6ddd5545569185cd3552e84bbff158d17959c9a14008af221b577f4229e303f80a84afd33267f978c90505c614e577dc91aa0d2f91b190f",
+  "kind": 5600,
+  "tags": [
+    [
+      "a",
+      "30617:bbb5dda0e15567979f0543407bdc2033d6f0bbb30f72512a981cfdb2f09e2747:dvm-cicd-runner"
+    ],
+    [
+      "param",
+      "git_address",
+      "naddr1qvzqqqrhnypzpwa4mkswz4t8j70s2s6q00wzqv7k7zamxrmj2y4fs88aktcfuf68qq8kgand943kjcmy94e82mnwv4eqggwdl3"
+    ],
+    [
+      "param",
+      "git_ref",
+      "91719ab2cfdcaebb07e0c6133796caf1b480f494"
+    ],
+    [
+      "param",
+      "workflow_filepath",
+      ".github/workflows/ci.yaml"
+    ],
+    [
+      "param",
+      "workflow_timeout",
+      "1200"
+    ],
+    [
+      "branch",
+      "fix-add-payments"
+    ],
+    [
+      "commit-id",
+      "91719ab2cfdcaebb07e0c6133796caf1b480f494"
+    ],
+    [
+      "p",
+      "bd76df9caca303c2f0bf6b124ec7315bb38eb31089d78dd139d3e0a78ef4f26a"
+    ],
+    [
+      "encrypted"
+    ]
+  ],
+  "pubkey": "bbb5dda0e15567979f0543407bdc2033d6f0bbb30f72512a981cfdb2f09e2747",
+  "content": "AtIoFrVsUDCaETK9iHCYUov6h8Nnd5ijLtCT21QQLaSIplvgg14aNZj3mjker42g6PPrfumBRR67ojuFNUipJKpytqY/5XMaQ/He2dv2jgYOlTPMC1R5lh4zparZP7txQE2QJb5xlegusibV5ufVgZlQt/tTGNcb6Hu+cu9usBbaG05oL7P760o8CX7bRFFho5Ci4RiMJUPHYVtlUyWN02l9s+hnecOP8PNfZUr6hE+JUD8ZA28HK9MixpsEy7Rj5ptAeprAe+1OjjFMq0esOV3WITsPJNmn7w7FgoXKWFk9B29Bw3KyRgXOTMmbZHcd/p+gstiyXC1lcvrWiaj2ZbRQGNY+z6nCSV5tj80pG+nwecgW6zy6p1DCKV5v8tneHrH687ej+6rYFgOmv8J9S88pvDyPiNjLoq6GLohapiQ2v/x9c3lj6kBqBwhlWv84xPx+NhVhKk23HsTq5d8G9j3Ctp36Bd5NYXAz/2Rs2tPXIWsjK+4S8S5azkTi5DD1UAejwyeNuh7XfcptWa+AvxHuMA9snX5lLdQEX+189zBgivPZAyz34M8VsYzOBgTMIMV5ss61wDsbNObWAP4RzCtNAddTXwKeUJToztOgpPZ8ZjrxuhOfqHnw1u6GYQdwRDN3JaOTjDvv/XFCd0vi5rj6B5qz6gpWblJ3FSTD3TTwxsftxJCQWmSkdbbJTswvPQDMvX9NB++Wg+bKycn46uD1R36Up7Ms0J/FuXvDcm5v+/j/tCcDG9nO1u4U25sm1zuZRi/YrM9+Hi5vO90iTT+UctDdFdmlVS8oP/2khWQlYXM3jgUordw4B6i79jxN2QuRxqQvub+ko7MfN0b1TMGSJQFs58KHRs4RJ0zjJoBHcJsRtAij0PjtBwde6mxlxZvi1SJUe/mzRPRnLIGcWPG4qdh9YYpIai5t16SVNGYf6BH6fTyr4+mTr+Z7XB4q4FFK0Ak4XKu0IOPA4JFeCp1dPOXEslSupt0T/LZ1WAhySuiVujrlWaEkflH74dJTyRWrlqzxGrfnIRKu66qBWj7QQCE9OoEH0dnEpLobJvP91lDe33zaj5YKTASuCSUu+O6fqm3Gi6YdJpjYDSkKRDageBnwrXFuwRVcyTEZ+YV9kv2pPXoNUlsaqwmgreXr/x7ynG4sdFk6xYFhU86bO95A53+upLj+SC6DGIv5CkNg9TCVh6O/lADNr+myC6/54GoCguvPcJmrPem2IHK354Rj7RPC81mBP0f4Ia73eieSDkFIO9QoyT6anFQ906QJyR7HQFSGetxhT+oY/TBXeXceB6HX+hC9SSm+bl9F3J/3D5tfTDYFGyHW2x3KMfm9lORTA2BQTr/9d0UDSpmh758oryzuC9ETpXhapbFFrePOTPv/N+xc/IYOoF8vfvQG4Yb6uBQt6CZ3IBFGnhYNP1JWawnc9NdKDNUro5KH7406dJGgejjRBrd0Wsgh4GW2xY6uWP4ORtWQ3TSosYoiATLoj+iQ0dvgjkqEftzlaAiJUcAXpfG8LNqBekpwDUdLhLtLrx+jids06597ZRU6kBfETBgO/Hh32jK5D2F56/vFrh/fqEWBvOdiC91QXr05vlx8fiJGtLUThUnVc4HvuYKYooEAJVmHMbvVWPmfxHBWDwu72fnsOiOgFsTxBi0DBFbkebJx+0hZ2c0+1uDP/2yE93noozeZyPdD1tAg0k43OQFwTFE1dQif2OM/t6Ryir8IZEEJ7FZdEjfXM4tvwrbJspF43UhV0+FARSU6Z2p1rpwb8/+eTRDtSskU33UVrTfo",
+  "created_at": 1742322688,
+  "_id": {
+    "$oid": "67912cde5cf93d56e88ae8f7"
+  }
+}
+----
+
+== Kind 6600: DVM Response Events (Kind 6600)
+
+=== Summary
+
+Total events analyzed: 342
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`905cdfd002c98e94bf5f36ed5f8137ee609fc7415efe73b...`
+|sig|100.00%|`807b876f1ae5cc65a5a6dbdd2605ef01e0d26a2487e2c17...`
+|kind|100.00%|`6600`
+|tags|100.00%|`[["s", "payment-required", "Failed to redeem ca...`
+|pubkey|100.00%|`bd76df9caca303c2f0bf6b124ec7315bb38eb31089d78dd...`
+|content|100.00%|``
+|created_at|100.00%|`1742322689`
+|_id|18.71%|`{"$oid": "67912ceb5cf93d56e88ae8fa"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "f650ba809e75a999c148ff0cb054868ce0f9ad78...`
+|`p`|100.00%|`["p", "bbb5dda0e15567979f0543407bdc2033d6f0bbb3...`
+|`s`|81.29%|`["s", "payment-required", "Failed to redeem cas...`
+|`a`|79.82%|`["a", "30617:bbb5dda0e15567979f0543407bdc2033d6...`
+|`i`|18.71%|`["i", "{\"url\":\"https://github.com/benthecarm...`
+|`request`|18.71%|`["request", "{\"id\":\"656d5715767ebf9cadabb61c...`
+|`amount`|16.37%|`["amount", "1200000", "creqAp2F0gaNhdGVub3N0cmF...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `905cdfd002c98e94bf5f36ed5f8137ee609fc7415efe73b9d5173aa50572ecbe`
+
+[source,json]
+----
+{
+  "id": "905cdfd002c98e94bf5f36ed5f8137ee609fc7415efe73b9d5173aa50572ecbe",
+  "sig": "807b876f1ae5cc65a5a6dbdd2605ef01e0d26a2487e2c170de63c05110991ac23629d5234ae3af779045a3dd7275466f54f62c8011eada31cf9156cde312e96c",
+  "kind": 6600,
+  "tags": [
+    [
+      "s",
+      "payment-required",
+      "Failed to redeem cashu token"
+    ],
+    [
+      "e",
+      "f650ba809e75a999c148ff0cb054868ce0f9ad7886eab314b7be8d97e5a976ec"
+    ],
+    [
+      "p",
+      "bbb5dda0e15567979f0543407bdc2033d6f0bbb30f72512a981cfdb2f09e2747"
+    ],
+    [
+      "a",
+      "30617:bbb5dda0e15567979f0543407bdc2033d6f0bbb30f72512a981cfdb2f09e2747:dvm-cicd-runner"
+    ]
+  ],
+  "pubkey": "bd76df9caca303c2f0bf6b124ec7315bb38eb31089d78dd139d3e0a78ef4f26a",
+  "content": "",
+  "created_at": 1742322689,
+  "_id": {
+    "$oid": "67912ceb5cf93d56e88ae8fa"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 116
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`08f145a1532308c6b9c7017bdcc94bf5c93472432d66b74...`
+|_id|100.00%|`{"$oid": "67912cde5cf93d56e88ae8f8"}`
+|sig|100.00%|`de1c4435560fc545760349cd0b8d3ab77d04d4d2dc390fa...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "payment-required"], ["e", "656d571...`
+|pubkey|100.00%|`ca94a1dd53ae6f55a6857be252ee61ebf41bffc2e89849a...`
+|content|100.00%|``
+|created_at|100.00%|`1737567454`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`status`|100.00%|`["status", "payment-required"]`
+|`e`|100.00%|`["e", "656d5715767ebf9cadabb61c7a80a3fd0c73960f...`
+|`p`|100.00%|`["p", "0d6c8388dcb049b8dd4fc8d3d8c3bb93de3da90b...`
+|`amount`|100.00%|`["amount", "1000", "lnbc10n1pneztx7pp5uyf925w2w...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `08f145a1532308c6b9c7017bdcc94bf5c93472432d66b74908fc82f1365de4f7`
+
+[source,json]
+----
+{
+  "id": "08f145a1532308c6b9c7017bdcc94bf5c93472432d66b74908fc82f1365de4f7",
+  "_id": {
+    "$oid": "67912cde5cf93d56e88ae8f8"
+  },
+  "sig": "de1c4435560fc545760349cd0b8d3ab77d04d4d2dc390fa9a7802b86ad8f3982a0135267df9d43bc8298f999823a235b97ab88ec3bcbabb177e359d0f8701306",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "payment-required"
+    ],
+    [
+      "e",
+      "656d5715767ebf9cadabb61c7a80a3fd0c73960f80c049d8e1d663692c0d120c"
+    ],
+    [
+      "p",
+      "0d6c8388dcb049b8dd4fc8d3d8c3bb93de3da90ba828e4f09c8ad0f346488a33"
+    ],
+    [
+      "amount",
+      "1000",
+      "lnbc10n1pneztx7pp5uyf925w2wwhsevefeceu8h4wmf7payvuc5hca5mkaazmj23pqplsdq62ashxmfqg3ty6gzjv4ch2etnwscqzzsxqyz5vqsp5rd9ns2lu4d550rqdqfw6knptathgwktad8y6mp0cvzxs0w7ar5vs9p4gqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpqysgq7xtvsaaxxd5zr2pxdu4qvmz5uhggnlh3e4anj7c06m0mamxm7enp6tlkwy99v5svn5vyx6pvs9hjcy8llqfn9xpjg8dhrgwh95mk8dqpshuug8"
+    ]
+  ],
+  "pubkey": "ca94a1dd53ae6f55a6857be252ee61ebf41bffc2e89849a158d9689a7a5d7f7e",
+  "content": "",
+  "created_at": 1737567454
+}
+----
+

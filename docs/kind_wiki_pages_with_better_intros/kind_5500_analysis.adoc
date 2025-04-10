@@ -1,0 +1,217 @@
+= Nostr DVM Kind 5500/6500
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5500 is a job request to perform malware scanning on files. The input for kind 5500 requires clients to provide a URL in the "i" tag field, which must directly link to the desired file(s) to be scanned. The output for a kind 5500 request will contain the string "CLEAN" if no malware is found, or will provide plaintext details of the findings if malware is detected in the scanned file(s).
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5500 and 6500.
+Kind 5500 represents DVM requests, while kind 6500 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5500: DVM Request Events (Kind 5500)
+
+=== Summary
+
+Total events analyzed: 169
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`af7580ecde1bbddfa347ebb411cc376e227b5d2cb06dd6b...`
+|sig|100.00%|`d044e829d1ead2995cf1aad4a8829bacdd0d62caae9189d...`
+|kind|100.00%|`5500`
+|tags|100.00%|`[]`
+|pubkey|100.00%|`79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d...`
+|content|100.00%|``
+|created_at|100.00%|`1741713147`
+|_id|98.82%|`{"$oid": "66ba10d012393c5623699188"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|98.22%|`["i", "https://secure.eicar.org/eicar.com.txt",...`
+|`relays`|6.51%|`["relays", "wss://nostrue.com", "wss://relayabl...`
+|`output`|6.51%|`["output", "text/plain"]`
+|`bid`|6.51%|`["bid", "10000000"]`
+|`t`|6.51%|`["t", "bitcoin"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `af7580ecde1bbddfa347ebb411cc376e227b5d2cb06dd6bfbc90200b619e082c`
+
+[source,json]
+----
+{
+  "id": "af7580ecde1bbddfa347ebb411cc376e227b5d2cb06dd6bfbc90200b619e082c",
+  "sig": "d044e829d1ead2995cf1aad4a8829bacdd0d62caae9189d35c17be39230c5cd792f6c37188a851eb50f285f58d589bdc2029cb567e33f971e552c33a0abd686d",
+  "kind": 5500,
+  "tags": [],
+  "pubkey": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  "content": "",
+  "created_at": 1741713147,
+  "_id": {
+    "$oid": "66ba10d012393c5623699188"
+  }
+}
+----
+
+== Kind 6500: DVM Response Events (Kind 6500)
+
+=== Summary
+
+Total events analyzed: 186
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`ffbbecd23ed4cd0ea376eac1110a7ffe9f3de1323202ff8...`
+|_id|100.00%|`{"$oid": "66ba10d112393c5623699190"}`
+|sig|100.00%|`b7680002d917e81fd688a032b623bf63a5e39f0f9ad8d0a...`
+|kind|100.00%|`6500`
+|tags|100.00%|`[["request", "{\"id\":\"bf0ca16e684bece037353f8...`
+|pubkey|100.00%|`68a95f59b835ddcdbf87bc1c5f78e3b323939a0d84bb1f7...`
+|content|100.00%|`---------- REPORT RESULT ----------
+Malicious: ...`
+|created_at|100.00%|`1705999895`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`request`|100.00%|`["request", "{\"id\":\"bf0ca16e684bece037353f8f...`
+|`e`|100.00%|`["e", "bf0ca16e684bece037353f8feff1cab5fe394e3b...`
+|`p`|100.00%|`["p", "175ea57e08440531949fe5a0af732fd6b31002ad...`
+|`i`|100.00%|`["i", "https://secure.eicar.org/eicar.com.txt",...`
+|`amount`|63.44%|`["amount", "1000", "lnbc10n1pj67lshsp5cwnnsng2u...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `ffbbecd23ed4cd0ea376eac1110a7ffe9f3de1323202ff875e99757d51845a28`
+
+[source,json]
+----
+{
+  "id": "ffbbecd23ed4cd0ea376eac1110a7ffe9f3de1323202ff875e99757d51845a28",
+  "_id": {
+    "$oid": "66ba10d112393c5623699190"
+  },
+  "sig": "b7680002d917e81fd688a032b623bf63a5e39f0f9ad8d0a9036be013d703db7f511af2984f9699c7fb61af9be56af6c40e81a20667ffb6e8d7942d7d4550c717",
+  "kind": 6500,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"bf0ca16e684bece037353f8feff1cab5fe394e3b2e833b40503635965f2b1fa3\",\"pubkey\":\"175ea57e08440531949fe5a0af732fd6b31002adc54e5999f44b3cde9244c0f6\",\"created_at\":1705999888,\"kind\":5500,\"tags\":[[\"i\",\"https://secure.eicar.org/eicar.com.txt\",\"url\"]],\"content\":\"\",\"sig\":\"7a3bb822955d189927810ff0920a49fa6d7864f601d211e42d81b086cc815d4573e23b761ec07901f7aa8999e403b766f13798639ca205ad48f7cec7fc792181\"}"
+    ],
+    [
+      "e",
+      "bf0ca16e684bece037353f8feff1cab5fe394e3b2e833b40503635965f2b1fa3"
+    ],
+    [
+      "p",
+      "175ea57e08440531949fe5a0af732fd6b31002adc54e5999f44b3cde9244c0f6"
+    ],
+    [
+      "i",
+      "https://secure.eicar.org/eicar.com.txt",
+      "url"
+    ],
+    [
+      "amount",
+      "1000",
+      "lnbc10n1pj67lshsp5cwnnsng2u2zafqurpmrhpeg60gqc7qkusseyfs6ql6gke96enhrspp5xc98lwxavagj6jnvve0l3pysxh2sstxktrkvfrw9mp3qscl4n3aqdq2f38xy6t5wvxqzuycqpjrzjqdjs3alg9wmchtfs0nav7nkls58u8usv5pc742q8fkw4gf9fpykqkzahvuqq2sgqqyqqqqqqqqqqqqqqjq9qxpqysgqkg35jc259g4ntkcxst4376lwp2anhrlfe0ejg97qlfe6l4u8ax2s0v8rc3snflytscg5pl5khpk982t8a3qs3v0renlaqe76t7c8jpgqr36d6r"
+    ]
+  ],
+  "pubkey": "68a95f59b835ddcdbf87bc1c5f78e3b323939a0d84bb1f75d2060626bb738083",
+  "content": "---------- REPORT RESULT ----------\nMalicious: 5\nSuspicious: 1\nURLQuery => suspicious\nAntiy-AVL => malicious\nAutoShun => malicious\n",
+  "created_at": 1705999895
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 511
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`49a821caee9db25e895563acb2909c2cd3df2c33dab4eb7...`
+|_id|100.00%|`{"$oid": "66ba10d112393c562369918f"}`
+|sig|100.00%|`b9262900139c43c13bf7afabf3548801662f6551ec66e84...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "bf0ca16e684bece037353f8feff1cab5fe394e3...`
+|pubkey|100.00%|`68a95f59b835ddcdbf87bc1c5f78e3b323939a0d84bb1f7...`
+|content|100.00%|``
+|created_at|100.00%|`1705999894`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "bf0ca16e684bece037353f8feff1cab5fe394e3b...`
+|`p`|100.00%|`["p", "175ea57e08440531949fe5a0af732fd6b31002ad...`
+|`status`|100.00%|`["status", "success"]`
+|`amount`|9.39%|`["amount", "1000", "lnbc10n1pj6a84lsp5u3umf2gg4...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `49a821caee9db25e895563acb2909c2cd3df2c33dab4eb7357adf823ee980353`
+
+[source,json]
+----
+{
+  "id": "49a821caee9db25e895563acb2909c2cd3df2c33dab4eb7357adf823ee980353",
+  "_id": {
+    "$oid": "66ba10d112393c562369918f"
+  },
+  "sig": "b9262900139c43c13bf7afabf3548801662f6551ec66e8427186976629b691918dd458cf42762e2e1f711378d23532a114da3dd4a7dd63666deafadabf67e8ff",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "bf0ca16e684bece037353f8feff1cab5fe394e3b2e833b40503635965f2b1fa3"
+    ],
+    [
+      "p",
+      "175ea57e08440531949fe5a0af732fd6b31002adc54e5999f44b3cde9244c0f6"
+    ],
+    [
+      "status",
+      "success"
+    ]
+  ],
+  "pubkey": "68a95f59b835ddcdbf87bc1c5f78e3b323939a0d84bb1f75d2060626bb738083",
+  "content": "",
+  "created_at": 1705999894
+}
+----
+

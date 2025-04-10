@@ -1,0 +1,85 @@
+// GENERATED_TITLE: DVM Input Specification
+= Nostr DVM Kind 5xxx - DVM Input Specification
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5107 events represent requests made to a Data Vending Machine (DVM) on the Nostr network. The input for a kind 5107 event is typically contained within the "i" tag, which includes the method being called and any associated parameters. The output format for the response to a kind 5107 request is specified in the "output" tag, with common formats being "text/plain" or "application/json".
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5107.
+Kind 5107 represents DVM requests.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5107: DVM Request Events (Kind 5107)
+
+=== Summary
+
+Total events analyzed: 184
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`aed3f3e0ffe18462e87fb36fe7d5490e1c7f7cb4a4f5216...`
+|_id|100.00%|`{"$oid": "671d1d5c40b6e5a08a57ca3a"}`
+|sig|100.00%|`52763809b8f00ccebef7536281d0a6df9236563881dceff...`
+|kind|100.00%|`5107`
+|tags|100.00%|`[["i", "[{\"method\": \"getLocationTemperature\...`
+|pubkey|100.00%|`683211bd155c7b764e4b99ba263a151d81209be7a566a2b...`
+|content|100.00%|``
+|created_at|100.00%|`1729961308`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|100.00%|`["i", "[{\"method\": \"getLocationTemperature\"...`
+|`output`|100.00%|`["output", "text/plain"]`
+|`p`|100.00%|`["p", "22b9d2fa2910974d02138af239a341a09ec60560...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `aed3f3e0ffe18462e87fb36fe7d5490e1c7f7cb4a4f52162ee9fe340803fb6fc`
+
+[source,json]
+----
+{
+  "id": "aed3f3e0ffe18462e87fb36fe7d5490e1c7f7cb4a4f52162ee9fe340803fb6fc",
+  "_id": {
+    "$oid": "671d1d5c40b6e5a08a57ca3a"
+  },
+  "sig": "52763809b8f00ccebef7536281d0a6df9236563881dceff54e9550a90562315e90a52364acd52b541ad467e3bf1279c9ea8d16d3879e7acdc1b2a6ffd727c4f3",
+  "kind": 5107,
+  "tags": [
+    [
+      "i",
+      "[{\"method\": \"getLocationTemperature\",\"params\": [\"unit\", \"celcius\",\"location\", \"53,-2\"]}]",
+      "text",
+      "wss://relay.nostriot.com"
+    ],
+    [
+      "output",
+      "text/plain"
+    ],
+    [
+      "p",
+      "22b9d2fa2910974d02138af239a341a09ec60560338eb0f8814ec5729ae25c64"
+    ]
+  ],
+  "pubkey": "683211bd155c7b764e4b99ba263a151d81209be7a566a2bb1971dc1bbd3b715e",
+  "content": "",
+  "created_at": 1729961308
+}
+----
+

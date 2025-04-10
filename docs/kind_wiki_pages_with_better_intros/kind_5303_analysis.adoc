@@ -1,0 +1,235 @@
+// GENERATED_TITLE: Nostr People Search
+= Nostr DVM Kind 5303/6303 - Nostr People Search
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5303 is a Nostr Data Vending Machine (DVM) request to search for user profiles based on a text prompt. The input for a kind 5303 request includes the search text and an optional "max_results" parameter to limit the number of returned profiles. The output for a kind 5303 request is a JSON-stringified list of "p" tags, each containing a public key of a matching user profile.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5303 and 6303.
+Kind 5303 represents DVM requests, while kind 6303 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5303: DVM Request Events (Kind 5303)
+
+=== Summary
+
+Total events analyzed: 3,610
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`b908aed1d5280bbe86de1f7ebc5442e8404aa9872b9c48e...`
+|sig|100.00%|`ce80c9cdb68482d333bb00d231c5bacc7807e3f171c27d7...`
+|kind|100.00%|`5303`
+|tags|100.00%|`[["p", "d378e056a3a4d01c785d24f9b352f1e9cfbec02...`
+|pubkey|100.00%|`460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3...`
+|content|100.00%|`ApQl8O3AsEFAVHbj4T7T2xV1ia0aSM/0Ig5d2Q0kHWMonqt...`
+|created_at|100.00%|`1744307999`
+|_id|89.03%|`{"$oid": "67a8b885185bd0e30fc6366a"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|73.63%|`["p", "d378e056a3a4d01c785d24f9b352f1e9cfbec024...`
+|`encrypted`|69.50%|`["encrypted"]`
+|`client`|69.39%|`["client", "noogle"]`
+|`i`|28.01%|`["i", "fiatjaf", "text"]`
+|`param`|24.43%|`["param", "max_results", "10"]`
+|`relays`|21.36%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`alt`|0.83%|`["alt", "This is a NIP90 DVM AI task to transla...`
+|`expiration`|0.03%|`["expiration", "1737492300"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `b908aed1d5280bbe86de1f7ebc5442e8404aa9872b9c48e225b97a733abe5115`
+
+[source,json]
+----
+{
+  "id": "b908aed1d5280bbe86de1f7ebc5442e8404aa9872b9c48e225b97a733abe5115",
+  "sig": "ce80c9cdb68482d333bb00d231c5bacc7807e3f171c27d7410fe79e71ed7f35b2175113e89186b1877d56eb15b8afabd1687619b811e87ca8b1e571df8394aba",
+  "kind": 5303,
+  "tags": [
+    [
+      "p",
+      "d378e056a3a4d01c785d24f9b352f1e9cfbec02450a6d6babf5baeda54d4a6de"
+    ],
+    [
+      "encrypted"
+    ],
+    [
+      "client",
+      "noogle"
+    ],
+    [
+      "relays",
+      "wss://relay.nostrdvm.com",
+      "wss://nostr.mom",
+      "wss://nostr.oxtr.dev"
+    ]
+  ],
+  "pubkey": "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c",
+  "content": "ApQl8O3AsEFAVHbj4T7T2xV1ia0aSM/0Ig5d2Q0kHWMonqtBmxUcLEItufcNQA9ITwlfzjJ3T+c1ZFO+XZdFbOLsPsx3I9lWO/BQKF76Z6ApX9/SJZ6DV8EFNPZDX0YSQCrBkmazz3ey3/kjU6uajQ1ymTYKjWJOmc5KtOL+YV2h2i4=",
+  "created_at": 1744307999,
+  "_id": {
+    "$oid": "67a8b885185bd0e30fc6366a"
+  }
+}
+----
+
+== Kind 6303: DVM Response Events (Kind 6303)
+
+=== Summary
+
+Total events analyzed: 2,078
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`060c6f742e6bef33cddb0262e4c8e2ded0b21e991e59446...`
+|sig|100.00%|`bb0e0c0e70890d887daa5d565973cbb81c69074e192b8b5...`
+|kind|100.00%|`6303`
+|tags|100.00%|`[["encrypted"], ["p", "460c25e682fda7832b52d1f2...`
+|pubkey|100.00%|`d378e056a3a4d01c785d24f9b352f1e9cfbec02450a6d6b...`
+|content|100.00%|`AmJJpUs2Omc4FJo6nSMtDrGfz8kEh/EX/QlZ8oZX8Xw73SC...`
+|created_at|100.00%|`1744308018`
+|_id|90.04%|`{"$oid": "67a8b896185bd0e30fc63673"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "460c25e682fda7832b52d1f22d3d22b3176d972f...`
+|`e`|100.00%|`["e", "b908aed1d5280bbe86de1f7ebc5442e8404aa987...`
+|`request`|87.78%|`["request", "{\"id\":\"9c9687d2831301a1a523d8d8...`
+|`status`|87.78%|`["status", "success"]`
+|`alt`|83.11%|`["alt", "This is the result of a NIP90 DVM task...`
+|`encrypted`|54.19%|`["encrypted"]`
+|`i`|39.61%|`["i", "why are there only 5 people that use thi...`
+|`client`|4.72%|`["client", "noogle"]`
+|`relays`|0.05%|`["relays", "wss://relay.nostr.bg/", "wss://nost...`
+|`expiration`|0.05%|`["expiration", "1737492300"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `060c6f742e6bef33cddb0262e4c8e2ded0b21e991e594462bd8c62f3e5c5ea71`
+
+[source,json]
+----
+{
+  "id": "060c6f742e6bef33cddb0262e4c8e2ded0b21e991e594462bd8c62f3e5c5ea71",
+  "sig": "bb0e0c0e70890d887daa5d565973cbb81c69074e192b8b5cc4b79341e419e3e580062efda91f7b104c7932074ba99960cdcaaa48c2279b2d99d1f7716264e77b",
+  "kind": 6303,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c"
+    ],
+    [
+      "e",
+      "b908aed1d5280bbe86de1f7ebc5442e8404aa9872b9c48e225b97a733abe5115"
+    ]
+  ],
+  "pubkey": "d378e056a3a4d01c785d24f9b352f1e9cfbec02450a6d6babf5baeda54d4a6de",
+  "content": "AmJJpUs2Omc4FJo6nSMtDrGfz8kEh/EX/QlZ8oZX8Xw73SCgkjTVzAhtRyAJedn/HB0hBp7DR8/lFlqVLfF17m6BP6uX091nM66CqKHV4RbUgdoCTVJktYIUTQOiBcf8Jz1Q4K10siUDN90lR3y78awNKuUf8RHeu6L4NoofkT1E3RwlqNWjZPQCUs0Rr/A45Y5YJSU30rbPtsJm7qief76zMfK+GJ+fNHUgsfJjk9Ov5YXohtQ8Zk/EtMK8O8RzMmNYQDTrDb5nOCIbKpxstSzW5KIOKeGcSPkZ4NCXVP7ft9XVqr5momBAdvS6uMWbDAj6+o85IWkGgZdkIkO+DxQlrEKPkAF26oThzuA0i5QKPcus923ITTWu5iCgRBqtFu4G8KKeO4PsWnfYpcVLr9RBM9UZ4UJlyABZkjoNa0lo3lq7PL6QRopp+O0xiRIsJENKuW6ji34+DjbtGkE1j6XxFSvTolIfe8CnO+nkFlLbPSi5oAua+OBq3HIzItYilqOrh8+clFgGQqKCb2IkPFjGRumUi/RS/yvT0HFwnTlgBaAKYOVSKbGv4CXtzDjR7FEEhHZPLZjk2mPmFQMEWOcEYvoXxbwQ1jMHnCwgeQDnSdHzU3yBjhTF8/oBbn5YdmKKCH8YEIs27385gHKuRqXzm3J9fVdvBHXms0BEg6uHLVmWYlJGXkeE8TpZdD78oS+R557p/MjFN0z44puCvomhdMQWWRJZGQzXe7GAPscQl6+Upi7NfG2LCxm7v5kPBBBl",
+  "created_at": 1744308018,
+  "_id": {
+    "$oid": "67a8b896185bd0e30fc63673"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 2,097
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`1604dd5f773e390728a131aa1f2b6f25ea84958254ebdf8...`
+|sig|100.00%|`58ccab471f96324d7d1e1e4486b57bfc1dde9b186f86bec...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["encrypted"], ["p", "7782f93c5762538e1f7ccc5a...`
+|pubkey|100.00%|`d378e056a3a4d01c785d24f9b352f1e9cfbec02450a6d6b...`
+|content|100.00%|`AizkNd9qqxQ00XwVrVNgQC80Lpt0oq9o8SDsg3nphOsqjqx...`
+|created_at|100.00%|`1744248134`
+|_id|86.31%|`{"$oid": "67a8b886185bd0e30fc6366e"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "7782f93c5762538e1f7ccc5af83cd8018a528b9c...`
+|`e`|100.00%|`["e", "f524d834b17abc7cc423af54241f98f3b16dfed9...`
+|`encrypted`|51.22%|`["encrypted"]`
+|`status`|48.78%|`["status", "payment-required", "Daily free job ...`
+|`alt`|40.10%|`["alt", "NIP90 DVM task search-user started pro...`
+|`amount`|1.14%|`["amount", "10000", "lnbc100n1pnl2kgnpp5eyavjrd...`
+|`relays`|0.05%|`["relays", "wss://relay.nostr.bg/", "wss://nost...`
+|`expiration`|0.05%|`["expiration", "1737492300"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `1604dd5f773e390728a131aa1f2b6f25ea84958254ebdf8570c078c1b56a1e9c`
+
+[source,json]
+----
+{
+  "id": "1604dd5f773e390728a131aa1f2b6f25ea84958254ebdf8570c078c1b56a1e9c",
+  "sig": "58ccab471f96324d7d1e1e4486b57bfc1dde9b186f86bec970f109b4b9225da848d8cdcc385885043f618d7cd5b985c666134f046c3017c839963ac5080c4f0b",
+  "kind": 7000,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6"
+    ],
+    [
+      "e",
+      "f524d834b17abc7cc423af54241f98f3b16dfed990d81e59c347ec6d324e28f5"
+    ]
+  ],
+  "pubkey": "d378e056a3a4d01c785d24f9b352f1e9cfbec02450a6d6babf5baeda54d4a6de",
+  "content": "AizkNd9qqxQ00XwVrVNgQC80Lpt0oq9o8SDsg3nphOsqjqxs7tz4w7t3SXEmxfTTjybXJ9hV4gCSjVBNT13b2qEwps/TmJyhSN4CXLnby0OjbxqrHAbdM5WC3hlvUWwxnSydCSrk6OGNIowRK/RSSoye9C56g+yzz7Tegvafbz0NDDaaXik6nROduZirY74aozfnzJloAW+34s33AwAXpT7E1M8FMhUa22xeguAmdj4ZbdL7imEFzRv1u6fshegp5epJvrwMgi0M229nB6Hki1EEe81wNoDfdm99Hj1oXOPMF+b/LuyaYxKqc4fnyOzmqMvPY9QLu3AP+CcN9i6p571cPBQLmUcdAes67CHffBEP4jAJvcRaCYQEglUzrbeN90AGsaYkcoRWG3/tGAJgysnbmYZyjZ/ziX0mqEKpmtbk16Y=",
+  "created_at": 1744248134,
+  "_id": {
+    "$oid": "67a8b886185bd0e30fc6366e"
+  }
+}
+----
+
