@@ -6,7 +6,7 @@
 
 == Introduction
 
-Kind 5000 is a job request to extract text from an input source. The input is typically specified using an "i" tag, which may include a URL or other identifier, and can optionally include parameters like a time range to focus on or the desired text alignment. The output is the extracted text, returned in a specified format such as plain text, markdown, or WebVTT.
+Kind 5000 is a job request to extract text from an input source. The input is typically specified using an "i" tag, which may include a URL or other identifier, and can optionally include parameters like a time range to focus on or the desired text alignment. The output is the extracted text, returned in a specified format such as plain text, markdown, or VTT (Video Text Tracks).
 
 === Analysis
 

@@ -6,7 +6,7 @@
 
 == Introduction
 
-DVM kind 5304 represents a request to find and retrieve visual content related to a specific Nostr user. The input typically includes the user's public key, along with additional parameters like the maximum number of results to return and relay servers to query. The output, represented by kind 6304, contains the requested visual content that matches the specified user and query parameters.
+Kind 5304 represents a request to find and retrieve visual content related to a specific Nostr user. The input includes the user's public key, along with additional parameters like the maximum number of results to return and relays to search. The output, represented by kind 6304, contains the requested visual content that matches the specified user and parameters.
 
 === Analysis
 

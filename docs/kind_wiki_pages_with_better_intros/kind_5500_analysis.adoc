@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5500/6500
+// GENERATED_TITLE: Malware Scanning
+= Nostr DVM Kind 5500/6500 - Malware Scanning
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5500 is a job request to perform malware scanning on files. The input for kind 5500 requires clients to provide a URL in the "i" tag field, which must directly link to the desired file(s) to be scanned. The output for a kind 5500 request will contain the string "CLEAN" if no malware is found, or will provide plaintext details of the findings if malware is detected in the scanned file(s).
+Kind 5500 represents a job request to perform malware scanning on files. The input for kind 5500 requires clients to provide a URL in the "i" tag field, which must directly link to the file(s) to be scanned. The output for a kind 5500 request will either contain the string "CLEAN" if no malware was found, or will provide plaintext details on any malware that was detected in the scanned file(s).
 
 === Analysis
 

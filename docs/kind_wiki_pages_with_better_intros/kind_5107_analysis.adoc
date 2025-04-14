@@ -6,7 +6,7 @@
 
 == Introduction
 
-Kind 5107 events represent requests made to a Data Vending Machine (DVM) on the Nostr network. The input for a kind 5107 event is typically contained within the "i" tag, which includes the method being called and any associated parameters. The output format for the response to a kind 5107 request is specified in the "output" tag, with common formats being "text/plain" or "application/json".
+Kind 5107 events represent Data Vending Machine (DVM) requests on the Nostr network. The input for a kind 5107 event is typically a JSON object containing a "method" field specifying the requested data and "params" providing any necessary parameters. The output format for a kind 5107 event is specified in the "output" tag, with common formats being "text/plain" for plain text responses or other MIME types for structured data.
 
 === Analysis
 

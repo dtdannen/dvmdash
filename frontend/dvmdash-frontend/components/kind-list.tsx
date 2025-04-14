@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart3, Bot, Tags, Home, Search } from 'lucide-react'
+import { BarChart3, Bot, Tags, Home, Search, ExternalLink } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { useKindList } from '@/lib/api'
 import { NavIconProps, KindListResponse, TimeWindow, KindListItem } from '@/lib/types'
+import { fetchWikiForKind, extractTitle, generateWikiUrl } from '@/lib/nostr-wiki'
+import { Button } from "@/components/ui/button"
 import { TimeRangeSelector } from './time-range-selector'
 
 const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
@@ -25,6 +27,13 @@ const NavIcon = ({ Icon, href, isActive, label }: NavIconProps) => (
   </Link>
 )
 
+// Extend KindListItem to include wiki information
+interface KindWithWiki extends KindListItem {
+  wikiTitle?: string;
+  wikiUrl?: string;
+  isLoadingWiki?: boolean;
+}
+
 interface KindTableProps {
   kinds: KindListResponse['kinds']
 }
@@ -34,6 +43,49 @@ type SortableColumn = 'kind' | 'total_requests' | 'total_responses' | 'num_suppo
 const KindTable = ({ kinds }: KindTableProps) => {
   const [sortColumn, setSortColumn] = useState<SortableColumn | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [wikiData, setWikiData] = useState<Record<number, { title?: string, url?: string, isLoading: boolean }>>({})
+  
+  // Initialize wiki data for each kind
+  useEffect(() => {
+    // Create a map of kind numbers to loading states
+    const initialWikiData: Record<number, { isLoading: boolean }> = {};
+    kinds.forEach(kind => {
+      initialWikiData[kind.kind] = { isLoading: true };
+    });
+    setWikiData(initialWikiData);
+    
+    // Fetch wiki for each kind individually to avoid blocking the table
+    kinds.forEach(async (kind) => {
+      try {
+        const wikiEvent = await fetchWikiForKind(kind.kind);
+        if (wikiEvent) {
+          setWikiData(prev => ({
+            ...prev,
+            [kind.kind]: {
+              title: extractTitle(wikiEvent),
+              url: generateWikiUrl(wikiEvent),
+              isLoading: false
+            }
+          }));
+        } else {
+          setWikiData(prev => ({
+            ...prev,
+            [kind.kind]: {
+              isLoading: false
+            }
+          }));
+        }
+      } catch (error) {
+        console.error(`Error fetching wiki for kind ${kind.kind}:`, error);
+        setWikiData(prev => ({
+          ...prev,
+          [kind.kind]: {
+            isLoading: false
+          }
+        }));
+      }
+    });
+  }, [kinds]);
 
   const handleHeaderClick = (column: SortableColumn) => {
     if (sortColumn === column) {
@@ -83,6 +135,9 @@ const KindTable = ({ kinds }: KindTableProps) => {
           >
             Kind {renderSortIndicator('kind')}
           </TableHead>
+          <TableHead>
+            Description
+          </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
             onClick={() => handleHeaderClick('total_requests')}
@@ -116,6 +171,24 @@ const KindTable = ({ kinds }: KindTableProps) => {
               <Link href={`/kind-stats/${kind.kind}`} className="hover:underline">
                 {kind.kind}
               </Link>
+            </TableCell>
+            <TableCell>
+              {wikiData[kind.kind]?.isLoading ? (
+                <span className="text-muted-foreground text-sm">Loading wiki...</span>
+              ) : wikiData[kind.kind]?.title ? (
+                <div className="flex items-center">
+                  <span>{wikiData[kind.kind].title}</span>
+                  {wikiData[kind.kind].url && (
+                    <Button variant="ghost" size="sm" className="ml-2 p-0 h-8 w-8" asChild>
+                      <a href={wikiData[kind.kind].url} target="_blank" rel="noopener noreferrer" title="View Wiki">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <span className="text-muted-foreground text-sm">No description available</span>
+              )}
             </TableCell>
             <TableCell className="text-right">{kind.total_requests?.toLocaleString() ?? '0'}</TableCell>
             <TableCell className="text-right">{kind.total_responses?.toLocaleString() ?? '0'}</TableCell>

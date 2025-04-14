@@ -6,7 +6,7 @@
 
 == Introduction
 
-Kind 5100 is a job request to generate images using AI models. The input requires a prompt provided in the "i" tag field, with optional parameters for specifying the AI model, image size/ratio, and other generation settings. The output is a link to the generated image(s) based on the provided prompt and parameters.
+Kind 5100 is a job request to generate images using AI models. The input includes a prompt provided in the "i" tag field, and optionally a second "i" tag containing a URL to an existing image for alteration. The output is a link to the generated image(s).
 
 === Analysis
 

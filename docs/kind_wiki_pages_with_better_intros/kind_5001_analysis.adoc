@@ -1,5 +1,5 @@
-// GENERATED_TITLE: Text Summarization
-= Nostr DVM Kind 5001/6001 - Text Summarization
+// GENERATED_TITLE: Summarization Job
+= Nostr DVM Kind 5001/6001 - Summarization Job
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js

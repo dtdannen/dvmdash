@@ -6,7 +6,7 @@
 
 == Introduction
 
-DVM kind 5102 represents a request to generate an image by compositing multiple images together. The input consists of references to background and foreground images, along with parameters specifying how to position the foreground image. The output is a URL pointing to the generated composite image in PNG format.
+DVM kind 5102 represents a request to generate an image by compositing multiple images together. The input consists of two image IDs (specified with "i" tags), a position parameter indicating where to place the images, and other metadata like bid amount and desired output format. The output, as seen in the corresponding kind 6102 responses, is a URL pointing to the generated composite image in the requested format (e.g. PNG).
 
 === Analysis
 

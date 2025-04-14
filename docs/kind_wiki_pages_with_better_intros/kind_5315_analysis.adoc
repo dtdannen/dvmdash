@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5315/6315
+// GENERATED_TITLE: Profile Search Ranking
+= Nostr DVM Kind 5315/6315 - Profile Search Ranking
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5315 appears to be a request to search for user profiles based on a text query. The input includes a "search" parameter with the query text and a "limit" parameter to specify the maximum number of results to return. The output is a JSON array of user profiles matching the search query, each with a "pubkey" field identifying the user and a "rank" field indicating the relevance of the match.
+Kind 5315 is a request to search for Nostr profiles matching a given search query. The input includes parameters like the search query string and a limit on the number of results to return. The output is a list of Nostr pubkeys matching the search query, ranked by a score like a PageRank.
 
 === Analysis
 

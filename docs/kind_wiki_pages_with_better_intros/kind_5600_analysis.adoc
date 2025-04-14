@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5600/6600
+// GENERATED_TITLE: Kind 5600 Service
+= Nostr DVM Kind 5600/6600 - Kind 5600 Service
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-DVM kind 5600 represents a request to run a CI/CD workflow on a git repository. The request includes parameters such as the git repository address, git ref, workflow file path, and workflow timeout. The response, represented by DVM kind 6600, provides status updates and partial logs of the workflow execution.
+DVM kind 5600 is a request to run a CI/CD workflow on a Git repository. The input includes parameters like the Git repository address, branch, commit ID, and workflow file path. The output includes status updates on the workflow execution, such as when it starts processing, any partial output, and the final result (success or failure).
 
 === Analysis
 

@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5314/6314
+// GENERATED_TITLE: GlobalPagerank Lookup
+= Nostr DVM Kind 5314/6314 - GlobalPagerank Lookup
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5314 appears to be a request to retrieve public keys ranked by a "globalPagerank" metric. The input specifies one or more target public keys and includes parameters like the sorting metric and a limit on the number of results to return. The output, as seen in kind 6314 responses, contains an array of public keys along with their associated globalPagerank scores.
+Kind 5314 is a request to retrieve a list of public keys ranked by a metric called "globalPagerank". The input consists of a list of public key "targets" to rank, provided as tag parameters. The output is a JSON array containing the requested public keys along with their corresponding "globalPagerank" scores.
 
 === Analysis
 

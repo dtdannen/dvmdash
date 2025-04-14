@@ -6,7 +6,7 @@
 
 == Introduction
 
-Kind 5302 is a Nostr Data Vending Machine (DVM) request to search for notes based on a provided prompt. The input for a kind 5302 request includes the search text, and optionally parameters to filter the search by user pubkeys, timestamp range, and maximum number of results. The output of a kind 5302 request is a JSON-stringified list of note IDs (e tags) and/or pubkey IDs (p tags) that match the search criteria.
+Kind 5302 is a Nostr Data Vending Machine (DVM) request to search for notes based on a provided prompt. The input for a kind 5302 request includes the search text, and optionally parameters to filter the search by users, date range, and maximum number of results. The output of a kind 5302 request is a JSON-stringified list of note IDs (e tags) or pubkey IDs (p tags) that match the search criteria.
 
 === Analysis
 

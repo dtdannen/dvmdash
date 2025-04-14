@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5xxx
+// GENERATED_TITLE: Nostr Event Count
+= Nostr DVM Kind 5400/6400 - Nostr Event Count
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5400 represents a request to count Nostr events matching specified criteria. The input consists of zero or more tag values specifying the events to count, along with optional parameters for the relay to query and fields to group the results by. The output is a stringified number representing the count of matching events, optionally grouped into a nested dictionary based on the specified grouping parameters.
+Kind 5400 represents a request to count Nostr events that match specified criteria. The input consists of zero or more tag values, each provided as a separate input. The output is a stringified number representing the count of matching events, returned in the content field of a kind 6400 event.
 
 === Analysis
 

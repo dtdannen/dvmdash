@@ -6,7 +6,7 @@
 
 == Introduction
 
-Kind 5050 is a job request to generate text using AI models. The input typically includes a seed sentence or prompt in the "i" tag field for the AI to continue generating from. The output is the generated text, which can be in plain text or markdown format.
+Kind 5050 is a job request to generate text using AI models. The input typically includes a seed sentence or prompt in the "i" tag field for the AI to continue generating from. The output is the generated text, which can be in formats such as plain text or Markdown.
 
 === Analysis
 

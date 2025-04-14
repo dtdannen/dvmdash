@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5313/6313
+// GENERATED_TITLE: Personalized Pubkey Ranking
+= Nostr DVM Kind 5313/6313 - Personalized Pubkey Ranking
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5313 appears to be a request to retrieve a personalized ranking of Nostr pubkeys based on a source filter. The request includes parameters like "source" specifying an event ID to use as input, and "sort" indicating the ranking algorithm to apply (e.g. "personalizedPagerank"). The response, kind 6313, contains a list of pubkeys along with their personalized ranking scores computed by the DVM based on the provided source event and ranking method.
+DVM kind 5313 represents a request to retrieve a personalized ranking of Nostr pubkeys. The request specifies parameters like the source pubkey to use for generating the personalized ranking, the number of results to return, and the specific ranking algorithm to use. The response, represented by kind 6313, contains a list of pubkeys along with their personalized ranking scores.
 
 === Analysis
 

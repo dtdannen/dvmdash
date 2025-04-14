@@ -6,7 +6,7 @@
 
 == Introduction
 
-DVM kind 5101 appears to be a request for an AI-generated image based on an input image. The input is an image URL, along with some additional parameters like desired output format, bid amount, and topic tags. The output, as seen in the 6101 kind responses, is a URL pointing to the generated PNG image.
+Kind 5101 appears to be a request for an AI-generated image based on an input image. The input looks like an image URL, along with some additional parameters like desired output format, bid amount, and topic tags. The output looks like a URL pointing to the generated PNG image, returned in the response event of kind 6101.
 
 === Analysis
 

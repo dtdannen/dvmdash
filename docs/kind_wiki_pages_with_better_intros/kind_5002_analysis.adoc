@@ -1,12 +1,12 @@
-// GENERATED_TITLE: Text Translation
-= Nostr DVM Kind 5002/6002 - Text Translation
+// GENERATED_TITLE: Translation
+= Nostr DVM Kind 5002/6002 - Translation
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5002 represents a request to translate text input(s) to a specified language. The input is provided via an "i" tag that references the text to be translated, which should be readily extractable without additional processing. The output is the translated text, typically returned as plain text in the specified target language.
+Kind 5002 represents a request to translate text input(s) to a specified language. The input is provided as one or more tags in the event, pointing to the text to be translated. The output is the translated text, typically returned as plain text in the specified target language.
 
 === Analysis
 

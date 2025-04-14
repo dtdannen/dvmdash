@@ -6,7 +6,7 @@
 
 == Introduction
 
-Kind 5301 is a job request to discover Nostr pubkeys that a user might be interested in following. The input is optional and can include a pubkey and additional parameters to guide the discovery process, which the DVM interprets based on its own algorithm. The output is a JSON-stringified list of tags, typically "p" (pubkey) or "e" (event ID), representing Nostr-native content or users that may interest the requesting user.
+Kind 5301 is a job request to discover Nostr pubkeys that a user might be interested in following. The input is optional and can include a pubkey and additional information to guide the discovery process, which the DVM interprets based on its algorithm. The output is a JSON-stringified list of tags, typically "p" (pubkey) or "e" (event ID), representing Nostr-native content or users that may interest the requesting user.
 
 === Analysis
 

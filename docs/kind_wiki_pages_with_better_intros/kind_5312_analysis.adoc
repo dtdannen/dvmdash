@@ -1,12 +1,12 @@
-// GENERATED_TITLE: Ranked Pubkey Search
-= Nostr DVM Kind 5312/6312 - Ranked Pubkey Search
+// GENERATED_TITLE: Nostr Pubkey Lookup
+= Nostr DVM Kind 5312/6312 - Nostr Pubkey Lookup
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5312 is a request to retrieve a list of Nostr pubkeys ranked by a scoring metric, likely a measure of influence or importance in the network. The request specifies a target pubkey to center the search around, as well as a limit parameter to control the number of results returned. The response, kind 6312, contains an array of pubkey objects sorted by their score, with additional metadata like the number of follows and followers for each one.
+Kind 5312 is a request to retrieve a list of Nostr pubkeys related to a given target pubkey. The request includes parameters specifying the target pubkey and a limit on the number of results to return. The response, kind 6312, contains an array of pubkey objects along with their global pagerank scores, follower counts, and other metadata.
 
 === Analysis
 

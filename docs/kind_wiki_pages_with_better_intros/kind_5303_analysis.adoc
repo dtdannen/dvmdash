@@ -1,12 +1,12 @@
-// GENERATED_TITLE: Nostr People Search
-= Nostr DVM Kind 5303/6303 - Nostr People Search
+// GENERATED_TITLE: Nostr Profile Search
+= Nostr DVM Kind 5303/6303 - Nostr Profile Search
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5303 is a Nostr Data Vending Machine (DVM) request to search for user profiles based on a text prompt. The input for a kind 5303 request includes the search text and an optional "max_results" parameter to limit the number of returned profiles. The output for a kind 5303 request is a JSON-stringified list of "p" tags, each containing a public key of a matching user profile.
+Kind 5303 is a Nostr DVM request to search for user profiles based on a text prompt. The input consists of the search text and an optional max_results parameter to limit the number of returned events. The output is a JSON-stringified list of "p" tags representing the public keys of profiles matching the search criteria.
 
 === Analysis
 

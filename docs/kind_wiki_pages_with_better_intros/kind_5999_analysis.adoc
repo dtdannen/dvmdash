@@ -1,11 +1,12 @@
-= Nostr DVM Kind 5xxx
+// GENERATED_TITLE: Resource Provisioning Specification
+= Nostr DVM Kind 5999/6999 - Resource Provisioning Specification
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
 
 == Introduction
 
-Kind 5999 events represent requests made to a Data Vending Machine (DVM) to provision computing resources. The input for a kind 5999 event includes parameters specifying the desired CPU, memory, disk, SSH key, OS image, and OS version for the requested resource. The output in response to a kind 5999 request is typically a kind 7000 event indicating the status of the request and providing payment details if payment is required to fulfill the request.
+Kind 5999 events represent requests made to a Data Vending Machine (DVM) for computational resources. The input for a kind 5999 event includes parameters such as CPU, memory, disk, SSH key, OS image, and OS version, which are specified using tagged data. The output of a kind 5999 event is typically a kind 7000 event that provides feedback on the status of the request, including whether payment is required, an expiration timestamp, and potentially an invoice for payment.
 
 === Analysis
 
