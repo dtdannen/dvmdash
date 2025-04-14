@@ -1,0 +1,164 @@
+= Nostr DVM Kind 5999 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5999.
+Kind 5999 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5999: DVM Request Events (Kind 5999)
+
+=== Summary
+
+Total events analyzed: 7
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`03056ca3fd44dcad83fe3a00547767da93cfb5cceb7a86d...`
+|sig|100.00%|`90a5bba8ddaa5175dcb817d6283f71e0e65f7973e00deed...`
+|kind|100.00%|`5999`
+|tags|100.00%|`[["param", "cpu", "1"], ["param", "memory", "10...`
+|pubkey|100.00%|`79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d...`
+|content|100.00%|``
+|created_at|100.00%|`1742817933`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`param`|100.00%|`["param", "cpu", "1"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `03056ca3fd44dcad83fe3a00547767da93cfb5cceb7a86daaabd28c370b2c310`
+
+[source,json]
+----
+{
+  "id": "03056ca3fd44dcad83fe3a00547767da93cfb5cceb7a86daaabd28c370b2c310",
+  "sig": "90a5bba8ddaa5175dcb817d6283f71e0e65f7973e00deed974836dc1d4918cc3058b188405112f2a070a7db3ab2f4dc273511658c3c52c5341277ee7b7580bfd",
+  "kind": 5999,
+  "tags": [
+    [
+      "param",
+      "cpu",
+      "1"
+    ],
+    [
+      "param",
+      "memory",
+      "1024"
+    ],
+    [
+      "param",
+      "disk",
+      "50"
+    ],
+    [
+      "param",
+      "ssh_key",
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGUSrwzZfbjqY81RRC7eg3zRvg0D53HOhjbG6h0SY3f3"
+    ],
+    [
+      "param",
+      "os_image",
+      "ubuntu"
+    ],
+    [
+      "param",
+      "os_version",
+      "24.04"
+    ]
+  ],
+  "pubkey": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  "content": "",
+  "created_at": 1742817933
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 8
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`66c25eaacbde633d911143c92492a46e93b9b70535e7d38...`
+|sig|100.00%|`45f4d75abe7813491f8e9714ea9f11d5e587d00f43446ae...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "payment-required", ""], ["expirati...`
+|pubkey|100.00%|`fcd818454002a6c47a980393f0549ac6e629d28d5688114...`
+|content|100.00%|``
+|created_at|100.00%|`1742817934`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`status`|100.00%|`["status", "payment-required", ""]`
+|`expiration`|100.00%|`["expiration", "1742817964"]`
+|`e`|100.00%|`["e", "03056ca3fd44dcad83fe3a00547767da93cfb5cc...`
+|`p`|100.00%|`["p", "79be667ef9dcbbac55a06295ce870b07029bfcdb...`
+|`amount`|12.50%|`["amount", "1545000", "lnbc15450n1pn7zj5wpp54wz...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `66c25eaacbde633d911143c92492a46e93b9b70535e7d388f8a601d8c015b3f8`
+
+[source,json]
+----
+{
+  "id": "66c25eaacbde633d911143c92492a46e93b9b70535e7d388f8a601d8c015b3f8",
+  "sig": "45f4d75abe7813491f8e9714ea9f11d5e587d00f43446ae01f23adbec42bb4ce8954c9d240525c034f28b301a05b1362a7a5c081b84804c66d2ce7e165a495bb",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "payment-required",
+      ""
+    ],
+    [
+      "expiration",
+      "1742817964"
+    ],
+    [
+      "e",
+      "03056ca3fd44dcad83fe3a00547767da93cfb5cceb7a86daaabd28c370b2c310"
+    ],
+    [
+      "p",
+      "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+    ],
+    [
+      "amount",
+      "1545000",
+      "lnbc15450n1pn7zj5wpp54wzvkmkkhctgca3jnetavp56pjjd2czlrsn855pf6jx35nh9c2uqdzz2exjqun9dejhwctvyqcnjdpqw3hjqv3sxg6j6vp595erggp3xgarqdf6xvejq425gvcqzzsxqzjcsp5ltxxjl4s602s9eql8aj34eg0s0ljlvcy6tge3p64v4u3n38cww3s9qxpqysgq4hp7rram9nadwgf8eh8ghw95yua5pffj66ddp2zhv2l74r6fyy48tcsth6t4qvaagkxyp7mv2zp3n9dw430fyke5ress232ue2yf4dqpxzdxr8"
+    ]
+  ],
+  "pubkey": "fcd818454002a6c47a980393f0549ac6e629d28d5688114bb60d831b5c1832a7",
+  "content": "",
+  "created_at": 1742817934
+}
+----
+

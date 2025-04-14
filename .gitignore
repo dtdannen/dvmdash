@@ -205,3 +205,5 @@ relay_frequencies.txt
 temp_relay_frequencies.txt
 temp_relay_urls.txt
 unique_relay_urls.txt
+
+utility/cache/*

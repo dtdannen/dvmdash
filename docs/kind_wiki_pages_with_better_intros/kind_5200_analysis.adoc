@@ -1,0 +1,222 @@
+// GENERATED_TITLE: Video Conversion
+= Nostr DVM Kind 5200/6200 - Video Conversion
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5200 is a job request to convert a video to another format. The input is a link to a video file or a social media share link. The output is the converted video file, with an optional specified output format.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5200 and 6200.
+Kind 5200 represents DVM requests, while kind 6200 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5200: DVM Request Events (Kind 5200)
+
+=== Summary
+
+Total events analyzed: 205
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`6f9571cb36b08894624b8525eae57aa1a5eff7bb98a9d70...`
+|_id|100.00%|`{"$oid": "67757f8f2d46e41cfd4d1683"}`
+|sig|100.00%|`9ba007987fa7684ec672736cf8fad273044780c15c09269...`
+|kind|100.00%|`5200`
+|tags|100.00%|`[["p", "5d78beba0f8d9c85e6a5f4b52b8159dfd3a288f...`
+|pubkey|100.00%|`c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e...`
+|content|100.00%|`AoW/0V2EkNbcBwaT2qgtjpy3zYvOGpZH5zQkofsxyxndGco...`
+|created_at|100.00%|`1735753615`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|98.54%|`["p", "5d78beba0f8d9c85e6a5f4b52b8159dfd3a288fd...`
+|`encrypted`|97.56%|`["encrypted"]`
+|`i`|1.95%|`["i", "https://youtu.be/q9v17EG0njo?si=vlOcH8Zn...`
+|`param`|1.95%|`["param", "media_format", "video/mp4"]`
+|`relays`|1.46%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|`t`|0.98%|`["t", "Bitcoin"]`
+|`output`|0.98%|`["output", "text/plain"]`
+|`bid`|0.49%|`["bid", "10000", "10000"]`
+|`alt`|0.49%|`["alt", "This is a NIP90 DVM AI task to transcr...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `6f9571cb36b08894624b8525eae57aa1a5eff7bb98a9d700af07e8d529001f51`
+
+[source,json]
+----
+{
+  "id": "6f9571cb36b08894624b8525eae57aa1a5eff7bb98a9d700af07e8d529001f51",
+  "_id": {
+    "$oid": "67757f8f2d46e41cfd4d1683"
+  },
+  "sig": "9ba007987fa7684ec672736cf8fad273044780c15c092698e4271ed1e756dd5422862dffaf49565c33284dd9f0470871ced6189f0f9bf51e134c8c0b875b1d53",
+  "kind": 5200,
+  "tags": [
+    [
+      "p",
+      "5d78beba0f8d9c85e6a5f4b52b8159dfd3a288fd2dd710df8be2ebb4f57af914"
+    ],
+    [
+      "encrypted"
+    ]
+  ],
+  "pubkey": "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806",
+  "content": "AoW/0V2EkNbcBwaT2qgtjpy3zYvOGpZH5zQkofsxyxndGcolaSo3WWc1g2oyOvY6Sl4x4q48quNCnTb3vBDVFsDiXlZ6lyvbf4IZKC+SaA3Ruath7AaodtFRjo5LUN4sJB/LQluhDjHKFioSc9/Uq2igreBhtotCZZub+n5ltaX6W7P5pJ+pkh0VdmbHSVqRYNHHXzZC+qZAA6blSnMDSD6mlcXwj/yEWcd32fZE+lqnIp1tlStTdUPSUD1jxf6E37nvGA0iMhB4rLPbObrctl9aJmfr6np4Ju/U9PWqCQCh12g=",
+  "created_at": 1735753615
+}
+----
+
+== Kind 6200: DVM Response Events (Kind 6200)
+
+=== Summary
+
+Total events analyzed: 63
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`9bb435379454d51299797b594e4b86ab403ed33535cd3bf...`
+|_id|100.00%|`{"$oid": "67757fc02d46e41cfd4d168f"}`
+|sig|100.00%|`853959b025e20188fa7ae045f2775b56b28828eb4199e8c...`
+|kind|100.00%|`6200`
+|tags|100.00%|`[["encrypted"], ["p", "c63c5b4e21b9b1ec6b73ad04...`
+|pubkey|100.00%|`5d78beba0f8d9c85e6a5f4b52b8159dfd3a288fd2dd710d...`
+|content|100.00%|`AkVFa2pym6jGYKCSqPh7qioK7cZTxal4ISo3tgCavd1NNW8...`
+|created_at|100.00%|`1735753664`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`encrypted`|100.00%|`["encrypted"]`
+|`p`|100.00%|`["p", "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd854...`
+|`e`|100.00%|`["e", "6f9571cb36b08894624b8525eae57aa1a5eff7bb...`
+|`request`|96.83%|`["request", "{\"id\":\"6083713b2369dc61a41ab0dc...`
+|`alt`|96.83%|`["alt", "This is the result of a NIP90 DVM AI t...`
+|`status`|96.83%|`["status", "success"]`
+|`relays`|23.81%|`["relays", "wss://relay.primal.net", "wss://nos...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `9bb435379454d51299797b594e4b86ab403ed33535cd3bf5d4a14b3d22206b39`
+
+[source,json]
+----
+{
+  "id": "9bb435379454d51299797b594e4b86ab403ed33535cd3bf5d4a14b3d22206b39",
+  "_id": {
+    "$oid": "67757fc02d46e41cfd4d168f"
+  },
+  "sig": "853959b025e20188fa7ae045f2775b56b28828eb4199e8cf9f83885accfaa5516c13780e5ae47196fac81ff3cddaff83d6fd4f4e312cabddfc7261b4f1123dec",
+  "kind": 6200,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806"
+    ],
+    [
+      "e",
+      "6f9571cb36b08894624b8525eae57aa1a5eff7bb98a9d700af07e8d529001f51"
+    ]
+  ],
+  "pubkey": "5d78beba0f8d9c85e6a5f4b52b8159dfd3a288fd2dd710df8be2ebb4f57af914",
+  "content": "AkVFa2pym6jGYKCSqPh7qioK7cZTxal4ISo3tgCavd1NNW83Drx1r97IzcF2NwoSed62Df6vDGbbBjdPuRCOTS2CAgdKE5we+Xl8G1sXQ5KcH2nhC2XvEw7ct7Y+kT79J1gdP8yLPGWnXi8fDhiG+306vLX5AUxQANufx9JrAZRLBkI=",
+  "created_at": 1735753664
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 136
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`f4543fde2d2f6fe7476a8bfdaf4dd7e50e6494c2ad04ef7...`
+|_id|100.00%|`{"$oid": "67757f972d46e41cfd4d1685"}`
+|sig|100.00%|`f271ac0633698b04208b58239ed47bc075cc0a8fc156979...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["encrypted"], ["p", "c63c5b4e21b9b1ec6b73ad04...`
+|pubkey|100.00%|`5d78beba0f8d9c85e6a5f4b52b8159dfd3a288fd2dd710d...`
+|content|100.00%|`AqHcRJGQB+HM/wUpJoogz1ucXLES6xnLcKyGO+61Kc7sD/c...`
+|created_at|100.00%|`1735753622`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd854...`
+|`e`|100.00%|`["e", "6f9571cb36b08894624b8525eae57aa1a5eff7bb...`
+|`encrypted`|82.35%|`["encrypted"]`
+|`alt`|17.65%|`["alt", "NIP90 DVM task convert had an error. "]`
+|`status`|17.65%|`["status", "error"]`
+|`amount`|16.18%|`["amount", "60000", "lnbc600n1pn079a6pp5lnwu6uh...`
+|`relays`|2.21%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `f4543fde2d2f6fe7476a8bfdaf4dd7e50e6494c2ad04ef71df59b4c060c192c9`
+
+[source,json]
+----
+{
+  "id": "f4543fde2d2f6fe7476a8bfdaf4dd7e50e6494c2ad04ef71df59b4c060c192c9",
+  "_id": {
+    "$oid": "67757f972d46e41cfd4d1685"
+  },
+  "sig": "f271ac0633698b04208b58239ed47bc075cc0a8fc156979f7054858147fd43dc440e561a76fb5c37e8d810130478ae076bf54ff4bb2da2f0f9050207bd76e6aa",
+  "kind": 7000,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806"
+    ],
+    [
+      "e",
+      "6f9571cb36b08894624b8525eae57aa1a5eff7bb98a9d700af07e8d529001f51"
+    ]
+  ],
+  "pubkey": "5d78beba0f8d9c85e6a5f4b52b8159dfd3a288fd2dd710df8be2ebb4f57af914",
+  "content": "AqHcRJGQB+HM/wUpJoogz1ucXLES6xnLcKyGO+61Kc7sD/ce9FO8869fAuBu8QYSlzSreDvr4Dj+W28kRh0E9nOX2KcAc9EgkroJrk6lu+aLv4Xm2m69jV39E3l+EwrrRfxPqD603GPaZ0ER6PbfULi7mmZKdUgNIwpGIr7uuYh0uGEopdHTfkZUT6spGAe1vP5Emawur/pllEaS3q49Jh8yIVSYPnRdshlM80BoGXyRKE7MBIA9ZDCf9a/TH606SwVeaCtFDjU1mD3r92MK0lGCN7Nj30h/so5Z2W0FZGWigptU799XwRdaDrVIeisNZN1aQz72HzNaXueEuydyT5akjRGc2pYlvWM+eUApQ08d5O2XCRZ6igDZL0JL1SgwdAWwgNNLogUY3PM6MqXd2pAQwxBCpSOrIlXiH+9Ups6UTDuPou2eTTC8EMpGsdw5+LiJKM+TH3a6kznVfEGrUyCxUC2yLFf3x+djvrOpuzr4PhJAsQwWgg6+cY7nGcB6gKj2",
+  "created_at": 1735753622
+}
+----
+

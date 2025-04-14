@@ -1,0 +1,100 @@
+= Nostr DVM Kind 5132 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5132.
+Kind 5132 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5132: DVM Request Events (Kind 5132)
+
+=== Summary
+
+Total events analyzed: 3
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`72aece45a72315c3e2422b7047b69962b1bde7998cb6349...`
+|_id|100.00%|`{"$oid": "66d9988ec538a5e3fceada0c"}`
+|sig|100.00%|`92009165f4955ff978edc19e10f80bbf1460c154c30a74b...`
+|kind|100.00%|`5132`
+|tags|100.00%|`[["grade", "7a"], ["a", "35132:fa984bd7dbb282f0...`
+|pubkey|100.00%|`fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a447...`
+|content|100.00%|`Awesome route! Very happy about the on-sight!`
+|created_at|100.00%|`1725536397`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`grade`|100.00%|`["grade", "7a"]`
+|`a`|100.00%|`["a", "35132:fa984bd7dbb282f07e16e7ae87b26a2a7b...`
+|`type`|100.00%|`["type", "onsight"]`
+|`alt`|66.67%|`["alt", "This is an ascent of Anna-Maria in Arg...`
+|`rating`|66.67%|`["rating", "3"]`
+|`e`|33.33%|`["e", "ec8426288eef0d20fb3fb7adafe4dfc80e15ca8c...`
+|`p`|33.33%|`["p", "fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `72aece45a72315c3e2422b7047b69962b1bde7998cb63494a69339c288f6d558`
+
+[source,json]
+----
+{
+  "id": "72aece45a72315c3e2422b7047b69962b1bde7998cb63494a69339c288f6d558",
+  "_id": {
+    "$oid": "66d9988ec538a5e3fceada0c"
+  },
+  "sig": "92009165f4955ff978edc19e10f80bbf1460c154c30a74bd7cfae574665bbee5504386387774e630f250317756ede2db2a29bf5c79e3252141aba2238d2f7799",
+  "kind": 5132,
+  "tags": [
+    [
+      "grade",
+      "7a"
+    ],
+    [
+      "a",
+      "35132:fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52:kalymnos"
+    ],
+    [
+      "a",
+      "35133:fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52:grande-grotta"
+    ],
+    [
+      "a",
+      "35134:fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52:Kalypige-8udt3r",
+      "wss://nos.lol"
+    ],
+    [
+      "e",
+      "ec8426288eef0d20fb3fb7adafe4dfc80e15ca8cc4a80ab779f31c950d7ce660",
+      "wss://nos.lol"
+    ],
+    [
+      "p",
+      "fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52"
+    ],
+    [
+      "type",
+      "onsight"
+    ]
+  ],
+  "pubkey": "fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52",
+  "content": "Awesome route! Very happy about the on-sight!",
+  "created_at": 1725536397
+}
+----
+

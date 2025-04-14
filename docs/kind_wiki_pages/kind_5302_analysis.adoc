@@ -1,0 +1,230 @@
+= Nostr DVM Kind 5302 and 6302 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5302 and 6302.
+Kind 5302 represents DVM requests, while kind 6302 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5302: DVM Request Events (Kind 5302)
+
+=== Summary
+
+Total events analyzed: 8,917
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`a0de2ea1c7d079749a2e5cf58e419dd75b962d6af569e21...`
+|sig|100.00%|`278c4b8f5a9ce9513fe99a7707281e110ec729126eba524...`
+|kind|100.00%|`5302`
+|tags|100.00%|`[["p", "1c986b929f61d7a696719c9f92d41e2163e82c0...`
+|pubkey|100.00%|`460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3...`
+|content|100.00%|`AkHOFpMwDlB2Dw+8Qm26IKJnkWUHyVea6oY37GI9nR+WLMf...`
+|created_at|100.00%|`1744308000`
+|_id|94.73%|`{"$oid": "67a8b885185bd0e30fc6366b"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|55.77%|`["p", "1c986b929f61d7a696719c9f92d41e2163e82c0f...`
+|`encrypted`|55.74%|`["encrypted"]`
+|`client`|54.42%|`["client", "noogle"]`
+|`i`|44.23%|`["i", "Show me Chinese content", "text"]`
+|`param`|41.50%|`["param", "max_results", "150"]`
+|`relays`|17.44%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`alt`|3.33%|`["alt", "This is a NIP90 DVM AI task to search ...`
+|`output`|0.17%|`["output", "text/plain"]`
+|`bid`|0.02%|`["bid", "1000000", "1000000"]`
+|`expiration`|0.01%|`["expiration", "1726959828"]`
+|`t`|0.01%|`["t", "ocean"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `a0de2ea1c7d079749a2e5cf58e419dd75b962d6af569e2134d859b37e386ae92`
+
+[source,json]
+----
+{
+  "id": "a0de2ea1c7d079749a2e5cf58e419dd75b962d6af569e2134d859b37e386ae92",
+  "sig": "278c4b8f5a9ce9513fe99a7707281e110ec729126eba52487b39e705d69c3226d26d1326419ddd4bf44291c1368cb6d60903eef5a0ef8c3edb6dbdb93214e0e8",
+  "kind": 5302,
+  "tags": [
+    [
+      "p",
+      "1c986b929f61d7a696719c9f92d41e2163e82c0fcdf30779a09f9b70886ad59c"
+    ],
+    [
+      "encrypted"
+    ],
+    [
+      "client",
+      "noogle"
+    ],
+    [
+      "relays",
+      "wss://relay.nostrdvm.com",
+      "wss://nostr.mom",
+      "wss://nostr.oxtr.dev"
+    ]
+  ],
+  "pubkey": "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c",
+  "content": "AkHOFpMwDlB2Dw+8Qm26IKJnkWUHyVea6oY37GI9nR+WLMfsFybBS8TUw+/4uBnjrml89ICd38p7iZHL53eOCko/jAG0AKJes4YG9c/KTQ/3fnvEb5jIb3rbOlKZzXtXyn2bQQCig57XlgZ7D1yOLYeg1pDB8LrJUBqchZZkiYaRTYw0cl0KlhGsj/v5dJV0Nx6rXCtAGjXYMaWweqM6YWhKV770TeyTK8ICALERnIrzESqJakF97u4H/G3bNITSVMCcv6jfCS8h4DFKwAuK551WkeXFdJhMlJ/Vi7+loV5jdR8zi4bkTFbgCXcI41Lnzmrz5Xrq4+8IqC47+4zzLFgm/3PyF0kPC/Isw/vI5+k6/h/hh8D6f9jXqJouJLuy1JeG",
+  "created_at": 1744308000,
+  "_id": {
+    "$oid": "67a8b885185bd0e30fc6366b"
+  }
+}
+----
+
+== Kind 6302: DVM Response Events (Kind 6302)
+
+=== Summary
+
+Total events analyzed: 10,030
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`831dedad368d9aa4f33eb73485e425c3d04ce0a74d68fdd...`
+|sig|100.00%|`4573abce610413ebaa728f51977ace035e0c91dfda20463...`
+|kind|100.00%|`6302`
+|tags|100.00%|`[["encrypted"], ["p", "460c25e682fda7832b52d1f2...`
+|pubkey|100.00%|`1c986b929f61d7a696719c9f92d41e2163e82c0fcdf3077...`
+|content|100.00%|`AmTsidU3r3f5zYD2fYh/7HyAxYGI3Q6gBPBslX07V4of50C...`
+|created_at|100.00%|`1744308001`
+|_id|96.48%|`{"$oid": "67a8b887185bd0e30fc63670"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "460c25e682fda7832b52d1f22d3d22b3176d972f...`
+|`e`|100.00%|`["e", "a0de2ea1c7d079749a2e5cf58e419dd75b962d6a...`
+|`request`|91.68%|`["request", "{\"id\":\"45d991e5e2d303cc135b3d3b...`
+|`alt`|91.68%|`["alt", "This is the result of a NIP90 DVM task...`
+|`status`|91.68%|`["status", "success"]`
+|`i`|54.30%|`["i", "Show me Chinese content", "text"]`
+|`encrypted`|45.65%|`["encrypted"]`
+|`relays`|26.62%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|`client`|1.96%|`["client", "noogle"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `831dedad368d9aa4f33eb73485e425c3d04ce0a74d68fddd156b78b0894bca50`
+
+[source,json]
+----
+{
+  "id": "831dedad368d9aa4f33eb73485e425c3d04ce0a74d68fddd156b78b0894bca50",
+  "sig": "4573abce610413ebaa728f51977ace035e0c91dfda204639712b568426b1049ed81e180a0e9487c0df44ec205682562c54ed12178c655b3e4ec275e23f1ebe1b",
+  "kind": 6302,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c"
+    ],
+    [
+      "e",
+      "a0de2ea1c7d079749a2e5cf58e419dd75b962d6af569e2134d859b37e386ae92"
+    ]
+  ],
+  "pubkey": "1c986b929f61d7a696719c9f92d41e2163e82c0fcdf30779a09f9b70886ad59c",
+  "content": "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",
+  "created_at": 1744308001,
+  "_id": {
+    "$oid": "67a8b887185bd0e30fc63670"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 9,613
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`6c5e930a4cd22fdead46503782a8edb306edd785066f961...`
+|sig|100.00%|`641d91fa23025574ef46461b66e54d0882c3be3a76c31f7...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["encrypted"], ["p", "7782f93c5762538e1f7ccc5a...`
+|pubkey|100.00%|`1c986b929f61d7a696719c9f92d41e2163e82c0fcdf3077...`
+|content|100.00%|`AmBcyx62xZ0wkS8CAwQCCXEZH0cp27nSyvoiNuDX8/aOoyQ...`
+|created_at|100.00%|`1744248134`
+|_id|95.60%|`{"$oid": "67a8b886185bd0e30fc6366d"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "7782f93c5762538e1f7ccc5af83cd8018a528b9c...`
+|`e`|100.00%|`["e", "aa1ae934c6c075d9f7f3f657f381ceafb860c901...`
+|`alt`|73.45%|`["alt", "NIP90 DVM task search-content started ...`
+|`status`|73.45%|`["status", "processing"]`
+|`encrypted`|26.55%|`["encrypted"]`
+|`relays`|0.01%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `6c5e930a4cd22fdead46503782a8edb306edd785066f961d1ad85750089e91f0`
+
+[source,json]
+----
+{
+  "id": "6c5e930a4cd22fdead46503782a8edb306edd785066f961d1ad85750089e91f0",
+  "sig": "641d91fa23025574ef46461b66e54d0882c3be3a76c31f750cb3958ab85246eeaa48be6084a607f4571e9737cc1d6f56f528253d484e01d74138a24e4487c98f",
+  "kind": 7000,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6"
+    ],
+    [
+      "e",
+      "aa1ae934c6c075d9f7f3f657f381ceafb860c9013bbfc1e18b1b50dfa0711d23"
+    ]
+  ],
+  "pubkey": "1c986b929f61d7a696719c9f92d41e2163e82c0fcdf30779a09f9b70886ad59c",
+  "content": "AmBcyx62xZ0wkS8CAwQCCXEZH0cp27nSyvoiNuDX8/aOoyQoev9PZJPlIVH30R5TeHtynGQWNrylwjiOvwec4iKRLzjhONfeQbk0P80RC4u+jDAdR9ojO/fYN2d44fP93Z6uEF2+xdpfur/QeXSj1RStA5c43BNiK93LUq46FuhAzINNg+w8r/iICw2iG8OV3+/E8X9eUNQHivfygG0shT8nnKZ7K6nTo8TPmJvROb5pcT9Lo6EfbIWgrNjh0HpVSeH66Qm6BX20efJU7ZXxpT1rP9ebYDzmhiQAl8se2TKEBH/W5BvMkHU3i5kiAiMegan8B2bpzbL7wzu0Ae9wlPRE4h3HUZY0wXg0hFp/0rrabzAfPFH6USs1heCBuwM61s2PoD4N2ptW8uwhgeeI1yMfqPICegEMQP5NZYw8w+RnWyz+jFYudXtNsOaXe2uweE0UMz4gnHLAttYL9WjkYF+Gr/iCOgDtTYLRuAxcGc1oIWd+toryyrOSh3hInWsdYXknfgRbuUh0t+1hxqN7OMi+AI54ybKo9Ldh2VMxTgq9VrWVQ0TmIDAA9Ba7oTHtSUidcK2qzdDq7QPY5hH8QZsL2g==",
+  "created_at": 1744248134,
+  "_id": {
+    "$oid": "67a8b886185bd0e30fc6366d"
+  }
+}
+----
+

@@ -1,0 +1,254 @@
+// GENERATED_TITLE: Summarization Job
+= Nostr DVM Kind 5001/6001 - Summarization Job
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5001 represents a request to summarize one or more text inputs into a condensed output. The input is provided as one or more tags, each pointing to a Nostr event containing the text to be summarized or the output of a previous DVM job. The output is the summarized text, typically in plain text or Markdown format, with an optional length parameter specifying the desired number of words or paragraphs.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5001 and 6001.
+Kind 5001 represents DVM requests, while kind 6001 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5001: DVM Request Events (Kind 5001)
+
+=== Summary
+
+Total events analyzed: 362
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`e2947bcb1492322bce397bff08eb9e14756724946923acf...`
+|sig|100.00%|`f17e3ec907cb0b30a27d0ffa04a21076d92bac453f86e7d...`
+|kind|100.00%|`5001`
+|tags|100.00%|`[["i", "Summarize this", "text"], ["relays", "w...`
+|pubkey|100.00%|`955433096fca223f29adfd52a0c2de07a3c52eb680f9b4d...`
+|content|100.00%|``
+|created_at|100.00%|`1743153129`
+|_id|89.23%|`{"$oid": "67a25056fbb994a539c0d751"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|87.85%|`["i", "Summarize this", "text"]`
+|`relays`|28.18%|`["relays", "wss://ditto.pub/relay", "wss://nos....`
+|`output`|28.18%|`["output", "text/plain"]`
+|`p`|26.80%|`["p", "ab66431b1dfbaeb805a6bd24365c2046c7a2268d...`
+|`client`|8.84%|`["client", "noStrudel", "31990:266815e0c9210dfa...`
+|`encrypted`|6.63%|`["encrypted"]`
+|`param`|5.25%|`["param", "prompt", "Test DVM request 1 from pr...`
+|`t`|3.87%|`["t", "bitcoin"]`
+|`bid`|3.59%|`["bid", "1"]`
+|`c`|0.28%|`["c", "execute-tool"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `e2947bcb1492322bce397bff08eb9e14756724946923acf6e8a92dcc6dd24275`
+
+[source,json]
+----
+{
+  "id": "e2947bcb1492322bce397bff08eb9e14756724946923acf6e8a92dcc6dd24275",
+  "sig": "f17e3ec907cb0b30a27d0ffa04a21076d92bac453f86e7dab37cd269dd6fc7ada6e60a766fc38eca7c47f46e5b9701e663b966b0ccbc5a7e942ea6b911c7e605",
+  "kind": 5001,
+  "tags": [
+    [
+      "i",
+      "Summarize this",
+      "text"
+    ],
+    [
+      "relays",
+      "wss://ditto.pub/relay",
+      "wss://nos.lol/",
+      "wss://nostr.mom/",
+      "wss://purplepag.es/",
+      "wss://relay.damus.io/",
+      "wss://relay.nostr.band/",
+      "wss://relay.primal.net/"
+    ],
+    [
+      "i",
+      "7e5385c106c6f4b1df075fe674a59cca1478ad258a2f75403114d67e5b3fd62f",
+      "event"
+    ],
+    [
+      "output",
+      "text/plain"
+    ]
+  ],
+  "pubkey": "955433096fca223f29adfd52a0c2de07a3c52eb680f9b4d9eb6c46d9196c540e",
+  "content": "",
+  "created_at": 1743153129,
+  "_id": {
+    "$oid": "67a25056fbb994a539c0d751"
+  }
+}
+----
+
+== Kind 6001: DVM Response Events (Kind 6001)
+
+=== Summary
+
+Total events analyzed: 164
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`f873a966d749cd394c8460c60481425cb54ab995318275b...`
+|sig|100.00%|`5b784ba1fde87a988274ad8077023b9568694ff6cda7fde...`
+|kind|100.00%|`6001`
+|tags|100.00%|`[["request", "{\"id\":\"41746577432e3e2d4e60a17...`
+|pubkey|100.00%|`f45f5667ffe7649d7c9f648930c9498cda88974e7ea2892...`
+|content|100.00%|`The provided text is just a single word, "Test"...`
+|created_at|100.00%|`1741966796`
+|_id|97.56%|`{"$oid": "670ba2426e880ba949d45062"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`request`|95.73%|`["request", "{\"id\":\"41746577432e3e2d4e60a17c...`
+|`e`|95.73%|`["e", "41746577432e3e2d4e60a17ccdf370ea025e4f98...`
+|`p`|95.73%|`["p", "d1443d38d2e54862c18469caa4493d3c14342339...`
+|`status`|95.12%|`["status", "success"]`
+|`alt`|89.63%|`["alt", "This is the result of a NIP90 DVM AI t...`
+|`i`|87.20%|`["i", "2517cfc99f5aaeae7717acf88cc9ffb3177eb98f...`
+|`encrypted`|3.05%|`["encrypted"]`
+|`bid`|0.61%|`["bid", "1"]`
+|`t`|0.61%|`["t", "bitcoin"]`
+|`amount`|0.61%|`["amount", "1", "ecash"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `f873a966d749cd394c8460c60481425cb54ab995318275b9d8c09fdeee1693cf`
+
+[source,json]
+----
+{
+  "id": "f873a966d749cd394c8460c60481425cb54ab995318275b9d8c09fdeee1693cf",
+  "sig": "5b784ba1fde87a988274ad8077023b9568694ff6cda7fde9f27308b0e7d605592eb6b5f7f528f43b3eed0276589a9d98ed651024d01e0c1fd48c73cebae4deb7",
+  "kind": 6001,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"41746577432e3e2d4e60a17ccdf370ea025e4f9855ed1b7f71e961eb2b106663\",\"pubkey\":\"d1443d38d2e54862c18469caa4493d3c1434233940531ee06febe94d3a2fec67\",\"created_at\":1741966775,\"kind\":5001,\"tags\":[[\"p\",\"f45f5667ffe7649d7c9f648930c9498cda88974e7ea28929194d0167cdcbc124\"],[\"i\",\"Test\",\"text\"]],\"content\":\"\",\"sig\":\"b203834e84037588a7218acd0247e4c8fc8af82041a136e93826f6cd59f67e522b34f08079a0af34d19fd7ef1bbb2d47a9e0b379cd6b38102b1ecafcd4091715\"}"
+    ],
+    [
+      "e",
+      "41746577432e3e2d4e60a17ccdf370ea025e4f9855ed1b7f71e961eb2b106663"
+    ],
+    [
+      "p",
+      "d1443d38d2e54862c18469caa4493d3c1434233940531ee06febe94d3a2fec67"
+    ],
+    [
+      "status",
+      "success"
+    ]
+  ],
+  "pubkey": "f45f5667ffe7649d7c9f648930c9498cda88974e7ea28929194d0167cdcbc124",
+  "content": "The provided text is just a single word, \"Test\". Therefore, there is no content to summarize.",
+  "created_at": 1741966796,
+  "_id": {
+    "$oid": "670ba2426e880ba949d45062"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 459
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`6ed9c0f5cc872b0c8ae249c4781ad67e0c962869bb5293b...`
+|sig|100.00%|`2de51670ee43bf71356a8331693a8f4387968ad18a44a6d...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "success"], ["amount", "100_000", "...`
+|pubkey|100.00%|`ab66431b1dfbaeb805a6bd24365c2046c7a2268de643bd0...`
+|content|100.00%|`Job completed successfully`
+|created_at|100.00%|`1743153146`
+|_id|87.15%|`{"$oid": "67a25059fbb994a539c0d754"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "e2947bcb1492322bce397bff08eb9e1475672494...`
+|`p`|100.00%|`["p", "955433096fca223f29adfd52a0c2de07a3c52eb6...`
+|`status`|99.56%|`["status", "success"]`
+|`alt`|74.07%|`["alt", "NIP90 DVM task text-to-text requires p...`
+|`amount`|58.82%|`["amount", "100_000", "botlab@zeuspay.com"]`
+|`relays`|0.44%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|`encrypted`|0.44%|`["encrypted"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `6ed9c0f5cc872b0c8ae249c4781ad67e0c962869bb5293baca94629ad08439f6`
+
+[source,json]
+----
+{
+  "id": "6ed9c0f5cc872b0c8ae249c4781ad67e0c962869bb5293baca94629ad08439f6",
+  "sig": "2de51670ee43bf71356a8331693a8f4387968ad18a44a6dbf4cc8eba8346e3e72bfa3d01c41262b874fd1fad554345e0309276195ab199ed92f1234d62602801",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "success"
+    ],
+    [
+      "amount",
+      "100_000",
+      "botlab@zeuspay.com"
+    ],
+    [
+      "e",
+      "e2947bcb1492322bce397bff08eb9e14756724946923acf6e8a92dcc6dd24275"
+    ],
+    [
+      "p",
+      "955433096fca223f29adfd52a0c2de07a3c52eb680f9b4d9eb6c46d9196c540e"
+    ]
+  ],
+  "pubkey": "ab66431b1dfbaeb805a6bd24365c2046c7a2268de643bd0690a494ca042b705c",
+  "content": "Job completed successfully",
+  "created_at": 1743153146,
+  "_id": {
+    "$oid": "67a25059fbb994a539c0d754"
+  }
+}
+----
+

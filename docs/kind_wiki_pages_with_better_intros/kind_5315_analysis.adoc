@@ -1,0 +1,203 @@
+// GENERATED_TITLE: Profile Search Ranking
+= Nostr DVM Kind 5315/6315 - Profile Search Ranking
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5315 is a request to search for Nostr profiles matching a given search query. The input includes parameters like the search query string and a limit on the number of results to return. The output is a list of Nostr pubkeys matching the search query, ranked by a score like a PageRank.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5315 and 6315.
+Kind 5315 represents DVM requests, while kind 6315 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5315: DVM Request Events (Kind 5315)
+
+=== Summary
+
+Total events analyzed: 128
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`1404b0c9819d7f83fc9d7fcafd745de9b4309fa4b5476b6...`
+|sig|100.00%|`a3d49676139cf506ca282ac8ec9924eab6925b4b95ec60f...`
+|kind|100.00%|`5315`
+|tags|100.00%|`[["param", "search", "vertex"], ["param", "limi...`
+|pubkey|100.00%|`b326c2556ee4912169ff98c8307942fdae0fa35d979a925...`
+|content|100.00%|``
+|created_at|100.00%|`1744311358`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`param`|95.31%|`["param", "search", "vertex"]`
+|`request_id`|22.66%|`["request_id", "c1dpua"]`
+|`client`|1.56%|`["client", "olas", "31990:fa984bd7dbb282f07e16e...`
+|`source`|0.78%|`["source", "fa984bd7dbb282f07e16e7ae87b26a2a7b9...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `1404b0c9819d7f83fc9d7fcafd745de9b4309fa4b5476b6d18a9193d30d7219a`
+
+[source,json]
+----
+{
+  "id": "1404b0c9819d7f83fc9d7fcafd745de9b4309fa4b5476b6d18a9193d30d7219a",
+  "sig": "a3d49676139cf506ca282ac8ec9924eab6925b4b95ec60fdf00aac8125d8f97ded9fbe5a8cf7e18d4d908068eb01feab8aaa36f7a77e2e10bfa8ecead1acd071",
+  "kind": 5315,
+  "tags": [
+    [
+      "param",
+      "search",
+      "vertex"
+    ],
+    [
+      "param",
+      "limit",
+      "10"
+    ]
+  ],
+  "pubkey": "b326c2556ee4912169ff98c8307942fdae0fa35d979a9250182341740107eead",
+  "content": "",
+  "created_at": 1744311358
+}
+----
+
+== Kind 6315: DVM Response Events (Kind 6315)
+
+=== Summary
+
+Total events analyzed: 85
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`562293bb9bc88f463f7786ede6c68b907ff6c2706de3e99...`
+|sig|100.00%|`1cf1b89e343cdd921eef30387c485275004442e1d6d96c0...`
+|kind|100.00%|`6315`
+|tags|100.00%|`[["e", "1404b0c9819d7f83fc9d7fcafd745de9b4309fa...`
+|pubkey|100.00%|`5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452...`
+|content|100.00%|`[{"pubkey":"f683e87035f7ad4f44e0b98cfbd9537e164...`
+|created_at|100.00%|`1744311358`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "1404b0c9819d7f83fc9d7fcafd745de9b4309fa4...`
+|`p`|100.00%|`["p", "b326c2556ee4912169ff98c8307942fdae0fa35d...`
+|`sort`|38.82%|`["sort", "globalPagerank"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `562293bb9bc88f463f7786ede6c68b907ff6c2706de3e99ac8019fe402b1c27e`
+
+[source,json]
+----
+{
+  "id": "562293bb9bc88f463f7786ede6c68b907ff6c2706de3e99ac8019fe402b1c27e",
+  "sig": "1cf1b89e343cdd921eef30387c485275004442e1d6d96c0c5b096e5b2b05db7d33a42119f9767068cdbaa2e35750cdd14254fe2fdfd6204a04a74c71b91ef412",
+  "kind": 6315,
+  "tags": [
+    [
+      "e",
+      "1404b0c9819d7f83fc9d7fcafd745de9b4309fa4b5476b6d18a9193d30d7219a"
+    ],
+    [
+      "p",
+      "b326c2556ee4912169ff98c8307942fdae0fa35d979a9250182341740107eead"
+    ],
+    [
+      "sort",
+      "globalPagerank"
+    ]
+  ],
+  "pubkey": "5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452a9c06456e4cccaeb4",
+  "content": "[{\"pubkey\":\"f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2\",\"rank\":0.34395913205638406},{\"pubkey\":\"b0565a0d950477811f35ff76e5981ede67a90469a97feec13dc17f36290debfe\",\"rank\":0.28508763809170234},{\"pubkey\":\"a8b56307b015220a887c571518626e14428114f679c77292c62383a8c183837b\",\"rank\":0.018678676268248172},{\"pubkey\":\"dab66dcaefdc0a9f6de480bf155404cf7719149422b5a88c8c1e38741fe9250c\",\"rank\":0}]",
+  "created_at": 1744311358
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 12
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`aed8c2036e9a3c5931e32609b3aa28631604958e6f918c2...`
+|sig|100.00%|`c6aca82758f164231fd713d62d8be81ee8333fb3fc6d294...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "error", "SearchProfiles: failed to...`
+|pubkey|100.00%|`5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452...`
+|content|100.00%|``
+|created_at|100.00%|`1740837536`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`status`|100.00%|`["status", "error", "SearchProfiles: failed to ...`
+|`e`|100.00%|`["e", "ff835b1b628d3220cfd61a2e091c79f00783a339...`
+|`p`|100.00%|`["p", "49fe8a35119938ece24906619af948f716db6f15...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `aed8c2036e9a3c5931e32609b3aa28631604958e6f918c205dbcf4fa7f9fe8e0`
+
+[source,json]
+----
+{
+  "id": "aed8c2036e9a3c5931e32609b3aa28631604958e6f918c205dbcf4fa7f9fe8e0",
+  "sig": "c6aca82758f164231fd713d62d8be81ee8333fb3fc6d29417b3726daa65b82076bcbbe665d3678053df78384a325840c4e4d5fed5db2d3ee0335ab1df754410d",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "error",
+      "SearchProfiles: failed to count matches: fts5: syntax error near \"#\""
+    ],
+    [
+      "e",
+      "ff835b1b628d3220cfd61a2e091c79f00783a3393ddf8f0c38831fbd6233e4e0"
+    ],
+    [
+      "p",
+      "49fe8a35119938ece24906619af948f716db6f1560f3fd834529c0febdf552bc"
+    ]
+  ],
+  "pubkey": "5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452a9c06456e4cccaeb4",
+  "content": "",
+  "created_at": 1740837536
+}
+----
+

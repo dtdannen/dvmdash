@@ -1,0 +1,49 @@
+= Nostr DVM Kind 5663 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5663.
+Kind 5663 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5663: DVM Request Events (Kind 5663)
+
+=== Summary
+
+Total events analyzed: 1
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`f4c8592a2bbb753c195db4cef04093dd36b12b543f41c14...`
+|sig|100.00%|`4dd98a2c1119b605369501ffd456ed0d7d918ad9e1679c6...`
+|kind|100.00%|`5663`
+|tags|100.00%|`[]`
+|pubkey|100.00%|`f3292efb33d52659a90f12d71cd32b3a2d40a422475f191...`
+|content|100.00%|`🥚`
+|created_at|100.00%|`1742068226`
+|===
+
+=== Complete Example Event
+
+Event with ID: `f4c8592a2bbb753c195db4cef04093dd36b12b543f41c14fae6fa905c842522a`
+
+[source,json]
+----
+{
+  "id": "f4c8592a2bbb753c195db4cef04093dd36b12b543f41c14fae6fa905c842522a",
+  "sig": "4dd98a2c1119b605369501ffd456ed0d7d918ad9e1679c60b1921bce64804814e60af410be54412ae1ddc2b428e3b3d04d8657c9b5454a30a8afa58b4d182a90",
+  "kind": 5663,
+  "tags": [],
+  "pubkey": "f3292efb33d52659a90f12d71cd32b3a2d40a422475f1915f29da8eca353de28",
+  "content": "\ud83e\udd5a",
+  "created_at": 1742068226
+}
+----
+

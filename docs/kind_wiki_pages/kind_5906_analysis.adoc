@@ -1,0 +1,142 @@
+= Nostr DVM Kind 5906 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5906.
+Kind 5906 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5906: DVM Request Events (Kind 5906)
+
+=== Summary
+
+Total events analyzed: 24
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`bed953b025eb3600c21170256603dbca21f6d4a6655405e...`
+|_id|100.00%|`{"$oid": "66e2f5a9d41cec0f393503bb"}`
+|sig|100.00%|`6aa04aab6282de936f1215df8e67f9046ee72f1797b0f38...`
+|kind|100.00%|`5906`
+|tags|100.00%|`[["p", "5b5c045ecdf66fb540bdf2049fe0ef7f1a566fa...`
+|pubkey|100.00%|`7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048...`
+|content|100.00%|`zBP9NtmYVKrs7lb48RgXCri8TZN68PDmcrNn+c41yM+NLZi...`
+|created_at|100.00%|`1726150056`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "5b5c045ecdf66fb540bdf2049fe0ef7f1a566fa4...`
+|`encrypted`|100.00%|`["encrypted"]`
+|`client`|100.00%|`["client", "noogle"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `bed953b025eb3600c21170256603dbca21f6d4a6655405e37228f01522d2e8a5`
+
+[source,json]
+----
+{
+  "id": "bed953b025eb3600c21170256603dbca21f6d4a6655405e37228f01522d2e8a5",
+  "_id": {
+    "$oid": "66e2f5a9d41cec0f393503bb"
+  },
+  "sig": "6aa04aab6282de936f1215df8e67f9046ee72f1797b0f38545a09903e500f01555dc0d102b5e3d2de53a2e50be095d8c137e660a033ed38d2c018fae2ca40647",
+  "kind": 5906,
+  "tags": [
+    [
+      "p",
+      "5b5c045ecdf66fb540bdf2049fe0ef7f1a566fa427a4fe50d400a011b65a3a7e"
+    ],
+    [
+      "encrypted"
+    ],
+    [
+      "client",
+      "noogle"
+    ]
+  ],
+  "pubkey": "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6",
+  "content": "zBP9NtmYVKrs7lb48RgXCri8TZN68PDmcrNn+c41yM+NLZiGoxbTcdF/28YLZBL3W2TKeMW2aE/TgGCwc9ZffGowqoCjgJ7aHVPg8UEBPIxgGk99WUFCbfAq57t9WqAdup1ScJp0xF4bdeylW2MVnq29Srv4cPAR9d02JneaDp9JctFHc9dBZaD1HhIGuoQcgcRWXm/J3p62V96urTWphz4uTAjeZpscPdVzk6rqSFRLc79LT7G1z8vrUb3ApWFYTNY8VqcVQYVoQuqGz9UQ6dKE0bjUMaakCdnPf9MkaM8XmSDxfScI4ytSW4i54ZymwCgV+gx4GjMNriUiz1XazewBta/Tw1y8x3b5BkDT1zqKfnPXalRutla0URQwpqFNMfEChWbRSYQg2AFc7HSINi61U6yYiL8toGA50Q8hTMKdfIvmYaIzbj7T7u0B/FbYWr8zV0R9uFoZhLTXQ8Z1OI3vIaTPEpTjzPKu0+M0oQM=?iv=WZ+jqOhXj/A6h1oX5B+5YQ==",
+  "created_at": 1726150056
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 13
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`a9d93a5f44089850773b07ee2267a114ffa2476fb268bbe...`
+|_id|100.00%|`{"$oid": "66e2f5c6d41cec0f393503bc"}`
+|sig|100.00%|`642981473f8562b70492afb45e28abf9c64dca8cc39c28b...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["encrypted"], ["p", "7782f93c5762538e1f7ccc5a...`
+|pubkey|100.00%|`5b5c045ecdf66fb540bdf2049fe0ef7f1a566fa427a4fe5...`
+|content|100.00%|`rO5hRQMrpt/fHXroZbm+IpQi1TqfpBOQFOYjTky001u8fGb...`
+|created_at|100.00%|`1726150085`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`encrypted`|100.00%|`["encrypted"]`
+|`p`|100.00%|`["p", "7782f93c5762538e1f7ccc5af83cd8018a528b9c...`
+|`e`|100.00%|`["e", "bed953b025eb3600c21170256603dbca21f6d4a6...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `a9d93a5f44089850773b07ee2267a114ffa2476fb268bbe981cb9d7c76d8d0c5`
+
+[source,json]
+----
+{
+  "id": "a9d93a5f44089850773b07ee2267a114ffa2476fb268bbe981cb9d7c76d8d0c5",
+  "_id": {
+    "$oid": "66e2f5c6d41cec0f393503bc"
+  },
+  "sig": "642981473f8562b70492afb45e28abf9c64dca8cc39c28bcd18e2b478056db7fcae63429b377fe3f70504969b9f0f72aa81bf6cfae83a487af561e1bbf8b7ec3",
+  "kind": 7000,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6"
+    ],
+    [
+      "e",
+      "bed953b025eb3600c21170256603dbca21f6d4a6655405e37228f01522d2e8a5"
+    ]
+  ],
+  "pubkey": "5b5c045ecdf66fb540bdf2049fe0ef7f1a566fa427a4fe50d400a011b65a3a7e",
+  "content": "rO5hRQMrpt/fHXroZbm+IpQi1TqfpBOQFOYjTky001u8fGbjVted1WgmykgVQ9tTXKF2VrFn6CL5ISc4y1A4FEV+dpXXuLvQ/UXl9nUZLLHjRBsnbvaOgMF0vVD4/gsa?iv=Le7MtltnAGeCx0HSpM8P2A==",
+  "created_at": 1726150085
+}
+----
+

@@ -1,0 +1,74 @@
+= Nostr DVM Kind 5183 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5183.
+Kind 5183 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5183: DVM Request Events (Kind 5183)
+
+=== Summary
+
+Total events analyzed: 30
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`1375c27021c2f6b788b6e06e9a21d974518f0f764065001...`
+|_id|100.00%|`{"$oid": "66ba5d5a1a9c8db6d4508cbd"}`
+|sig|100.00%|`b0886d3b0da2d089f33ad669264d637b31b6f986edc8060...`
+|kind|100.00%|`5183`
+|tags|100.00%|`[["subject", "112691974032955709", "mastodon"],...`
+|pubkey|100.00%|`f750df129748f5dc2c3003ec5fb42ef66a545402e52c87a...`
+|content|100.00%|`vibe tag`
+|created_at|100.00%|`1719568062`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`subject`|100.00%|`["subject", "112691974032955709", "mastodon"]`
+|`tag`|100.00%|`["tag", "provocative"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `1375c27021c2f6b788b6e06e9a21d974518f0f7640650016702986a1ea9f6f34`
+
+[source,json]
+----
+{
+  "id": "1375c27021c2f6b788b6e06e9a21d974518f0f7640650016702986a1ea9f6f34",
+  "_id": {
+    "$oid": "66ba5d5a1a9c8db6d4508cbd"
+  },
+  "sig": "b0886d3b0da2d089f33ad669264d637b31b6f986edc806071c73454d8fb79bfa497cbd2c0e53902b6ba53a33555a180d872170d974642fdb05b5a6b16505c8db",
+  "kind": 5183,
+  "tags": [
+    [
+      "subject",
+      "112691974032955709",
+      "mastodon"
+    ],
+    [
+      "tag",
+      "provocative"
+    ]
+  ],
+  "pubkey": "f750df129748f5dc2c3003ec5fb42ef66a545402e52c87a0d41b5ae0cdb9d38c",
+  "content": "vibe tag",
+  "created_at": 1719568062
+}
+----
+

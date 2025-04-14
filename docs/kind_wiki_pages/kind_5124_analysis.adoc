@@ -1,0 +1,64 @@
+= Nostr DVM Kind 5124 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5124.
+Kind 5124 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5124: DVM Request Events (Kind 5124)
+
+=== Summary
+
+Total events analyzed: 18
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`91052f7cf35e687960098154d54fbc02977a491fbd490de...`
+|sig|100.00%|`93ab654fd73c6b6e0686ccfd8777d1d66eafdcb97ba31d0...`
+|kind|100.00%|`5124`
+|tags|100.00%|`[["p", "87365d30cf73c460f1b59acfb671992cf1c1fc8...`
+|pubkey|100.00%|`1ef1bb9aa42d762611a3be44e4af7d98baf58408530b84f...`
+|content|100.00%|`6lKN5Xl9XpkGT2n8T57WuvpzbO2sUHzhEDzpqEFh6iFSr9U...`
+|created_at|100.00%|`1741094268`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "87365d30cf73c460f1b59acfb671992cf1c1fc8e...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `91052f7cf35e687960098154d54fbc02977a491fbd490de76c36a3c900804d76`
+
+[source,json]
+----
+{
+  "id": "91052f7cf35e687960098154d54fbc02977a491fbd490de76c36a3c900804d76",
+  "sig": "93ab654fd73c6b6e0686ccfd8777d1d66eafdcb97ba31d01f651b5ebe874f32efa31b8bca720feec39bb8ffb9195c710a123c735ce7b159f24d5418ad67ca38f",
+  "kind": 5124,
+  "tags": [
+    [
+      "p",
+      "87365d30cf73c460f1b59acfb671992cf1c1fc8e5ac3594b488b049cdc72ce4b"
+    ]
+  ],
+  "pubkey": "1ef1bb9aa42d762611a3be44e4af7d98baf58408530b84f56cda55062f6acd6a",
+  "content": "6lKN5Xl9XpkGT2n8T57WuvpzbO2sUHzhEDzpqEFh6iFSr9UaV0W+oi5bQ86aJ7AHT1ldDiA+8kubRjnsj2Fe6+yFhmgY45NDp1JFw+FDJyWzFaeH0wUG7LxAel/kqAY6QSvohPeRcTbfPG0VMASuvjvlCpnexhJ08a6Bh4Os7KWnmhwJ2GsWK6bBjoe1DAZMK4CXm4lKvXzK3KgA8XZCEf6ATIfi6Z3nbzMTyQQj0elAb3748x/RWqiMpA+Dja53KSWQ8LQB3KCQiBpXwUe9IpioeSFQPC1R1/wsngR5XcQ=?iv=SQwYB6mYUmplT0clm0YqvQ==",
+  "created_at": 1741094268
+}
+----
+

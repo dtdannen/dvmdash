@@ -1,0 +1,71 @@
+= Nostr DVM Kind 5400 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5400.
+Kind 5400 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5400: DVM Request Events (Kind 5400)
+
+=== Summary
+
+Total events analyzed: 9
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`420bf7949bce11c51c573ff54bca9980daaf1cd44d81dc1...`
+|_id|100.00%|`{"$oid": "67402951710d26de4c883475"}`
+|sig|100.00%|`ed754fe21146ba9698e6e12a5138a03cd9078188ec0ca30...`
+|kind|100.00%|`5400`
+|tags|100.00%|`[["param", "group", "root"]]`
+|pubkey|100.00%|`c689db81293c502ab0f2c793985d11c06f8e99fa137f899...`
+|content|100.00%|`{"kinds":[1,6],"#e":["41a642d00605c0cc453e5acbf...`
+|created_at|100.00%|`1732258127`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`param`|88.89%|`["param", "group", "root"]`
+|`i`|11.11%|`["i", "{\"#a\":[\"30311:cf45a6ba1363ad7ed213a07...`
+|`relay`|11.11%|`["relay", "wss://nos.lol"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `420bf7949bce11c51c573ff54bca9980daaf1cd44d81dc1a9b47cdbb368e180d`
+
+[source,json]
+----
+{
+  "id": "420bf7949bce11c51c573ff54bca9980daaf1cd44d81dc1a9b47cdbb368e180d",
+  "_id": {
+    "$oid": "67402951710d26de4c883475"
+  },
+  "sig": "ed754fe21146ba9698e6e12a5138a03cd9078188ec0ca30e03beb2d4b91e5b117f4464a6e06931f17b0b666afc77c9b49fcb6e76d685dab3d45f33234e6cfca9",
+  "kind": 5400,
+  "tags": [
+    [
+      "param",
+      "group",
+      "root"
+    ]
+  ],
+  "pubkey": "c689db81293c502ab0f2c793985d11c06f8e99fa137f899aac4dcc84545a7b3f",
+  "content": "{\"kinds\":[1,6],\"#e\":[\"41a642d00605c0cc453e5acbf97902c296e1f84b83cf7d55b6c2431e89f2da5c\"]}",
+  "created_at": 1732258127
+}
+----
+

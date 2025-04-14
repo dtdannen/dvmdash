@@ -1,0 +1,211 @@
+// GENERATED_TITLE: GlobalPagerank Lookup
+= Nostr DVM Kind 5314/6314 - GlobalPagerank Lookup
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5314 is a request to retrieve a list of public keys ranked by a metric called "globalPagerank". The input consists of a list of public key "targets" to rank, provided as tag parameters. The output is a JSON array containing the requested public keys along with their corresponding "globalPagerank" scores.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5314 and 6314.
+Kind 5314 represents DVM requests, while kind 6314 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5314: DVM Request Events (Kind 5314)
+
+=== Summary
+
+Total events analyzed: 36,025
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`cf3d8dbfe541687b0f15086d71492547f3787913db408d9...`
+|sig|100.00%|`b29c36133473a3f2215857ef648b5d1d201aeb03aeaae93...`
+|kind|100.00%|`5314`
+|tags|100.00%|`[["param", "target", "ede3d957774e5d5c79664b5b5...`
+|pubkey|100.00%|`9674b438d3f2b41f5bf51e56dd4a4a1a1f624c846719dd1...`
+|content|100.00%|``
+|created_at|100.00%|`1741340683`
+|_id|0.00%|`{"$oid": "66de75d13e17c96a5747bb6c"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`param`|99.99%|`["param", "target", "ede3d957774e5d5c79664b5b50...`
+|`target`|0.01%|`["target", "b190175cef407c593f17c155480eda1a2ee...`
+|`sort`|0.01%|`["sort", "globalPagerank"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `cf3d8dbfe541687b0f15086d71492547f3787913db408d92f34f186c5b228550`
+
+[source,json]
+----
+{
+  "id": "cf3d8dbfe541687b0f15086d71492547f3787913db408d92f34f186c5b228550",
+  "sig": "b29c36133473a3f2215857ef648b5d1d201aeb03aeaae93a751da71f595ddefe2061ef4ea877a6baee72dbab79fc8678afb0eb58b86bf3c080485d378160c0f1",
+  "kind": 5314,
+  "tags": [
+    [
+      "param",
+      "target",
+      "ede3d957774e5d5c79664b5b50f53170e9024d76c90d99fca9324a3cc9795382"
+    ],
+    [
+      "param",
+      "target",
+      "5bb1a50091248f83c38e679a650b623fef7075a4542cfd0999269a138f8d3875"
+    ],
+    [
+      "param",
+      "sort",
+      "globalPagerank"
+    ],
+    [
+      "param",
+      "limit",
+      "88"
+    ]
+  ],
+  "pubkey": "9674b438d3f2b41f5bf51e56dd4a4a1a1f624c846719dd156c163a05f0653057",
+  "content": "",
+  "created_at": 1741340683,
+  "_id": {
+    "$oid": "66de75d13e17c96a5747bb6c"
+  }
+}
+----
+
+== Kind 6314: DVM Response Events (Kind 6314)
+
+=== Summary
+
+Total events analyzed: 11,434
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`5c9e4739e14da9eab6ab54c56149189d9f0aaa692e2f2ff...`
+|sig|100.00%|`2cc65ab5acd25affc56e1dd8b73185c1eab8b3a588fa77e...`
+|kind|100.00%|`6314`
+|tags|100.00%|`[["e", "cf3d8dbfe541687b0f15086d71492547f378791...`
+|pubkey|100.00%|`5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452...`
+|content|100.00%|`[{"pubkey":"5bb1a50091248f83c38e679a650b623fef7...`
+|created_at|100.00%|`1741340683`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "cf3d8dbfe541687b0f15086d71492547f3787913...`
+|`p`|100.00%|`["p", "9674b438d3f2b41f5bf51e56dd4a4a1a1f624c84...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `5c9e4739e14da9eab6ab54c56149189d9f0aaa692e2f2ff6f8e874e0e2c6a7e8`
+
+[source,json]
+----
+{
+  "id": "5c9e4739e14da9eab6ab54c56149189d9f0aaa692e2f2ff6f8e874e0e2c6a7e8",
+  "sig": "2cc65ab5acd25affc56e1dd8b73185c1eab8b3a588fa77e0c46863be392a4ed59d3029d0a828acc37af80101a5ab34dfd14c03796c40bc8f90fbead58269af87",
+  "kind": 6314,
+  "tags": [
+    [
+      "e",
+      "cf3d8dbfe541687b0f15086d71492547f3787913db408d92f34f186c5b228550"
+    ],
+    [
+      "p",
+      "9674b438d3f2b41f5bf51e56dd4a4a1a1f624c846719dd156c163a05f0653057"
+    ]
+  ],
+  "pubkey": "5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452a9c06456e4cccaeb4",
+  "content": "[{\"pubkey\":\"5bb1a50091248f83c38e679a650b623fef7075a4542cfd0999269a138f8d3875\",\"rank\":0.000018133396129009922},{\"pubkey\":\"ede3d957774e5d5c79664b5b50f53170e9024d76c90d99fca9324a3cc9795382\",\"rank\":0.000017668437253907104}]",
+  "created_at": 1741340683
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 24,592
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`56df1d45e810f0a0529ca9d4c24c29f8f34630f5dc6b586...`
+|sig|100.00%|`80728b969da01b06ca466b7136ce4167c457af58f5d139d...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "error", "badly formatted key: 4222...`
+|pubkey|100.00%|`5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452...`
+|content|100.00%|``
+|created_at|100.00%|`1741263293`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`status`|100.00%|`["status", "error", "badly formatted key: 42224...`
+|`e`|100.00%|`["e", "866eb0b4fea3fd3c7d3a74f8bdadcfb5e2996956...`
+|`p`|100.00%|`["p", "ca6df3766d889b7b785ef300b3465f85975ce93f...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `56df1d45e810f0a0529ca9d4c24c29f8f34630f5dc6b58682bb714cc9afac2b4`
+
+[source,json]
+----
+{
+  "id": "56df1d45e810f0a0529ca9d4c24c29f8f34630f5dc6b58682bb714cc9afac2b4",
+  "sig": "80728b969da01b06ca466b7136ce4167c457af58f5d139d9ce657ddbdea0e1521ced0c2154eb6409c8bb940ba3297582bcfa7fe10cf00b3ba726a25a17599978",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "error",
+      "badly formatted key: 42224859763652914db53052103f0b744df79dfc4efef7e950fc0802fc3df3c5"
+    ],
+    [
+      "e",
+      "866eb0b4fea3fd3c7d3a74f8bdadcfb5e299695627425bd91e9dadca3341fb8f"
+    ],
+    [
+      "p",
+      "ca6df3766d889b7b785ef300b3465f85975ce93fb61a19b34e65ce44c202d723"
+    ]
+  ],
+  "pubkey": "5fc48ac4765ff81e9c51014b9d2f2c91621370f4c6b5452a9c06456e4cccaeb4",
+  "content": "",
+  "created_at": 1741263293
+}
+----
+

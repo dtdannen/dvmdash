@@ -1,0 +1,53 @@
+= Nostr DVM Kind 6153 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 6153.
+Kind 6153 represents DVM responses (without a corresponding request kind).
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 6153: DVM Response Events (Kind 6153)
+
+=== Summary
+
+Total events analyzed: 7,343
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`252848202b55492dbaa6d143ae9da3336056a0a1a0f1d25...`
+|sig|100.00%|`d8eadf2ece0cd5dafd71f4e447b4ea0d369e9486efc7ba6...`
+|kind|100.00%|`6153`
+|tags|100.00%|`[]`
+|pubkey|100.00%|`ef7bdef55f8e3e36bf5a162acb5d008352bc93549279029...`
+|content|100.00%|`{"formatted_time": "19:50 10 Apr 2025", "timest...`
+|created_at|100.00%|`1744314600`
+|_id|1.63%|`{"$oid": "67a6bf8d9c0b40a25eb6e7c4"}`
+|===
+
+=== Complete Example Event
+
+Event with ID: `252848202b55492dbaa6d143ae9da3336056a0a1a0f1d250d5419d250c47a0aa`
+
+[source,json]
+----
+{
+  "id": "252848202b55492dbaa6d143ae9da3336056a0a1a0f1d250d5419d250c47a0aa",
+  "sig": "d8eadf2ece0cd5dafd71f4e447b4ea0d369e9486efc7ba6065bfd1f358b27e27900cdb30f13c29a9f77a8ae5d812f4ef0a5e6fa317e6004ed331cdaf4706d7f6",
+  "kind": 6153,
+  "tags": [],
+  "pubkey": "ef7bdef55f8e3e36bf5a162acb5d008352bc9354927902993f2996369fdfdb5a",
+  "content": "{\"formatted_time\": \"19:50 10 Apr 2025\", \"timestamp\": 1744314600, \"estimated_price\": 79420, \"expected_dollar_amount\": 5000.0, \"stable_receiver_dollar_amount\": 5009.679, \"payment_made\": true, \"risk_score\": 0, \"our_new_balance\": 6307850.0, \"their_new_balance\": 9911317.0}",
+  "created_at": 1744314600,
+  "_id": {
+    "$oid": "67a6bf8d9c0b40a25eb6e7c4"
+  }
+}
+----
+

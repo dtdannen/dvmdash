@@ -1,0 +1,309 @@
+// GENERATED_TITLE: Text Extraction
+= Nostr DVM Kind 5000/6000 - Text Extraction
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5000 is a job request to extract text from an input source. The input is typically specified using an "i" tag, which may include a URL or other identifier, and can optionally include parameters like a time range to focus on or the desired text alignment. The output is the extracted text, returned in a specified format such as plain text, markdown, or VTT (Video Text Tracks).
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5000 and 6000.
+Kind 5000 represents DVM requests, while kind 6000 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5000: DVM Request Events (Kind 5000)
+
+=== Summary
+
+Total events analyzed: 645
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`c339128d2cc6e6739102dba492d82aad057108c312c8c48...`
+|sig|100.00%|`d429d795d790a491bc2b3d1aed5e6e7c331ab8a200407a0...`
+|kind|100.00%|`5000`
+|tags|100.00%|`[["relays", "wss://pablof7z.nostr1.com", "wss:/...`
+|pubkey|100.00%|`d70d50091504b992d1838822af245d5f6b3a16b82d917ac...`
+|content|100.00%|``
+|created_at|100.00%|`1743623549`
+|_id|89.92%|`{"$oid": "679502f42a1900f0f1d54273"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|51.16%|`["i", "https://www.youtube.com/watch?v=eOqPtmYI...`
+|`p`|49.77%|`["p", "72aa05abb04ef898ceb15349c4f32274d1a5238d...`
+|`relays`|46.67%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|`encrypted`|44.03%|`["encrypted"]`
+|`output`|39.69%|`["output", "text/plain"]`
+|`alt`|21.71%|`["alt", "This is a NIP90 DVM AI task to generat...`
+|`param`|20.62%|`["param", "range", "300", "360"]`
+|`bid`|18.14%|`["bid", "1000000"]`
+|`alignment`|10.39%|`["alignment", "raw"]`
+|`title`|3.41%|`["title", "How The Pirate Bay Became a Religion...`
+|`image`|3.41%|`["image", "https://i.ytimg.com/vi/eFQFW5JgUjE/m...`
+|`wss://relay.damus.io`|3.41%|`["wss://relay.damus.io", "wss://relay.snort.soc...`
+|`c`|3.10%|`["c", "execute-tool"]`
+|`starts`|0.31%|`["starts", "1740229753"]`
+|`ends`|0.31%|`["ends", "1740229753"]`
+|`exp`|0.31%|`["exp", "1698417742"]`
+|`t`|0.16%|`["t", "regenerative"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `c339128d2cc6e6739102dba492d82aad057108c312c8c48473aabb28ba1a4124`
+
+[source,json]
+----
+{
+  "id": "c339128d2cc6e6739102dba492d82aad057108c312c8c48473aabb28ba1a4124",
+  "sig": "d429d795d790a491bc2b3d1aed5e6e7c331ab8a200407a0e6a53fea6e46503f6e8e6ce259467fbf33458d9f7ce9b03a218192b5b5b265fe389c8d4e6fd470f4f",
+  "kind": 5000,
+  "tags": [
+    [
+      "relays",
+      "wss://pablof7z.nostr1.com",
+      "wss://purplepag.es",
+      "wss://nos.lol",
+      "wss://relay.f7z.io",
+      "wss://relay.damus.io",
+      "wss://relay.snort.social",
+      "wss://offchain.pub/",
+      "wss://nostr-pub.wellorder.net",
+      "wss://relay.damus.io/",
+      "wss://relay.nostr.band/",
+      "wss://bevo.nostr1.com/",
+      "wss://k6dpciogx4fabnipku6wlce4rjv3ffjhv6gcundcxvxn6poeq2hcn3id.onion/",
+      "wss://nos.lol/"
+    ],
+    [
+      "i",
+      "https://www.youtube.com/watch?v=eOqPtmYIgtw",
+      "url"
+    ],
+    [
+      "output",
+      "text/plain"
+    ]
+  ],
+  "pubkey": "d70d50091504b992d1838822af245d5f6b3a16b82d917acb7924cef61ed4acee",
+  "content": "",
+  "created_at": 1743623549,
+  "_id": {
+    "$oid": "679502f42a1900f0f1d54273"
+  }
+}
+----
+
+== Kind 6000: DVM Response Events (Kind 6000)
+
+=== Summary
+
+Total events analyzed: 283
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`9324e8bb6734d60580a64fd23c962a6420c6b672c2caa96...`
+|sig|100.00%|`bb41ce40d7616320f3df4860b33e4192eefe60812aa5266...`
+|kind|100.00%|`6000`
+|tags|100.00%|`[["request", "{\"id\":\"7cadd987daf15a530a01770...`
+|pubkey|100.00%|`e92020f8086260ecffcb869fc4a3dfd30e94cb45cbf08af...`
+|content|100.00%|`The result of the DVM is: #RunDVM`
+|created_at|100.00%|`1741204212`
+|_id|86.93%|`{"$oid": "679502f42a1900f0f1d54272"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|93.29%|`["e", "7cadd987daf15a530a01770423ab616e04482174...`
+|`p`|93.29%|`["p", "d70d50091504b992d1838822af245d5f6b3a16b8...`
+|`request`|92.93%|`["request", "{\"id\":\"7cadd987daf15a530a017704...`
+|`alt`|87.63%|`["alt", "This is the result of a NIP90 DVM task...`
+|`status`|87.63%|`["status", "success"]`
+|`i`|55.48%|`["i", "https://www.youtube.com/watch?v=J8LONr-6...`
+|`encrypted`|33.22%|`["encrypted"]`
+|`relays`|8.13%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|`amount`|5.30%|`["amount", "1000000", "lightning:lnbc10n1pnmjrd...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `9324e8bb6734d60580a64fd23c962a6420c6b672c2caa9641fbe045f0ddc7db5`
+
+[source,json]
+----
+{
+  "id": "9324e8bb6734d60580a64fd23c962a6420c6b672c2caa9641fbe045f0ddc7db5",
+  "sig": "bb41ce40d7616320f3df4860b33e4192eefe60812aa5266f35fed2c80929b2a0525f6506d23b63cedd90025937352f8d494b049a1f096a6d06877d1dd48ddbdf",
+  "kind": 6000,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"7cadd987daf15a530a01770423ab616e04482174c2ac4dd98369cb05b145409a\",\"pubkey\":\"d70d50091504b992d1838822af245d5f6b3a16b82d917acb7924cef61ed4acee\",\"created_at\":1741204190,\"kind\":5000,\"tags\":[[\"relays\",\"wss://pablof7z.nostr1.com\",\"wss://purplepag.es\",\"wss://nos.lol\",\"wss://relay.f7z.io\",\"wss://relay.damus.io\",\"wss://relay.snort.social\",\"wss://offchain.pub/\",\"wss://nostr-pub.wellorder.net\",\"wss://relay.damus.io/\",\"wss://relay.nostr.band/\",\"wss://bevo.nostr1.com/\",\"wss://k6dpciogx4fabnipku6wlce4rjv3ffjhv6gcundcxvxn6poeq2hcn3id.onion/\",\"wss://nos.lol/\"],[\"i\",\"https://www.youtube.com/watch?v=J8LONr-6VmM\",\"url\"],[\"output\",\"text/plain\"],[\"p\",\"e92020f8086260ecffcb869fc4a3dfd30e94cb45cbf08af5fa3d2a6b29ec8fe7\"]],\"content\":\"\",\"sig\":\"4ebd7a73b3f89031908e13cee357c6a4e07c9e78e760a37d30ae55f52b4e6221595ee7a3b9ca3fef90dd2267280a38b5d1241570c6e01a1c659a07adfd749e66\"}"
+    ],
+    [
+      "e",
+      "7cadd987daf15a530a01770423ab616e04482174c2ac4dd98369cb05b145409a"
+    ],
+    [
+      "p",
+      "d70d50091504b992d1838822af245d5f6b3a16b82d917acb7924cef61ed4acee"
+    ],
+    [
+      "alt",
+      "This is the result of a NIP90 DVM task with kind 5000"
+    ],
+    [
+      "status",
+      "success"
+    ],
+    [
+      "relays",
+      "wss://pablof7z.nostr1.com",
+      "wss://purplepag.es",
+      "wss://nos.lol",
+      "wss://relay.f7z.io",
+      "wss://relay.damus.io",
+      "wss://relay.snort.social",
+      "wss://offchain.pub/",
+      "wss://nostr-pub.wellorder.net",
+      "wss://relay.damus.io/",
+      "wss://relay.nostr.band/",
+      "wss://bevo.nostr1.com/",
+      "wss://k6dpciogx4fabnipku6wlce4rjv3ffjhv6gcundcxvxn6poeq2hcn3id.onion/",
+      "wss://nos.lol/"
+    ],
+    [
+      "i",
+      "https://www.youtube.com/watch?v=J8LONr-6VmM",
+      "url"
+    ],
+    [
+      "p",
+      "d70d50091504b992d1838822af245d5f6b3a16b82d917acb7924cef61ed4acee"
+    ]
+  ],
+  "pubkey": "e92020f8086260ecffcb869fc4a3dfd30e94cb45cbf08af5fa3d2a6b29ec8fe7",
+  "content": "The result of the DVM is: #RunDVM",
+  "created_at": 1741204212,
+  "_id": {
+    "$oid": "679502f42a1900f0f1d54272"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 313
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`2e933bdb9e23af8c7928e9966406c4aabe1c9e6b5cb55cb...`
+|sig|100.00%|`6bfa35c295fc6c0236eeb77aae4aed1f6b3c92e09efdef2...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "c339128d2cc6e6739102dba492d82aad057108c...`
+|pubkey|100.00%|`72aa05abb04ef898ceb15349c4f32274d1a5238d30e532c...`
+|content|100.00%|`NIP90 DVM task speech-to-text requires payment ...`
+|created_at|100.00%|`1743623560`
+|_id|81.47%|`{"$oid": "66ff137814017875b8003ff0"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "c339128d2cc6e6739102dba492d82aad057108c3...`
+|`p`|100.00%|`["p", "d70d50091504b992d1838822af245d5f6b3a16b8...`
+|`alt`|97.12%|`["alt", "NIP90 DVM task speech-to-text requires...`
+|`status`|97.12%|`["status", "payment-required"]`
+|`amount`|28.75%|`["amount", "1599000"]`
+|`relays`|19.81%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|`encrypted`|2.88%|`["encrypted"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `2e933bdb9e23af8c7928e9966406c4aabe1c9e6b5cb55cb6d5b6e914a48d5988`
+
+[source,json]
+----
+{
+  "id": "2e933bdb9e23af8c7928e9966406c4aabe1c9e6b5cb55cb6d5b6e914a48d5988",
+  "sig": "6bfa35c295fc6c0236eeb77aae4aed1f6b3c92e09efdef241eb608c987f068ddc16a9c97046080fad433e2573bb7ffab8f8db6e0288c5c15a2fe0aa2c6b930cd",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "c339128d2cc6e6739102dba492d82aad057108c312c8c48473aabb28ba1a4124"
+    ],
+    [
+      "alt",
+      "NIP90 DVM task speech-to-text requires payment of min 1599 Sats. "
+    ],
+    [
+      "status",
+      "payment-required"
+    ],
+    [
+      "relays",
+      "wss://pablof7z.nostr1.com",
+      "wss://purplepag.es",
+      "wss://nos.lol",
+      "wss://relay.f7z.io",
+      "wss://relay.damus.io",
+      "wss://relay.snort.social",
+      "wss://offchain.pub/",
+      "wss://nostr-pub.wellorder.net",
+      "wss://relay.damus.io/",
+      "wss://relay.nostr.band/",
+      "wss://bevo.nostr1.com/",
+      "wss://k6dpciogx4fabnipku6wlce4rjv3ffjhv6gcundcxvxn6poeq2hcn3id.onion/",
+      "wss://nos.lol/"
+    ],
+    [
+      "p",
+      "d70d50091504b992d1838822af245d5f6b3a16b82d917acb7924cef61ed4acee"
+    ],
+    [
+      "amount",
+      "1599000"
+    ]
+  ],
+  "pubkey": "72aa05abb04ef898ceb15349c4f32274d1a5238d30e532cbf6e4934731a0d153",
+  "content": "NIP90 DVM task speech-to-text requires payment of min 1599 Sats. \ud83e\udde1",
+  "created_at": 1743623560,
+  "_id": {
+    "$oid": "66ff137814017875b8003ff0"
+  }
+}
+----
+

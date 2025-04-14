@@ -1,0 +1,230 @@
+// GENERATED_TITLE: Image-to-Video Conversion
+= Nostr DVM Kind 5202/6202 - Image-to-Video Conversion
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5202 is a Data Vending Machine (DVM) job type that converts a static image into a short animated video clip. The input for this kind is a link pointing to an image file. The output is a link to the generated video.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5202 and 6202.
+Kind 5202 represents DVM requests, while kind 6202 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5202: DVM Request Events (Kind 5202)
+
+=== Summary
+
+Total events analyzed: 92
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`e1be94857e3a4611508e5d09c07429bb8a09e80c5fc032b...`
+|_id|100.00%|`{"$oid": "6729fb6ee8ddc510e006bcde"}`
+|sig|100.00%|`57e383d2c25ce280dc6f67397b3e86d1384d4ebedb73e7b...`
+|kind|100.00%|`5202`
+|tags|100.00%|`[["p", "e3d639caddf929aa3d63adb4caa6bfc652f8764...`
+|pubkey|100.00%|`c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e...`
+|content|100.00%|`rjDCQtBzCfC1yTeGVGN7OnX7RGRvN9D7ggIPjGrhlLENHD8...`
+|created_at|100.00%|`1730804589`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|88.04%|`["p", "e3d639caddf929aa3d63adb4caa6bfc652f8764e...`
+|`encrypted`|88.04%|`["encrypted"]`
+|`i`|11.96%|`["i", "https://www.youtube.com/watch?v=H-fQ7i8q...`
+|`relays`|11.96%|`["relays", "wss://nostrue.com", "wss://relayabl...`
+|`output`|11.96%|`["output", "application/json"]`
+|`bid`|11.96%|`["bid", "10000000"]`
+|`t`|11.96%|`["t", "bitcoin"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `e1be94857e3a4611508e5d09c07429bb8a09e80c5fc032ba96a097f1518e6528`
+
+[source,json]
+----
+{
+  "id": "e1be94857e3a4611508e5d09c07429bb8a09e80c5fc032ba96a097f1518e6528",
+  "_id": {
+    "$oid": "6729fb6ee8ddc510e006bcde"
+  },
+  "sig": "57e383d2c25ce280dc6f67397b3e86d1384d4ebedb73e7bdb6fab2b7440b4b8d54bbb3e41d79c97a2666ba95b81ef41132bc313b11dec2d0cb859f1cdd3994c9",
+  "kind": 5202,
+  "tags": [
+    [
+      "p",
+      "e3d639caddf929aa3d63adb4caa6bfc652f8764ea5c58b9f80ee9207b7db9d4a"
+    ],
+    [
+      "encrypted"
+    ]
+  ],
+  "pubkey": "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806",
+  "content": "rjDCQtBzCfC1yTeGVGN7OnX7RGRvN9D7ggIPjGrhlLENHD8BZWLNjQp8Edax6nSfaC8CBFIcglWk3/UeWFP/sLQwIiKjcp+SejsU5p7X2K8ZY/gO7OlWqcrV9ejJspZ+w5ZqlYsG/ayl+vFKKh/ULJlfykoSTjRu5Vru2ElO/0tQ2y/AMMtTtYa1mjlQPpy4KcrjHUv0tOc8mkwR7nFPXweZGLS9FmiDKxi4/qeoiiFPzeODcmiu4k529ZRn0OnIZJeYYv6dVX2xuJnXWPBGBw==?iv=b2cGTLwRw5svZtLk8fLq0g==",
+  "created_at": 1730804589
+}
+----
+
+== Kind 6202: DVM Response Events (Kind 6202)
+
+=== Summary
+
+Total events analyzed: 19
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`408bc39217b12a33b05a55a19833d6bbdbda754506b1ecf...`
+|_id|100.00%|`{"$oid": "66ba5d211a9c8db6d44e3ed4"}`
+|sig|100.00%|`ceb3fed8df49d647eead057f256ced5a3faf3d56ce14d33...`
+|kind|100.00%|`6202`
+|tags|100.00%|`[["request", "{\"id\":\"8f10c6aaca7a845a4fcab67...`
+|pubkey|100.00%|`b94d1db2f78519d128ce05055cf7d1cd01a79b17d4a7981...`
+|content|100.00%|`3/BMExGZ4F7p85WvRy3bcY9wNYaGXXxwnYwP0DlCsfT73/1...`
+|created_at|100.00%|`1716907073`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`request`|100.00%|`["request", "{\"id\":\"8f10c6aaca7a845a4fcab678...`
+|`e`|100.00%|`["e", "8f10c6aaca7a845a4fcab67853d8ae91fbb21ee6...`
+|`p`|100.00%|`["p", "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd854...`
+|`alt`|89.47%|`["alt", "This is the result of a NIP90 DVM AI t...`
+|`status`|89.47%|`["status", "success"]`
+|`encrypted`|89.47%|`["encrypted"]`
+|`i`|10.53%|`["i", "https://www.youtube.com/watch?v=H-fQ7i8q...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `408bc39217b12a33b05a55a19833d6bbdbda754506b1ecfc65f62349a98c6ef7`
+
+[source,json]
+----
+{
+  "id": "408bc39217b12a33b05a55a19833d6bbdbda754506b1ecfc65f62349a98c6ef7",
+  "_id": {
+    "$oid": "66ba5d211a9c8db6d44e3ed4"
+  },
+  "sig": "ceb3fed8df49d647eead057f256ced5a3faf3d56ce14d33967a585a238d0681f9247da5569f741eeb51cab212896633ac81f8e8b08e14debd368a2ad3bc4e92d",
+  "kind": 6202,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"8f10c6aaca7a845a4fcab67853d8ae91fbb21ee66d9faa4936817ddd94315009\",\"pubkey\":\"c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806\",\"created_at\":1716906941,\"kind\":5202,\"tags\":[[\"i\",\"https://i.nostr.build/am9Q.jpg\",\"url\"],[\"alt\",\"image-to-video\"],[\"relays\",\"wss://relay.damus.io\",\"wss://nos.lol\",\"wss://nostr.wine\",\"wss://nostr.mom\",\"wss://nostr.oxtr.dev\",\"wss://relay.nostr.bg\",\"wss://relay.f7z.io\",\"wss://pablof7z.nostr1.com\",\"wss://relay.nostr.net\",\"wss://140.f7z.io\"],[\"output\",\"text/plain\"],[\"p\",\"b94d1db2f78519d128ce05055cf7d1cd01a79b17d4a798184702ffe737be6fa5\"],[\"encrypted\"]],\"content\":\"\",\"sig\":\"5d389dffc168f410203435694aad19331fb7ab94e79f18a831119feed24560688dc28fe8f763cad43c3287138c0d22039626da338ba6de07dc8be227a42e69f8\"}"
+    ],
+    [
+      "e",
+      "8f10c6aaca7a845a4fcab67853d8ae91fbb21ee66d9faa4936817ddd94315009"
+    ],
+    [
+      "p",
+      "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806"
+    ],
+    [
+      "alt",
+      "This is the result of a NIP90 DVM AI task with kind 5202. The task was: "
+    ],
+    [
+      "status",
+      "success"
+    ],
+    [
+      "encrypted"
+    ]
+  ],
+  "pubkey": "b94d1db2f78519d128ce05055cf7d1cd01a79b17d4a798184702ffe737be6fa5",
+  "content": "3/BMExGZ4F7p85WvRy3bcY9wNYaGXXxwnYwP0DlCsfT73/10hDj1ssXd/9mKNmyMmV+9cst5JQxtiY0DfrcAa2CpeWIsVch1XyU6U9oSt7HeBkrPLpyYB1hys2Sh9lSE?iv=YySjuJwYUpwFx1yigUis2g==",
+  "created_at": 1716907073
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 9
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`74eef1cc319d73ad406fb4fa34a7e9748060c839f7a311e...`
+|_id|100.00%|`{"$oid": "67281032aa7e3f87a2d4bc56"}`
+|sig|100.00%|`b665fef174dc39ab39057835c804667abd65a18d7072278...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["encrypted"], ["p", "c63c5b4e21b9b1ec6b73ad04...`
+|pubkey|100.00%|`e3d639caddf929aa3d63adb4caa6bfc652f8764ea5c58b9...`
+|content|100.00%|`ps1JsC+B5fTbeGAHA2iy31HO65d3yBpg1FFqDpq/rNVildY...`
+|created_at|100.00%|`1730678833`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd854...`
+|`e`|100.00%|`["e", "72413aa61b2d40a064ea36fc9916b8d6d551da64...`
+|`status`|66.67%|`["status", "success", "The result is ready!"]`
+|`encrypted`|33.33%|`["encrypted"]`
+|`amount`|22.22%|`["amount", "2621000", "lnbc26210n1pjkda4jpp5xpx...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `74eef1cc319d73ad406fb4fa34a7e9748060c839f7a311e9d819c4e2edfcc6d8`
+
+[source,json]
+----
+{
+  "id": "74eef1cc319d73ad406fb4fa34a7e9748060c839f7a311e9d819c4e2edfcc6d8",
+  "_id": {
+    "$oid": "67281032aa7e3f87a2d4bc56"
+  },
+  "sig": "b665fef174dc39ab39057835c804667abd65a18d7072278e537fe590642320516f5df2754a6890f7fa94a556f55be6b71f9357afb8c2ea8dde362439d9057db4",
+  "kind": 7000,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806"
+    ],
+    [
+      "e",
+      "72413aa61b2d40a064ea36fc9916b8d6d551da64a01a46e94ec0b974c2e3c5f9"
+    ]
+  ],
+  "pubkey": "e3d639caddf929aa3d63adb4caa6bfc652f8764ea5c58b9f80ee9207b7db9d4a",
+  "content": "ps1JsC+B5fTbeGAHA2iy31HO65d3yBpg1FFqDpq/rNVildYEvScgnvuh3WjmHb8vdMOdjnyU0hS3JHPjNiYXxumSpyf2BoS4Xa7BlT6ErlnNa1ra7N/NCjiViqSE8/GFNNCIvdmuJjBvTatNKbkj36rkbF/rDgMq4Q2yULNFilt2O+lMOrZPDd3GAuiRLYBrAYsmin8XDBlblIiF26G1s0Y3BPgeI9jEXvhY+0drZU01X0iV7H3xJwIew9LQVpAdZQ+zDQgqhKKgg6ICfV698f/dRUDwuFWwR4togm0y4UeGukY3xJ8RlcRHf3Ts/Rrm90sUrjcykPmMPUbQOfbhRcCoTwsE0tlmnOpZ7OdWkUoAuilh03Qub72d9v31QD/A36VJ+xWIBCPleuyYh8Ly5ZUDSelsyEnTH1rG5169Sc+ndB/CuIXdI9MctHWm+XiV4BrQlxSNkrsMcKYucN5nizX1Y0VUF5x42qFXg7tLBtZxgAZzeISqIqs83LZvuf+x8Z9FEDqM/MyxIZvVF9Cpz97nN+AZr3GJ0gG0aaPzCI5EOd7R9beSPyYKBf16nnHW3rcOwLn4F+jB70wLo2Brjq7A61ycX31zpl7uuI/VkJI0MtfzbfZwNpMNfBEaYDYPbthlEOdzBG0B2JmS7/+ddZsxxy60lpwvXUK+fgJEFQmvKeSFWknCaVskiTNKsykI7lGW8KHl2/9/aLJokXFFMCG9OnOVgnXp8gg/NlkxvXtXuKa3M/LQ3h8Eur4gwM3ZszD7WMTwD6QQbMwsRqz6E1YIhuBHsM6NtsSSF+X6zO4Q3wO/+cPIPVMJ5TMxKfwa5621EsvXQuiXyBHcA2IHd2n14jGNLtq9LUez+2LMjDIe72BkJjAAUu3QlfmzJ15+uFTo+lXa2PAVWdV9J4qP1VxL9T1iWqbbJaO3wm32KvtgfntD/LgNeJ4TUTc1ljWs?iv=bI1ruZ4xhPSRDkpOV8pwow==",
+  "created_at": 1730678833
+}
+----
+

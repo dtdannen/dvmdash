@@ -1,0 +1,235 @@
+= Nostr DVM Kind 5050 and 6050 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5050 and 6050.
+Kind 5050 represents DVM requests, while kind 6050 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5050: DVM Request Events (Kind 5050)
+
+=== Summary
+
+Total events analyzed: 931
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`a53c938921b8f3e98d9d4339bfe628f80e45f0f9daa48f8...`
+|sig|100.00%|`fb67ab827f17e3565ecf24ab300eddde38b1d9303b4f002...`
+|kind|100.00%|`5050`
+|tags|100.00%|`[["i", "What is a data vending machine?", "text...`
+|pubkey|100.00%|`7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048...`
+|content|100.00%|`NIP 90 Text Generation Request`
+|created_at|100.00%|`1744229914`
+|_id|90.44%|`{"$oid": "67a0db01f7a26d61cff9a4c5"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`relays`|75.19%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`i`|63.59%|`["i", "What is a data vending machine?", "text"]`
+|`p`|30.72%|`["p", "ab66431b1dfbaeb805a6bd24365c2046c7a2268d...`
+|`alt`|29.00%|`["alt", "This is a NIP90 DVM AI task to generat...`
+|`param`|10.74%|`["param", "prompt", "Test DVM request 1 from pr...`
+|`output`|8.92%|`["output", "text/plain"]`
+|`encrypted`|7.63%|`["encrypted"]`
+|`wss://nostr.oxtr.dev`|6.87%|`["wss://nostr.oxtr.dev", "wss://relay.primal.net"]`
+|`t`|1.61%|`["t", "#8"]`
+|`client`|1.50%|`["client", "nostr_bot_cli", "1.0.0"]`
+|`u`|1.50%|`["u", "test-5d22be5b"]`
+|`input`|0.64%|`["input", "text", "Hi"]`
+|`relay`|0.11%|`["relay", "wss://nostr-pub.wellorder.net"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `a53c938921b8f3e98d9d4339bfe628f80e45f0f9daa48f8685734921d02f4c87`
+
+[source,json]
+----
+{
+  "id": "a53c938921b8f3e98d9d4339bfe628f80e45f0f9daa48f8685734921d02f4c87",
+  "sig": "fb67ab827f17e3565ecf24ab300eddde38b1d9303b4f002668c466acac9e29f86a358ea5cbc6f9c59c0c81694a6deb3536cbded8ab13be07e40cd9893b07e612",
+  "kind": 5050,
+  "tags": [
+    [
+      "i",
+      "What is a data vending machine?",
+      "text"
+    ],
+    [
+      "relays",
+      "wss://relay.nostrdvm.com",
+      "wss://nostr.mom",
+      "wss://nostr.oxtr.dev"
+    ]
+  ],
+  "pubkey": "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6",
+  "content": "NIP 90 Text Generation Request",
+  "created_at": 1744229914,
+  "_id": {
+    "$oid": "67a0db01f7a26d61cff9a4c5"
+  }
+}
+----
+
+== Kind 6050: DVM Response Events (Kind 6050)
+
+=== Summary
+
+Total events analyzed: 1,221
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`ad1ac53cb0451aa7260aabdcf95b3464b6566846444531b...`
+|sig|100.00%|`164c40010612eeac3206514630fa5076c52d99e5c2ba85d...`
+|kind|100.00%|`6050`
+|tags|100.00%|`[["request", "{\"id\":\"a53c938921b8f3e98d9d433...`
+|pubkey|100.00%|`f45f5667ffe7649d7c9f648930c9498cda88974e7ea2892...`
+|content|100.00%|`A data vending machine is an automated device t...`
+|created_at|100.00%|`1744229984`
+|_id|81.90%|`{"$oid": "67a0db03f7a26d61cff9a4c9"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`request`|99.92%|`["request", "{\"id\":\"a53c938921b8f3e98d9d4339...`
+|`e`|99.92%|`["e", "a53c938921b8f3e98d9d4339bfe628f80e45f0f9...`
+|`p`|99.92%|`["p", "7782f93c5762538e1f7ccc5af83cd8018a528b9c...`
+|`status`|88.70%|`["status", "success"]`
+|`i`|84.19%|`["i", "What is a data vending machine?", "text"]`
+|`alt`|83.21%|`["alt", "This is the result of a NIP90 DVM task...`
+|`relays`|71.17%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`amount`|15.64%|`["amount", "100_000", "botlab@zeuspay.com"]`
+|`output`|7.86%|`["output", "text/plain"]`
+|`count`|5.90%|`["count", "1"]`
+|`encrypted`|1.23%|`["encrypted"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `ad1ac53cb0451aa7260aabdcf95b3464b6566846444531b92e57a37f4597c923`
+
+[source,json]
+----
+{
+  "id": "ad1ac53cb0451aa7260aabdcf95b3464b6566846444531b92e57a37f4597c923",
+  "sig": "164c40010612eeac3206514630fa5076c52d99e5c2ba85da32b459c74ff6db89d1fa8607f66a9fc045ead65499c53c50d57dcc383eb54b6b191706b56127ea88",
+  "kind": 6050,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"a53c938921b8f3e98d9d4339bfe628f80e45f0f9daa48f8685734921d02f4c87\",\"pubkey\":\"7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6\",\"created_at\":1744229914,\"kind\":5050,\"tags\":[[\"i\",\"What is a data vending machine?\",\"text\"],[\"relays\",\"wss://relay.nostrdvm.com\",\"wss://nostr.mom\",\"wss://nostr.oxtr.dev\"]],\"content\":\"NIP 90 Text Generation Request\",\"sig\":\"fb67ab827f17e3565ecf24ab300eddde38b1d9303b4f002668c466acac9e29f86a358ea5cbc6f9c59c0c81694a6deb3536cbded8ab13be07e40cd9893b07e612\"}"
+    ],
+    [
+      "e",
+      "a53c938921b8f3e98d9d4339bfe628f80e45f0f9daa48f8685734921d02f4c87"
+    ],
+    [
+      "p",
+      "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6"
+    ],
+    [
+      "status",
+      "success"
+    ]
+  ],
+  "pubkey": "f45f5667ffe7649d7c9f648930c9498cda88974e7ea28929194d0167cdcbc124",
+  "content": "A data vending machine is an automated device that dispenses digital information or content, such as e-books, music, videos, or software, in exchange for payment. It operates similarly to a traditional vending machine, where users insert coins, bills, or electronic payment methods like credit cards or digital wallets to purchase the desired item. The purchased data is then stored on a physical medium (e.g., CD, DVD, USB drive) or delivered electronically (e.g., via email, download link).",
+  "created_at": 1744229984,
+  "_id": {
+    "$oid": "67a0db03f7a26d61cff9a4c9"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 941
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`0642fc0c12532d9ba68e734adfe28130dc9aaba777a36cc...`
+|sig|100.00%|`e9cfaaa29b62e76fcc1902078343d0220d34800f0d0e80f...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "a53c938921b8f3e98d9d4339bfe628f80e45f0f...`
+|pubkey|100.00%|`f45f5667ffe7649d7c9f648930c9498cda88974e7ea2892...`
+|content|100.00%|``
+|created_at|100.00%|`1744229981`
+|_id|71.52%|`{"$oid": "67814f1759319fa4a036986d"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "a53c938921b8f3e98d9d4339bfe628f80e45f0f9...`
+|`status`|99.15%|`["status", "processing"]`
+|`p`|98.62%|`["p", "7782f93c5762538e1f7ccc5af83cd8018a528b9c...`
+|`alt`|58.34%|`["alt", "NIP90 DVM task generic had an error. "]`
+|`relays`|43.46%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`amount`|24.65%|`["amount", "200000", "lnbc2u1pnld4sapp5mvdrtvwh...`
+|`encrypted`|0.85%|`["encrypted"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `0642fc0c12532d9ba68e734adfe28130dc9aaba777a36cc72304e8edd9738084`
+
+[source,json]
+----
+{
+  "id": "0642fc0c12532d9ba68e734adfe28130dc9aaba777a36cc72304e8edd9738084",
+  "sig": "e9cfaaa29b62e76fcc1902078343d0220d34800f0d0e80fdae2520575b0a7c93ddae44ffc1c769c1b762e5287854ae2bab87e3a5e67b4bf6ba5adda634b339c2",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "a53c938921b8f3e98d9d4339bfe628f80e45f0f9daa48f8685734921d02f4c87"
+    ],
+    [
+      "p",
+      "7782f93c5762538e1f7ccc5af83cd8018a528b9cd965048386ca1b75335f24c6"
+    ],
+    [
+      "status",
+      "processing"
+    ]
+  ],
+  "pubkey": "f45f5667ffe7649d7c9f648930c9498cda88974e7ea28929194d0167cdcbc124",
+  "content": "",
+  "created_at": 1744229981,
+  "_id": {
+    "$oid": "67814f1759319fa4a036986d"
+  }
+}
+----
+

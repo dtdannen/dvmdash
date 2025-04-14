@@ -1,0 +1,124 @@
+= Nostr DVM Kind 5703 and 6703 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5703 and 6703.
+Kind 5703 represents DVM requests, while kind 6703 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5703: DVM Request Events (Kind 5703)
+
+=== Summary
+
+Total events analyzed: 1
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`a34008d26c17fb6b132f652297ec763fa6c684d8af89920...`
+|_id|100.00%|`{"$oid": "6762cf017feada1baa0acbe2"}`
+|sig|100.00%|`4b4bab9d704103d79503a29e746a5d67cd78e2390af1c98...`
+|kind|100.00%|`5703`
+|tags|100.00%|`[["url", "https://google.com"]]`
+|pubkey|100.00%|`88e4e5d1be28c4c5809a2d6aa7f5a5dc1f0dbf797fb7bf8...`
+|content|100.00%|``
+|created_at|100.00%|`1734528768`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`url`|100.00%|`["url", "https://google.com"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `a34008d26c17fb6b132f652297ec763fa6c684d8af89920f41378c5fc4dede6a`
+
+[source,json]
+----
+{
+  "id": "a34008d26c17fb6b132f652297ec763fa6c684d8af89920f41378c5fc4dede6a",
+  "_id": {
+    "$oid": "6762cf017feada1baa0acbe2"
+  },
+  "sig": "4b4bab9d704103d79503a29e746a5d67cd78e2390af1c98bf7ee3ee2f866ceb3e776655c49f006ed736ad0ac13774f463c427578518893f63dd98f8fd27fc05b",
+  "kind": 5703,
+  "tags": [
+    [
+      "url",
+      "https://google.com"
+    ]
+  ],
+  "pubkey": "88e4e5d1be28c4c5809a2d6aa7f5a5dc1f0dbf797fb7bf8cd62593ee34945800",
+  "content": "",
+  "created_at": 1734528768
+}
+----
+
+== Kind 6703: DVM Response Events (Kind 6703)
+
+=== Summary
+
+Total events analyzed: 4
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`d0f52e7a65b6e8fd13cc526aab81767f961ef3dbdd3fe69...`
+|_id|100.00%|`{"$oid": "6762d3f77feada1baa0acd0b"}`
+|sig|100.00%|`24fb2022455b190e0228adb7ee014763d4817bf95008637...`
+|kind|100.00%|`6703`
+|tags|100.00%|`[["url", "https://google.com"]]`
+|pubkey|100.00%|`b028821223bd221e98f20b36d0fb68226a334958d0bbdec...`
+|content|100.00%|`<HTML><HEAD><meta http-equiv="content-type" con...`
+|created_at|100.00%|`1734530039`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`url`|75.00%|`["url", "https://google.com"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `d0f52e7a65b6e8fd13cc526aab81767f961ef3dbdd3fe69d1faa13f9a34ebb80`
+
+[source,json]
+----
+{
+  "id": "d0f52e7a65b6e8fd13cc526aab81767f961ef3dbdd3fe69d1faa13f9a34ebb80",
+  "_id": {
+    "$oid": "6762d3f77feada1baa0acd0b"
+  },
+  "sig": "24fb2022455b190e0228adb7ee014763d4817bf95008637a471d424559528a623192a940c1e7b91129fabd8d5a40c28b9275bd78f30322b1d29a924bfe74243c",
+  "kind": 6703,
+  "tags": [
+    [
+      "url",
+      "https://google.com"
+    ]
+  ],
+  "pubkey": "b028821223bd221e98f20b36d0fb68226a334958d0bbdec1b828d3ea7a8471af",
+  "content": "<HTML><HEAD><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF=\"https://www.google.com/\">here</A>.\r\n</BODY></HTML>\r",
+  "created_at": 1734530039
+}
+----
+

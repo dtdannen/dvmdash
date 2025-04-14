@@ -1,0 +1,56 @@
+= Nostr DVM Kind 5392 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5392.
+Kind 5392 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5392: DVM Request Events (Kind 5392)
+
+=== Summary
+
+Total events analyzed: 29
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`ebbd79233a2d5243ca1f688bdea77ebb44035b7a72ccdc8...`
+|_id|100.00%|`{"$oid": "6744c34765cdac2eea1ea611"}`
+|sig|100.00%|`98c8e983c41477296a3325f4583bf522aebe2ec69fbbcd4...`
+|kind|100.00%|`5392`
+|tags|100.00%|`[]`
+|pubkey|100.00%|`dee7cd029619f4cc0a9a64bf6aca8cda6f784872d709245...`
+|content|100.00%|`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <me...`
+|created_at|100.00%|`1732559686`
+|===
+
+=== Complete Example Event
+
+Event with ID: `ebbd79233a2d5243ca1f688bdea77ebb44035b7a72ccdc8c0d993299ed9e610f`
+
+[source,json]
+----
+{
+  "id": "ebbd79233a2d5243ca1f688bdea77ebb44035b7a72ccdc8c0d993299ed9e610f",
+  "_id": {
+    "$oid": "6744c34765cdac2eea1ea611"
+  },
+  "sig": "98c8e983c41477296a3325f4583bf522aebe2ec69fbbcd4a54085e2afb1e3f205672e2dcebac9af3ecf7f60a0361dbdc30ccb2bffa4a1a7bade835247a1f9770",
+  "kind": 5392,
+  "tags": [],
+  "pubkey": "dee7cd029619f4cc0a9a64bf6aca8cda6f784872d70924509b93092023bbbec2",
+  "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>Nostr Web Test</title>\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"7ccda059f9f4b7ddfe8e39aa4f3a41f2c262bfee9203b5894eff36a8f9499a05\" />\n</head>\n<body>\n    <div class=\"background-text\" id=\"msg\">HELLO, Nostr</div>\n\n    <script src=\"4885034c358f0f3e57bfa3018685801e49d4a384c828c6ad0f384fbacd19d941\"></script>\n</body>\n</html>",
+  "created_at": 1732559686
+}
+----
+

@@ -1,0 +1,296 @@
+// GENERATED_TITLE: Image Generation
+= Nostr DVM Kind 5100/6100 - Image Generation
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5100 is a job request to generate images using AI models. The input includes a prompt provided in the "i" tag field, and optionally a second "i" tag containing a URL to an existing image for alteration. The output is a link to the generated image(s).
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5100 and 6100.
+Kind 5100 represents DVM requests, while kind 6100 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5100: DVM Request Events (Kind 5100)
+
+=== Summary
+
+Total events analyzed: 5,178
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`cf726170c11415d007abaf2d1020f9f472d41de4321d44f...`
+|sig|100.00%|`3acdb3c7d2ecb0fdd55bd2509e39279f1c07a30c3dceffa...`
+|kind|100.00%|`5100`
+|tags|100.00%|`[["i", "Ostrich purple dancing breakdance and w...`
+|pubkey|100.00%|`ece127e2f8936d0653678fed0bd89dbd246b135c0702858...`
+|content|100.00%|``
+|created_at|100.00%|`1744210772`
+|_id|98.47%|`{"$oid": "67a1f85166ef85a69668cf6d"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|66.20%|`["i", "Ostrich purple dancing breakdance and we...`
+|`p`|39.07%|`["p", "cdb877ac293c6e0b65bf7e9ab48af745e63dd327...`
+|`relays`|35.90%|`["relays", "wss://nostrue.com", "wss://nos.lol"...`
+|`encrypted`|33.31%|`["encrypted"]`
+|`bid`|22.52%|`["bid", "10000000"]`
+|`param`|21.78%|`["param", "size", "512x512"]`
+|`output`|21.40%|`["output", "image/png"]`
+|`t`|19.49%|`["t", "bitcoin"]`
+|`alt`|13.63%|`["alt", "image-generation"]`
+|`wss://nostr.oxtr.dev`|1.99%|`["wss://nostr.oxtr.dev", "wss://relay.primal.net"]`
+|`nonce`|1.85%|`["nonce", "5780096"]`
+|`j`|0.64%|`["j", "image-generation"]`
+|`client`|0.33%|`["client", "highlighter", "31990:73c6bb92440a93...`
+|`#j`|0.02%|`["#j", "image-generation"]`
+|`cashu`|0.02%|`["cashu", "cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dH...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `cf726170c11415d007abaf2d1020f9f472d41de4321d44f5b7b53537d6e85d57`
+
+[source,json]
+----
+{
+  "id": "cf726170c11415d007abaf2d1020f9f472d41de4321d44f5b7b53537d6e85d57",
+  "sig": "3acdb3c7d2ecb0fdd55bd2509e39279f1c07a30c3dceffa8db6323d60e38809e1317f2e4f8f360e65a73ed91389e4c51cec77bbb93bcf852aad8cdfff77591f3",
+  "kind": 5100,
+  "tags": [
+    [
+      "i",
+      "Ostrich purple dancing breakdance and wearing a cap",
+      "text"
+    ],
+    [
+      "param",
+      "size",
+      "512x512"
+    ],
+    [
+      "relays",
+      "wss://nostrue.com",
+      "wss://nos.lol",
+      "wss://relay.damus.io",
+      "wss://pablof7z.nostr1.com/",
+      "wss://relay.f7z.io",
+      "wss://offchain.pub"
+    ],
+    [
+      "output",
+      "image/png"
+    ],
+    [
+      "bid",
+      "10000000"
+    ],
+    [
+      "t",
+      "bitcoin"
+    ]
+  ],
+  "pubkey": "ece127e2f8936d0653678fed0bd89dbd246b135c07028586f9dc06af745bab9c",
+  "content": "",
+  "created_at": 1744210772,
+  "_id": {
+    "$oid": "67a1f85166ef85a69668cf6d"
+  }
+}
+----
+
+== Kind 6100: DVM Response Events (Kind 6100)
+
+=== Summary
+
+Total events analyzed: 2,031
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`e3931e41a15e3f3b3932d920ff4c8e0f1c251ace0afa285...`
+|sig|100.00%|`b592822d0743cd6d26d2fd1f751ec751eb32b8fe1fe95ee...`
+|kind|100.00%|`6100`
+|tags|100.00%|`[["request", "{\"id\":\"899edd497246ba06abe8a1c...`
+|pubkey|100.00%|`89669b03bb25232f33192fdda77b8e36e3d3886e9b55b3c...`
+|content|100.00%|`https://i.nostr.build/2dL1kunU2u1TEZbF.jpg`
+|created_at|100.00%|`1744204373`
+|_id|97.59%|`{"$oid": "67a1f86d66ef85a69668cf76"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "899edd497246ba06abe8a1c42e86e6d2de416295...`
+|`p`|99.66%|`["p", "99bb5591c9116600f845107d31f9b59e2f7c7e09...`
+|`request`|96.95%|`["request", "{\"id\":\"899edd497246ba06abe8a1c4...`
+|`status`|87.64%|`["status", "success"]`
+|`alt`|87.49%|`["alt", "This is the result of a NIP90 DVM task...`
+|`i`|63.61%|`["i", "marketing, lack of personalization", "te...`
+|`encrypted`|32.59%|`["encrypted"]`
+|`relays`|17.53%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`count`|11.47%|`["count", "1"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `e3931e41a15e3f3b3932d920ff4c8e0f1c251ace0afa28598e276124e7d6008e`
+
+[source,json]
+----
+{
+  "id": "e3931e41a15e3f3b3932d920ff4c8e0f1c251ace0afa28598e276124e7d6008e",
+  "sig": "b592822d0743cd6d26d2fd1f751ec751eb32b8fe1fe95ee0373cdb2717c856c7c3439425d086ab053e458e750d5ec8989a0fb788a2836ef67f1f4284687f2554",
+  "kind": 6100,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"899edd497246ba06abe8a1c42e86e6d2de4162951fd5efe1af234ed69e1d6378\",\"pubkey\":\"99bb5591c9116600f845107d31f9b59e2f7c7e09a1ff802e84f1d43da557ca64\",\"created_at\":1744204281,\"kind\":5100,\"tags\":[[\"i\",\"marketing, lack of personalization\",\"text\"],[\"relays\",\"wss://relay.nostrdvm.com\",\"wss://nostr.mom\",\"wss://nostr.oxtr.dev\"]],\"content\":\"NIP 90 Image Generation request\",\"sig\":\"00fcd4dadc0710e8e149e68e26f36042020403bdc25b22d1bb224ffae4b2faf51fe8cca7debee2e40e1be5c254e33950d02723c2c98e529538687dc88a6af1a0\"}"
+    ],
+    [
+      "e",
+      "899edd497246ba06abe8a1c42e86e6d2de4162951fd5efe1af234ed69e1d6378"
+    ],
+    [
+      "p",
+      "99bb5591c9116600f845107d31f9b59e2f7c7e09a1ff802e84f1d43da557ca64"
+    ],
+    [
+      "alt",
+      "This is the result of a NIP90 DVM task with kind 5100"
+    ],
+    [
+      "status",
+      "success"
+    ],
+    [
+      "relays",
+      "wss://relay.nostrdvm.com",
+      "wss://nostr.mom",
+      "wss://nostr.oxtr.dev"
+    ],
+    [
+      "i",
+      "marketing, lack of personalization",
+      "text"
+    ],
+    [
+      "p",
+      "99bb5591c9116600f845107d31f9b59e2f7c7e09a1ff802e84f1d43da557ca64"
+    ]
+  ],
+  "pubkey": "89669b03bb25232f33192fdda77b8e36e3d3886e9b55b3c74b95091e916c8f98",
+  "content": "https://i.nostr.build/2dL1kunU2u1TEZbF.jpg",
+  "created_at": 1744204373,
+  "_id": {
+    "$oid": "67a1f86d66ef85a69668cf76"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 17,160
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`f98a57bb7a10dffc2c94a1e3521167d549a724c9bc681c3...`
+|sig|100.00%|`eeec1d7e153b9b9ab9c163fbf18b5068e98f5f390c4c11e...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "cf726170c11415d007abaf2d1020f9f472d41de...`
+|pubkey|100.00%|`f6a2b70e76fd239a5497fdeb83e5b9b20e5add50f7207b5...`
+|content|100.00%|`NIP90 DVM task text-to-image requires payment o...`
+|created_at|100.00%|`1744210776`
+|_id|98.45%|`{"$oid": "67a1f85766ef85a69668cf6f"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "cf726170c11415d007abaf2d1020f9f472d41de4...`
+|`p`|99.18%|`["p", "ece127e2f8936d0653678fed0bd89dbd246b135c...`
+|`status`|96.85%|`["status", "payment-required"]`
+|`amount`|85.69%|`["amount", "51000"]`
+|`alt`|83.51%|`["alt", "NIP90 DVM task text-to-image requires ...`
+|`relays`|14.36%|`["relays", "wss://nostrue.com", "wss://nos.lol"...`
+|`encrypted`|3.13%|`["encrypted"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `f98a57bb7a10dffc2c94a1e3521167d549a724c9bc681c31a8cd606ee2f9f110`
+
+[source,json]
+----
+{
+  "id": "f98a57bb7a10dffc2c94a1e3521167d549a724c9bc681c31a8cd606ee2f9f110",
+  "sig": "eeec1d7e153b9b9ab9c163fbf18b5068e98f5f390c4c11eef639e99d4819d7acd6d10434dd2006356b624d9708b613202e1c6fd15e6d3e230b1088ea12f6ae0f",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "cf726170c11415d007abaf2d1020f9f472d41de4321d44f5b7b53537d6e85d57"
+    ],
+    [
+      "alt",
+      "NIP90 DVM task text-to-image requires payment of min 51 Sats. "
+    ],
+    [
+      "status",
+      "payment-required"
+    ],
+    [
+      "relays",
+      "wss://nostrue.com",
+      "wss://nos.lol",
+      "wss://relay.damus.io",
+      "wss://pablof7z.nostr1.com/",
+      "wss://relay.f7z.io",
+      "wss://offchain.pub"
+    ],
+    [
+      "p",
+      "ece127e2f8936d0653678fed0bd89dbd246b135c07028586f9dc06af745bab9c"
+    ],
+    [
+      "amount",
+      "51000"
+    ]
+  ],
+  "pubkey": "f6a2b70e76fd239a5497fdeb83e5b9b20e5add50f7207b522d8b64f0ae90362b",
+  "content": "NIP90 DVM task text-to-image requires payment of min 51 Sats. \ud83e\udde1",
+  "created_at": 1744210776,
+  "_id": {
+    "$oid": "67a1f85766ef85a69668cf6f"
+  }
+}
+----
+

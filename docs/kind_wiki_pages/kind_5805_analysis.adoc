@@ -1,0 +1,68 @@
+= Nostr DVM Kind 5805 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5805.
+Kind 5805 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5805: DVM Request Events (Kind 5805)
+
+=== Summary
+
+Total events analyzed: 111
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`1e9e3f212b6b3e854385e49272cb8035eb4f28785765f08...`
+|sig|100.00%|`1852ef364ac81da7a81b517de61a2efea1d46ba9fa8aa40...`
+|kind|100.00%|`5805`
+|tags|100.00%|`[["p", "1afbd7863422ba56da899aae689b03a55392dc5...`
+|pubkey|100.00%|`19d39106096d42d1dab7bf38059ccde8029349ea9775621...`
+|content|100.00%|`aVAgRKIiZ8WxuzqdIEKskc8Lok5wezl7W01hhEmoIDT2Mb1...`
+|created_at|100.00%|`1740762882`
+|_id|66.67%|`{"$oid": "6745859909a895a1595b2768"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "1afbd7863422ba56da899aae689b03a55392dc5f...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `1e9e3f212b6b3e854385e49272cb8035eb4f28785765f08bc48f0f80db2eb088`
+
+[source,json]
+----
+{
+  "id": "1e9e3f212b6b3e854385e49272cb8035eb4f28785765f08bc48f0f80db2eb088",
+  "sig": "1852ef364ac81da7a81b517de61a2efea1d46ba9fa8aa4009b1519f280a1b687d7f0c12d51eb670edc85e557f6f6faa668e55074c722c315089af73af0391153",
+  "kind": 5805,
+  "tags": [
+    [
+      "p",
+      "1afbd7863422ba56da899aae689b03a55392dc5f132c17fddcdf5097f8e9ee2d"
+    ]
+  ],
+  "pubkey": "19d39106096d42d1dab7bf38059ccde8029349ea9775621b78f62d2c154e386a",
+  "content": "aVAgRKIiZ8WxuzqdIEKskc8Lok5wezl7W01hhEmoIDT2Mb18IHk7MO16nZxXTzfoDliBLMS+oB5Zx63AzrvmIw5KZa7ruzZM3JleaSK/SMu+zDjCKtEaD4C4rYf89G3bHdjR5UKpk1dGLFkBKPaDLcmARw467Aw/GJgocS7rYV1L9kcktbuMVVFqxBsTHL38f1oabdSTvSjvOBGA/5guJXiFkb7ikL7e/6UtyjU4gZeic8RqJ6BV8UpMChhWLOa4uFTirKXLBrIlzbEqJmyelj+veJpFN2NdV66jzcm4o0Y=?iv=NsY8BiznyX34k6HxvbUz8A==",
+  "created_at": 1740762882,
+  "_id": {
+    "$oid": "6745859909a895a1595b2768"
+  }
+}
+----
+

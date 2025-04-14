@@ -1,0 +1,232 @@
+= Nostr DVM Kind 5300 and 6300 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5300 and 6300.
+Kind 5300 represents DVM requests, while kind 6300 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5300: DVM Request Events (Kind 5300)
+
+=== Summary
+
+Total events analyzed: 100,000
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`7b1213df9bb45ab898ae98b3a4ce2c7e18dc31183eacd29...`
+|sig|100.00%|`1fbe49a23e351d044406ffa2c6d7cfb6494457d7a4a0466...`
+|kind|100.00%|`5300`
+|tags|100.00%|`[["p", "3ac9ed8bae8d214fd370102a15dedfe540c83e2...`
+|pubkey|100.00%|`2c4097e78f5b2baa0589762c22550428a1c3516c93795af...`
+|content|100.00%|``
+|created_at|100.00%|`1744312813`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "3ac9ed8bae8d214fd370102a15dedfe540c83e20...`
+|`relays`|99.05%|`["relays", "wss://relay.primal.net", "wss://nos...`
+|`alt`|98.79%|`["alt", "NIP90 Content Discovery Request"]`
+|`param`|12.14%|`["param", "max_results", "100"]`
+|`expiration`|0.25%|`["expiration", "1744398775"]`
+|`i`|0.02%|`["i", "eeffe61f5040480007112c05e0cee1cc5d89e585...`
+|`output`|0.00%|`["output", "text/plain"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `7b1213df9bb45ab898ae98b3a4ce2c7e18dc31183eacd29ea154376b4cb76f26`
+
+[source,json]
+----
+{
+  "id": "7b1213df9bb45ab898ae98b3a4ce2c7e18dc31183eacd29ea154376b4cb76f26",
+  "sig": "1fbe49a23e351d044406ffa2c6d7cfb6494457d7a4a046660af9ea6ca0684a452264140f3080b1cb7a889269dc9e94b9828e147444056fab8d5ae49d78ecd3b6",
+  "kind": 5300,
+  "tags": [
+    [
+      "p",
+      "3ac9ed8bae8d214fd370102a15dedfe540c83e200b718c46362a07b12ff6a954"
+    ],
+    [
+      "alt",
+      "NIP90 Content Discovery Request"
+    ],
+    [
+      "relays",
+      "wss://relay.primal.net",
+      "wss://nostr.mom/",
+      "wss://relay.nostr.bg/",
+      "wss://nostr.bitcoiner.social/",
+      "wss://nos.lol/",
+      "wss://bostr.lightningspore.com/"
+    ]
+  ],
+  "pubkey": "2c4097e78f5b2baa0589762c22550428a1c3516c93795af0fad5ce8a2e7bd5f0",
+  "content": "",
+  "created_at": 1744312813
+}
+----
+
+== Kind 6300: DVM Response Events (Kind 6300)
+
+=== Summary
+
+Total events analyzed: 100,000
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`7ecfb986ef6399d59ae16a41217e11c18aace6c80bc15e0...`
+|sig|100.00%|`fc1d7ddb46928b7f633d14cdddb61a6c6cf8124d910faac...`
+|kind|100.00%|`6300`
+|tags|100.00%|`[["e", "7b1213df9bb45ab898ae98b3a4ce2c7e18dc311...`
+|pubkey|100.00%|`3ac9ed8bae8d214fd370102a15dedfe540c83e200b718c4...`
+|content|100.00%|`[["e","51f2741085b47da5747c72b73baa95f55c02ab8b...`
+|created_at|100.00%|`1744312814`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "7b1213df9bb45ab898ae98b3a4ce2c7e18dc3118...`
+|`p`|100.00%|`["p", "2c4097e78f5b2baa0589762c22550428a1c3516c...`
+|`status`|100.00%|`["status", "success"]`
+|`request`|98.91%|`["request", "{\"id\":\"7b1213df9bb45ab898ae98b3...`
+|`alt`|40.52%|`["alt", "This is the result of a NIP90 DVM task...`
+|`relays`|39.42%|`["relays", "wss://relay.primal.net", "wss://nos...`
+|`expiration`|0.20%|`["expiration", "1744395301"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `7ecfb986ef6399d59ae16a41217e11c18aace6c80bc15e0d7119e97e63b5ff8a`
+
+[source,json]
+----
+{
+  "id": "7ecfb986ef6399d59ae16a41217e11c18aace6c80bc15e0d7119e97e63b5ff8a",
+  "sig": "fc1d7ddb46928b7f633d14cdddb61a6c6cf8124d910faaca72f9822e74f5dc07a8b36a272ee6db34412696986a847b7374e194f5226a6255b258d3b945af8623",
+  "kind": 6300,
+  "tags": [
+    [
+      "e",
+      "7b1213df9bb45ab898ae98b3a4ce2c7e18dc31183eacd29ea154376b4cb76f26"
+    ],
+    [
+      "p",
+      "2c4097e78f5b2baa0589762c22550428a1c3516c93795af0fad5ce8a2e7bd5f0"
+    ],
+    [
+      "request",
+      "{\"id\":\"7b1213df9bb45ab898ae98b3a4ce2c7e18dc31183eacd29ea154376b4cb76f26\",\"pubkey\":\"2c4097e78f5b2baa0589762c22550428a1c3516c93795af0fad5ce8a2e7bd5f0\",\"created_at\":1744312813,\"kind\":5300,\"tags\":[[\"p\",\"3ac9ed8bae8d214fd370102a15dedfe540c83e200b718c46362a07b12ff6a954\"],[\"alt\",\"NIP90 Content Discovery Request\"],[\"relays\",\"wss://relay.primal.net\",\"wss://nostr.mom/\",\"wss://relay.nostr.bg/\",\"wss://nostr.bitcoiner.social/\",\"wss://nos.lol/\",\"wss://bostr.lightningspore.com/\"]],\"content\":\"\",\"sig\":\"1fbe49a23e351d044406ffa2c6d7cfb6494457d7a4a046660af9ea6ca0684a452264140f3080b1cb7a889269dc9e94b9828e147444056fab8d5ae49d78ecd3b6\"}"
+    ],
+    [
+      "status",
+      "success"
+    ]
+  ],
+  "pubkey": "3ac9ed8bae8d214fd370102a15dedfe540c83e200b718c46362a07b12ff6a954",
+  "content": "[[\"e\",\"51f2741085b47da5747c72b73baa95f55c02ab8b4b429f15fc3aca2bb3cb37ab\"],[\"e\",\"4c65f62d0cfb59661eac21542906b69e13684e1f4247be73d2c97fa6fdd5b68c\"],[\"e\",\"7f1d714632dbf6a37a298390435166acb99298f505f2ad42256e6f939a9ace8f\"],[\"e\",\"2f28c72abb20fe2618942a1a20da852dc391616423253de9347647abc2c85897\"],[\"e\",\"7c06ac358af64abfeaba5f9d308ba1c76dbf3a605dc3dca841a5feda0ec836e5\"],[\"e\",\"5a45c1ce9fa7e1e97453dc3ae610bfe8e247fd1536f61e0df5fa984944eec84f\"],[\"e\",\"5657b912c07bd04d6a9349b72c8000094296f093266419d3c417aff26f4a9e89\"],[\"e\",\"1de56491be90323554f0ecf080a1e5bff36b1d20ba26cd7a96033152ab9f1e44\"],[\"e\",\"b8f7d805b8bcfedafb4d6561d00af42794d74ceded9f19ab64c3cbee0ca8bc19\"],[\"e\",\"bdc95267d3a662263c2e10c311fbb46f91836e00ba61c7af280babaae4f9ceea\"]]",
+  "created_at": 1744312814
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 11,076
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`3e0bab4922eaec046c7fa4ee31745564db49e2b26b59cd4...`
+|sig|100.00%|`a2ef9f9db023b58a6f227ad9eb09cd3c7e3d9a036f505b1...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "cc7e318a4b908d2309a76faf0fde34b309ad8f1...`
+|pubkey|100.00%|`184c36270491232b7cbba2ca2e7cc10f965346755ff462d...`
+|content|100.00%|`NIP90 DVM task trending-content started process...`
+|created_at|100.00%|`1744305922`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "cc7e318a4b908d2309a76faf0fde34b309ad8f15...`
+|`alt`|100.00%|`["alt", "NIP90 DVM task trending-content starte...`
+|`status`|100.00%|`["status", "processing"]`
+|`p`|100.00%|`["p", "7b9a639c614fcada9cec719b471610ed3190c397...`
+|`relays`|59.96%|`["relays", "wss://relay.primal.net", "wss://nos...`
+|`expiration`|0.36%|`["expiration", "1744351158"]`
+|`amount`|0.11%|`["amount", "10000", "lnbc100n1pnlt4wqpp5e8j7ltq...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `3e0bab4922eaec046c7fa4ee31745564db49e2b26b59cd49428aa0bbe38d4cdb`
+
+[source,json]
+----
+{
+  "id": "3e0bab4922eaec046c7fa4ee31745564db49e2b26b59cd49428aa0bbe38d4cdb",
+  "sig": "a2ef9f9db023b58a6f227ad9eb09cd3c7e3d9a036f505b1479c19bb1141619e1f2c3c0b29ece897fa19644acbe0e33ee5bee724d75ebe9dd999160aff8b4ac8f",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "cc7e318a4b908d2309a76faf0fde34b309ad8f15eeab7f6cf00a63e0a1882642"
+    ],
+    [
+      "alt",
+      "NIP90 DVM task trending-content started processing. "
+    ],
+    [
+      "status",
+      "processing"
+    ],
+    [
+      "relays",
+      "wss://relay.primal.net",
+      "wss://nostr.mom/",
+      "wss://relay.nostr.bg/",
+      "wss://nostr.bitcoiner.social/",
+      "wss://nos.lol/",
+      "wss://nostr.oxtr.dev"
+    ],
+    [
+      "p",
+      "7b9a639c614fcada9cec719b471610ed3190c39775e04b61413b5c7fda504183"
+    ]
+  ],
+  "pubkey": "184c36270491232b7cbba2ca2e7cc10f965346755ff462d66f9efb517a867cd2",
+  "content": "NIP90 DVM task trending-content started processing. \ud83d\udc4d",
+  "created_at": 1744305922
+}
+----
+
