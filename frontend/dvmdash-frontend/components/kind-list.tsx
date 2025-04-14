@@ -45,17 +45,25 @@ const KindTable = ({ kinds }: KindTableProps) => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [wikiData, setWikiData] = useState<Record<number, { title?: string, url?: string, isLoading: boolean }>>({})
   
-  // Initialize wiki data for each kind
+  // Initialize wiki data for each kind - only once when component mounts
   useEffect(() => {
-    // Create a map of kind numbers to loading states
-    const initialWikiData: Record<number, { isLoading: boolean }> = {};
-    kinds.forEach(kind => {
-      initialWikiData[kind.kind] = { isLoading: true };
-    });
-    setWikiData(initialWikiData);
+    // Create a map to track which kinds we've already fetched wiki data for
+    const fetchedKinds = new Set<number>();
     
-    // Fetch wiki for each kind individually to avoid blocking the table
-    kinds.forEach(async (kind) => {
+    // Function to update wiki data for a specific kind
+    const fetchWikiForKindIfNeeded = async (kind: KindListItem) => {
+      // Skip if we've already fetched this kind
+      if (fetchedKinds.has(kind.kind)) return;
+      
+      // Mark this kind as fetched
+      fetchedKinds.add(kind.kind);
+      
+      // Set loading state
+      setWikiData(prev => ({
+        ...prev,
+        [kind.kind]: { isLoading: true }
+      }));
+      
       try {
         const wikiEvent = await fetchWikiForKind(kind.kind);
         if (wikiEvent) {
@@ -84,8 +92,56 @@ const KindTable = ({ kinds }: KindTableProps) => {
           }
         }));
       }
+    };
+    
+    // Fetch wiki data for each kind
+    kinds.forEach(kind => fetchWikiForKindIfNeeded(kind));
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array means this only runs once when component mounts
+  
+  // Update wiki data for new kinds that appear in the list
+  useEffect(() => {
+    // Only process kinds that don't have wiki data yet
+    kinds.forEach(kind => {
+      if (!wikiData[kind.kind]) {
+        setWikiData(prev => ({
+          ...prev,
+          [kind.kind]: { isLoading: true }
+        }));
+        
+        fetchWikiForKind(kind.kind)
+          .then(wikiEvent => {
+            if (wikiEvent) {
+              setWikiData(prev => ({
+                ...prev,
+                [kind.kind]: {
+                  title: extractTitle(wikiEvent),
+                  url: generateWikiUrl(wikiEvent),
+                  isLoading: false
+                }
+              }));
+            } else {
+              setWikiData(prev => ({
+                ...prev,
+                [kind.kind]: {
+                  isLoading: false
+                }
+              }));
+            }
+          })
+          .catch(error => {
+            console.error(`Error fetching wiki for kind ${kind.kind}:`, error);
+            setWikiData(prev => ({
+              ...prev,
+              [kind.kind]: {
+                isLoading: false
+              }
+            }));
+          });
+      }
     });
-  }, [kinds]);
+  }, [kinds, wikiData]);
 
   const handleHeaderClick = (column: SortableColumn) => {
     if (sortColumn === column) {

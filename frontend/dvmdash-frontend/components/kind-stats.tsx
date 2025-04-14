@@ -273,9 +273,20 @@ export function KindStats({ kindId }: { kindId: number }) {
   const [wikiUrl, setWikiUrl] = useState<string | null>(null)
   const [isLoadingWiki, setIsLoadingWiki] = useState(true)
   
-  // Fetch wiki event for this kind
+  // Cache for wiki data to avoid re-fetching
+  const [wikiCache, setWikiCache] = useState<Record<number, { title: string | null, url: string | null }>>({});
+  
+  // Fetch wiki event for this kind - only once per kind
   useEffect(() => {
     let isMounted = true;
+    
+    // Check if we already have this kind in the cache
+    if (wikiCache[kindId]) {
+      setWikiTitle(wikiCache[kindId].title);
+      setWikiUrl(wikiCache[kindId].url);
+      setIsLoadingWiki(false);
+      return;
+    }
     
     async function fetchWiki() {
       try {
@@ -283,9 +294,24 @@ export function KindStats({ kindId }: { kindId: number }) {
         // Only update state if component is still mounted
         if (isMounted) {
           if (wikiEvent) {
-            setWikiTitle(extractTitle(wikiEvent));
-            setWikiUrl(generateWikiUrl(wikiEvent));
+            const title = extractTitle(wikiEvent);
+            const url = generateWikiUrl(wikiEvent);
+            
+            // Update the cache
+            setWikiCache(prev => ({
+              ...prev,
+              [kindId]: { title, url }
+            }));
+            
+            setWikiTitle(title);
+            setWikiUrl(url);
           } else {
+            // Cache the negative result too
+            setWikiCache(prev => ({
+              ...prev,
+              [kindId]: { title: null, url: null }
+            }));
+            
             setWikiTitle(null);
             setWikiUrl(null);
           }
@@ -294,6 +320,12 @@ export function KindStats({ kindId }: { kindId: number }) {
       } catch (error) {
         console.error(`Error fetching wiki for kind ${kindId}:`, error);
         if (isMounted) {
+          // Cache the error result
+          setWikiCache(prev => ({
+            ...prev,
+            [kindId]: { title: null, url: null }
+          }));
+          
           setWikiTitle(null);
           setWikiUrl(null);
           setIsLoadingWiki(false);
@@ -302,13 +334,14 @@ export function KindStats({ kindId }: { kindId: number }) {
     }
     
     // Start fetching wiki data
+    setIsLoadingWiki(true);
     fetchWiki();
     
     // Cleanup function to handle component unmounting
     return () => {
       isMounted = false;
     };
-  }, [kindId]);
+  }, [kindId, wikiCache]);
 
   // Debug logging
   const DEBUG = process.env.NEXT_PUBLIC_LOG_LEVEL === 'DEBUG';

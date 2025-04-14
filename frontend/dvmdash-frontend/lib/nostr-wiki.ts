@@ -11,12 +11,32 @@ const relays = [
 // Initialize NDK
 const ndk = new NDK({ explicitRelayUrls: relays });
 
+// Cache for wiki events to avoid redundant fetches
+interface WikiCache {
+  [kindNumber: number]: {
+    event: NDKEvent | null;
+    timestamp: number;
+  }
+}
+
+const wikiCache: WikiCache = {};
+const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
 /**
  * Fetch wiki event for a specific kind
  * @param kindNumber The kind number to fetch wiki for
  * @returns The most recent wiki event or null if none found
  */
 export async function fetchWikiForKind(kindNumber: number): Promise<NDKEvent | null> {
+  // Check cache first
+  const cachedData = wikiCache[kindNumber];
+  const now = Date.now();
+  
+  if (cachedData && (now - cachedData.timestamp < CACHE_EXPIRY)) {
+    console.log(`Using cached wiki data for kind ${kindNumber}`);
+    return cachedData.event;
+  }
+  
   try {
     await ndk.connect();
     
@@ -29,13 +49,27 @@ export async function fetchWikiForKind(kindNumber: number): Promise<NDKEvent | n
     const eventsArray = Array.from(events);
     
     // If multiple events exist, get the most recent one
+    let result = null;
     if (eventsArray.length > 0) {
-      return eventsArray.sort((a: NDKEvent, b: NDKEvent) => b.created_at - a.created_at)[0];
+      result = eventsArray.sort((a: NDKEvent, b: NDKEvent) => b.created_at - a.created_at)[0];
     }
     
-    return null;
+    // Update cache
+    wikiCache[kindNumber] = {
+      event: result,
+      timestamp: now
+    };
+    
+    return result;
   } catch (error) {
     console.error(`Error fetching wiki for kind ${kindNumber}:`, error);
+    
+    // Cache the error result too to avoid repeated failed requests
+    wikiCache[kindNumber] = {
+      event: null,
+      timestamp: now
+    };
+    
     return null;
   }
 }
