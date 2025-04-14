@@ -1,0 +1,155 @@
+= Nostr DVM Kind 5902 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5902.
+Kind 5902 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5902: DVM Request Events (Kind 5902)
+
+=== Summary
+
+Total events analyzed: 16
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`e2aefcd57348d68892b833671436f8b16b426ae784067fe...`
+|_id|100.00%|`{"$oid": "66ba5cc41a9c8db6d44a452d"}`
+|sig|100.00%|`37921bbd05b2bc8bffd8e594de287e94dae56cc74b7755e...`
+|kind|100.00%|`5902`
+|tags|100.00%|`[["i", "naddr1qqphxetrqy88wumn8ghj7mn0wvhxcmmv9...`
+|pubkey|100.00%|`1bbd7fdf68eaf5c19446c3aaf63b39dd4a8e33548bc96f6...`
+|content|100.00%|``
+|created_at|100.00%|`1710237091`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|100.00%|`["i", "naddr1qqphxetrqy88wumn8ghj7mn0wvhxcmmv9u...`
+|`param`|18.75%|`["param", "name", "sec-01"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `e2aefcd57348d68892b833671436f8b16b426ae784067fe7a1eaf7dc192cc32c`
+
+[source,json]
+----
+{
+  "id": "e2aefcd57348d68892b833671436f8b16b426ae784067fe7a1eaf7dc192cc32c",
+  "_id": {
+    "$oid": "66ba5cc41a9c8db6d44a452d"
+  },
+  "sig": "37921bbd05b2bc8bffd8e594de287e94dae56cc74b7755e431b27ba00924bb1c6017785bb99a8f78fcd3e4374d167ef1795d8ae7230dacb4b7471bc6aed034dd",
+  "kind": 5902,
+  "tags": [
+    [
+      "i",
+      "naddr1qqphxetrqy88wumn8ghj7mn0wvhxcmmv9upzqxaa0l0k36h4cx2ydsa27cannh223ce4fz7fda4aywdyzfxc7g57qvzqqqrhvvndvnfe",
+      "text"
+    ],
+    [
+      "param",
+      "name",
+      "sec-01"
+    ],
+    [
+      "param",
+      "start",
+      "1711926000"
+    ],
+    [
+      "param",
+      "end",
+      "1714431600"
+    ]
+  ],
+  "pubkey": "1bbd7fdf68eaf5c19446c3aaf63b39dd4a8e33548bc96f6bd239a4124d8f229e",
+  "content": "",
+  "created_at": 1710237091
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 26
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`3c9a3c2882db36c667931e7326a40d10d659f869a545b54...`
+|_id|100.00%|`{"$oid": "66ba5cac1a9c8db6d44927e6"}`
+|sig|100.00%|`38dfcb32efdf72b7b43c7b7ee8c783f7b35033ee99f14d8...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "9b06d52e4b58dfa07962df39ff9aac3f6512f86...`
+|pubkey|100.00%|`a493075b1c133624dd86dec639d10062dd3f8e25e39fc48...`
+|content|100.00%|`{"domain": "fake.example.com", "url": "https://...`
+|created_at|100.00%|`1709641659`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "9b06d52e4b58dfa07962df39ff9aac3f6512f864...`
+|`p`|96.15%|`["p", "8e5cfcac96a9dcb41332571a4f2461792c704781...`
+|`status`|69.23%|`["status", "processing"]`
+|`i`|34.62%|`["i", "naddr1qqr8yctwv3hk6qgwwaehxw309ahx7uewd3...`
+|`request`|30.77%|`["request", "{\"id\":\"669b578446a9b27a2c1003f3...`
+|`amount`|11.54%|`["amount", "1000", "lnbc10n1pj62xqlsp5aavf4d3ws...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `3c9a3c2882db36c667931e7326a40d10d659f869a545b54b7a93c78c14eea875`
+
+[source,json]
+----
+{
+  "id": "3c9a3c2882db36c667931e7326a40d10d659f869a545b54b7a93c78c14eea875",
+  "_id": {
+    "$oid": "66ba5cac1a9c8db6d44927e6"
+  },
+  "sig": "38dfcb32efdf72b7b43c7b7ee8c783f7b35033ee99f14d823f787faba10a6346487831aa861e495b59980fbecc138009c4594db135ca34ca742363fb1c7e1c21",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "9b06d52e4b58dfa07962df39ff9aac3f6512f8642c0f627b6226068714bf9091"
+    ],
+    [
+      "i",
+      "naddr1qqr8yctwv3hk6qgwwaehxw309ahx7uewd3hkctczyqnxs90qeyssm73jf3kt5dtnk997ujw6ggy6j3t0jjzw2yrv6sy22qcyqqq8wccqq5x6y",
+      "text"
+    ],
+    [
+      "status",
+      "processing"
+    ]
+  ],
+  "pubkey": "a493075b1c133624dd86dec639d10062dd3f8e25e39fc480370b0fb89e46dc65",
+  "content": "{\"domain\": \"fake.example.com\", \"url\": \"https://fake.example.com\", \"end\": 1711369569}",
+  "created_at": 1709641659
+}
+----
+

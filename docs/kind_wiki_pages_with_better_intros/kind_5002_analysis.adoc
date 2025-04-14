@@ -1,0 +1,262 @@
+// GENERATED_TITLE: Translation
+= Nostr DVM Kind 5002/6002 - Translation
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+Kind 5002 represents a request to translate text input(s) to a specified language. The input is provided as one or more tags in the event, pointing to the text to be translated. The output is the translated text, typically returned as plain text in the specified target language.
+
+=== Analysis
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5002 and 6002.
+Kind 5002 represents DVM requests, while kind 6002 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network by [DVMDash](https://dvmdash.live), an online monitoring and debugging platform, and shows the prevalence of different fields in these events.
+
+== Kind 5002: DVM Request Events (Kind 5002)
+
+=== Summary
+
+Total events analyzed: 1,455
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`ee67b24b108f05d50bf045629df0803c0ff63f411287077...`
+|sig|100.00%|`8d338bf8504eefa8094e8ca24de97d011027e3636048137...`
+|kind|100.00%|`5002`
+|tags|100.00%|`[["i", "c558b79e776577b3e9d3fff85f0d447ead51488...`
+|pubkey|100.00%|`f1cb9109ebf968200935f64b4639ba725c336ee3d247005...`
+|content|100.00%|``
+|created_at|100.00%|`1743702300`
+|_id|95.67%|`{"$oid": "67aa9a75214ef0a4391a797e"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|88.59%|`["i", "c558b79e776577b3e9d3fff85f0d447ead514883...`
+|`param`|88.18%|`["param", "language", "en"]`
+|`relays`|87.35%|`["relays", "wss://relay.damus.io/", "wss://nost...`
+|`output`|76.98%|`["output", "text/plain"]`
+|`p`|11.75%|`["p", "ab66431b1dfbaeb805a6bd24365c2046c7a2268d...`
+|`bid`|11.13%|`["bid", "57000", "10000"]`
+|`client`|11.00%|`["client", "noStrudel", "31990:266815e0c9210dfa...`
+|`alt`|11.00%|`["alt", "This is a NIP90 DVM AI task to transla...`
+|`encrypted`|10.24%|`["encrypted"]`
+|`wss://relay.damus.io`|0.76%|`["wss://relay.damus.io", "wss://relay.snort.soc...`
+|`takedeeznuts`|0.69%|`["takedeeznuts", "cashuAeyJ0b2tlbiI6W3sicHJvb2Z...`
+|`amount`|0.62%|`["amount", "1", "ecash"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `ee67b24b108f05d50bf045629df0803c0ff63f4112870772c4ea5ed616c0bcc2`
+
+[source,json]
+----
+{
+  "id": "ee67b24b108f05d50bf045629df0803c0ff63f4112870772c4ea5ed616c0bcc2",
+  "sig": "8d338bf8504eefa8094e8ca24de97d011027e363604813705740c8005b396ef78de416a3bd5d0752fd422e1be2149d3d248a0ab2d79925ee30da5599b48fbbe2",
+  "kind": 5002,
+  "tags": [
+    [
+      "i",
+      "c558b79e776577b3e9d3fff85f0d447ead514883043646f62d824899bc4fe40c",
+      "event"
+    ],
+    [
+      "param",
+      "language",
+      "en"
+    ],
+    [
+      "output",
+      "text/plain"
+    ],
+    [
+      "relays",
+      "wss://relay.damus.io/",
+      "wss://nostr.wine/",
+      "wss://relay.snort.social/",
+      "wss://nos.lol/",
+      "wss://purplerelay.com/",
+      "wss://nostr.land/"
+    ]
+  ],
+  "pubkey": "f1cb9109ebf968200935f64b4639ba725c336ee3d2470058e43c222d23df5da1",
+  "content": "",
+  "created_at": 1743702300,
+  "_id": {
+    "$oid": "67aa9a75214ef0a4391a797e"
+  }
+}
+----
+
+== Kind 6002: DVM Response Events (Kind 6002)
+
+=== Summary
+
+Total events analyzed: 1,923
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`58abdd24082d16983eed4d9e50b90d0c0bdbbc4662d5d57...`
+|sig|100.00%|`5ca9f48b570ddd9681577bceb1784cd8133c32d5a5a487d...`
+|kind|100.00%|`6002`
+|tags|100.00%|`[["i", "927649a4e6c69724afc4ebd5a96d8c91710448e...`
+|pubkey|100.00%|`dd9964fe78ffe6c0c7ad053d6fba2e467562ffe0ed47a7a...`
+|content|100.00%|`"("536f5c7e84593c043116852677f093c8f813c8d14039...`
+|created_at|100.00%|`1739872358`
+|_id|99.84%|`{"$oid": "67a501c5bf904463da15b292"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "84b70da553bfe4b0a94ca354c072286515d4295d...`
+|`p`|99.84%|`["p", "f0e8c8a6fa7c30db3a6348e99bac16682d8e1b03...`
+|`request`|99.53%|`["request", "{\"content\":\"\",\"created_at\":1...`
+|`i`|96.67%|`["i", "927649a4e6c69724afc4ebd5a96d8c91710448ed...`
+|`alt`|73.22%|`["alt", "translation result"]`
+|`status`|72.07%|`["status", "success"]`
+|`count`|20.59%|`["count", "1"]`
+|`relays`|11.08%|`["relays", "wss://feeds.nostr.band/", "wss://fe...`
+|`encrypted`|2.29%|`["encrypted"]`
+|`y`|0.57%|`["y", "99bb5591c9116600f845107d31f9b59e2f7c7e09...`
+|`client`|0.47%|`["client", "noStrudel"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `58abdd24082d16983eed4d9e50b90d0c0bdbbc4662d5d5762ea5616c20e87c3d`
+
+[source,json]
+----
+{
+  "id": "58abdd24082d16983eed4d9e50b90d0c0bdbbc4662d5d5762ea5616c20e87c3d",
+  "sig": "5ca9f48b570ddd9681577bceb1784cd8133c32d5a5a487d97fee9169e7fda212d4a46dfb9ce2b6bdb74b3ada215e6881590d09c6e335079b473d0d9e92982f62",
+  "kind": 6002,
+  "tags": [
+    [
+      "i",
+      "927649a4e6c69724afc4ebd5a96d8c91710448ed3a31c761efd0f033db500174",
+      "event"
+    ],
+    [
+      "e",
+      "84b70da553bfe4b0a94ca354c072286515d4295d0942cb63c5e4f5ced8630366"
+    ],
+    [
+      "p",
+      "f0e8c8a6fa7c30db3a6348e99bac16682d8e1b0398694428f3306ebdaba192a8"
+    ],
+    [
+      "request",
+      "{\"content\":\"\",\"created_at\":1739872313,\"id\":\"84b70da553bfe4b0a94ca354c072286515d4295d0942cb63c5e4f5ced8630366\",\"kind\":5002,\"pubkey\":\"f0e8c8a6fa7c30db3a6348e99bac16682d8e1b0398694428f3306ebdaba192a8\",\"sig\":\"013804a96c3c686b1f3d19a64f641438d712c32d9a0a55bafafa91846993e020598d1ce48a5e5afc79e4fee918fe3722dedf89690c355a2ffebd8a0ba53b3a4c\",\"tags\":[[\"i\",\"927649a4e6c69724afc4ebd5a96d8c91710448ed3a31c761efd0f033db500174\",\"event\"],[\"param\",\"language\",\"de\"],[\"output\",\"text/plain\"],[\"relays\",\"wss://nos.lol/\",\"wss://offchain.pub/\",\"wss://nostr-pub.wellorder.net/\",\"wss://relay.damus.io/\",\"wss://relay.snort.social/\",\"wss://relay.primal.net/\",\"wss://freerelay.xyz/\",\"wss://relay.current.fyi/\"]]}"
+    ],
+    [
+      "alt",
+      "translation result"
+    ]
+  ],
+  "pubkey": "dd9964fe78ffe6c0c7ad053d6fba2e467562ffe0ed47a7a2aa240352139f59b5",
+  "content": "\"(\"536f5c7e84593c043116852677f093c8f813c8d14039501db583cdd83cec972f\",\"pubkey\"",
+  "created_at": 1739872358,
+  "_id": {
+    "$oid": "67a501c5bf904463da15b292"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 1,580
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`3f4aa1b53f8ef56e34991146ee4346d7b18d402bd9b861b...`
+|sig|100.00%|`384028a72d52bcbfae40bfa473fc87b5b81cfeb2cc91358...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["status", "success"], ["amount", "100_000", "...`
+|pubkey|100.00%|`ab66431b1dfbaeb805a6bd24365c2046c7a2268de643bd0...`
+|content|100.00%|`Job completed successfully`
+|created_at|100.00%|`1743702310`
+|_id|95.82%|`{"$oid": "67a604dc75610380effcb96f"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "ee67b24b108f05d50bf045629df0803c0ff63f41...`
+|`p`|100.00%|`["p", "f1cb9109ebf968200935f64b4639ba725c336ee3...`
+|`status`|99.05%|`["status", "success"]`
+|`alt`|76.39%|`["alt", "DVM response event"]`
+|`relays`|21.65%|`["relays", "wss://feeds.nostr.band/", "wss://fe...`
+|`amount`|5.63%|`["amount", "100_000", "botlab@zeuspay.com"]`
+|`encrypted`|0.95%|`["encrypted"]`
+|`y`|0.95%|`["y", "99bb5591c9116600f845107d31f9b59e2f7c7e09...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `3f4aa1b53f8ef56e34991146ee4346d7b18d402bd9b861b3a0605703556d98f1`
+
+[source,json]
+----
+{
+  "id": "3f4aa1b53f8ef56e34991146ee4346d7b18d402bd9b861b3a0605703556d98f1",
+  "sig": "384028a72d52bcbfae40bfa473fc87b5b81cfeb2cc91358736b59cba8033077df06a5e7630a6cc4418596db48641e258e26df57425d019c89d098d248ed259ac",
+  "kind": 7000,
+  "tags": [
+    [
+      "status",
+      "success"
+    ],
+    [
+      "amount",
+      "100_000",
+      "botlab@zeuspay.com"
+    ],
+    [
+      "e",
+      "ee67b24b108f05d50bf045629df0803c0ff63f4112870772c4ea5ed616c0bcc2"
+    ],
+    [
+      "p",
+      "f1cb9109ebf968200935f64b4639ba725c336ee3d2470058e43c222d23df5da1"
+    ]
+  ],
+  "pubkey": "ab66431b1dfbaeb805a6bd24365c2046c7a2268de643bd0690a494ca042b705c",
+  "content": "Job completed successfully",
+  "created_at": 1743702310,
+  "_id": {
+    "$oid": "67a604dc75610380effcb96f"
+  }
+}
+----
+

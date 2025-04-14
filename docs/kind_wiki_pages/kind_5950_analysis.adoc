@@ -1,0 +1,144 @@
+= Nostr DVM Kind 5950 and 6950 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5950 and 6950.
+Kind 5950 represents DVM requests, while kind 6950 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5950: DVM Request Events (Kind 5950)
+
+=== Summary
+
+Total events analyzed: 6
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`8461026431ca280ad6f2611d3c32726821fddc21ac1d7fb...`
+|_id|100.00%|`{"$oid": "66ba5c991a9c8db6d448424c"}`
+|sig|100.00%|`025a0afca6ff4cc80e8540ccb5e1d4ed55e31e9c07a5c46...`
+|kind|100.00%|`5950`
+|tags|100.00%|`[["i", "alex@8ce53dbb3192.ngrok.app"], ["p", "6...`
+|pubkey|100.00%|`6eeb8b384e9a9502da31bd91e5f794af507438c85185c15...`
+|content|100.00%|``
+|created_at|100.00%|`1709062801`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|100.00%|`["i", "alex@8ce53dbb3192.ngrok.app"]`
+|`p`|100.00%|`["p", "66b4fefa1d29b0be53dbe0012f2d0461b3a03dcd...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `8461026431ca280ad6f2611d3c32726821fddc21ac1d7fb01188320d20b86e8e`
+
+[source,json]
+----
+{
+  "id": "8461026431ca280ad6f2611d3c32726821fddc21ac1d7fb01188320d20b86e8e",
+  "_id": {
+    "$oid": "66ba5c991a9c8db6d448424c"
+  },
+  "sig": "025a0afca6ff4cc80e8540ccb5e1d4ed55e31e9c07a5c46effa74de41b24907ffd65d3b8d5c3e9df7f7283859c3282f388f34f4a3b77f5b7dfafb7055040987a",
+  "kind": 5950,
+  "tags": [
+    [
+      "i",
+      "alex@8ce53dbb3192.ngrok.app"
+    ],
+    [
+      "p",
+      "66b4fefa1d29b0be53dbe0012f2d0461b3a03dcdbddd81fad2191261caa2104d"
+    ]
+  ],
+  "pubkey": "6eeb8b384e9a9502da31bd91e5f794af507438c85185c15e23344be379947939",
+  "content": "",
+  "created_at": 1709062801
+}
+----
+
+== Kind 6950: DVM Response Events (Kind 6950)
+
+=== Summary
+
+Total events analyzed: 3
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`c5415b5787fea814d9a6a2ad42dcf60697656d000a4de9e...`
+|_id|100.00%|`{"$oid": "66ba5c991a9c8db6d448424e"}`
+|sig|100.00%|`a22411e2d6ece40c4444380960335e560528118ff4191bf...`
+|kind|100.00%|`6950`
+|tags|100.00%|`[["request", "{\"id\":\"8461026431ca280ad6f2611...`
+|pubkey|100.00%|`6d6e12ef261663b27feeb518dc37bcb83e7381df94a064b...`
+|content|100.00%|`alex@8ce53dbb3192.ngrok.app`
+|created_at|100.00%|`1709062802`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`request`|100.00%|`["request", "{\"id\":\"8461026431ca280ad6f2611d...`
+|`i`|100.00%|`["i", "alex@8ce53dbb3192.ngrok.app"]`
+|`e`|100.00%|`["e", "8461026431ca280ad6f2611d3c32726821fddc21...`
+|`p`|100.00%|`["p", "6eeb8b384e9a9502da31bd91e5f794af507438c8...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `c5415b5787fea814d9a6a2ad42dcf60697656d000a4de9e2743902ec536b2024`
+
+[source,json]
+----
+{
+  "id": "c5415b5787fea814d9a6a2ad42dcf60697656d000a4de9e2743902ec536b2024",
+  "_id": {
+    "$oid": "66ba5c991a9c8db6d448424e"
+  },
+  "sig": "a22411e2d6ece40c4444380960335e560528118ff4191bf3976207cb0362de0efb1dd75ab8e851e96131184a6280476fdef1f6b97029a283c78e777b1fbf56c4",
+  "kind": 6950,
+  "tags": [
+    [
+      "request",
+      "{\"id\":\"8461026431ca280ad6f2611d3c32726821fddc21ac1d7fb01188320d20b86e8e\",\"kind\":5950,\"pubkey\":\"6eeb8b384e9a9502da31bd91e5f794af507438c85185c15e23344be379947939\",\"tags\":[[\"i\",\"alex@8ce53dbb3192.ngrok.app\"],[\"p\",\"66b4fefa1d29b0be53dbe0012f2d0461b3a03dcdbddd81fad2191261caa2104d\"]],\"content\":\"\",\"created_at\":1709062801,\"sig\":\"025a0afca6ff4cc80e8540ccb5e1d4ed55e31e9c07a5c46effa74de41b24907ffd65d3b8d5c3e9df7f7283859c3282f388f34f4a3b77f5b7dfafb7055040987a\"}"
+    ],
+    [
+      "i",
+      "alex@8ce53dbb3192.ngrok.app"
+    ],
+    [
+      "e",
+      "8461026431ca280ad6f2611d3c32726821fddc21ac1d7fb01188320d20b86e8e"
+    ],
+    [
+      "p",
+      "6eeb8b384e9a9502da31bd91e5f794af507438c85185c15e23344be379947939"
+    ]
+  ],
+  "pubkey": "6d6e12ef261663b27feeb518dc37bcb83e7381df94a064bbe67e72c4ceeabffd",
+  "content": "alex@8ce53dbb3192.ngrok.app",
+  "created_at": 1709062802
+}
+----
+

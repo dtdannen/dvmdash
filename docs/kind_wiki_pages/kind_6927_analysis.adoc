@@ -1,0 +1,87 @@
+= Nostr DVM Kind 6927 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 6927.
+Kind 6927 represents DVM responses (without a corresponding request kind).
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 6927: DVM Response Events (Kind 6927)
+
+=== Summary
+
+Total events analyzed: 51
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`a13dc1c67bba74d36cc4251839698ff3ce81f635a1bb0e4...`
+|sig|100.00%|`5a785e065e76ac6d6c0e67c66ecb01b17757b41c7de046a...`
+|kind|100.00%|`6927`
+|tags|100.00%|`[["alt", "Nestr notification"], ["type", "pr-as...`
+|pubkey|100.00%|`78a317586cbc30d20f8aa94d8450eb0cd58b312bad94fc7...`
+|content|100.00%|`assigned you to a pull request`
+|created_at|100.00%|`1744031939`
+|_id|60.78%|`{"$oid": "66e0ae77845f511aa0458756"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`alt`|100.00%|`["alt", "Nestr notification"]`
+|`type`|100.00%|`["type", "pr-assign"]`
+|`context`|100.00%|`["context", "26fd33f9-fd88-4953-9088-fd1df8c205...`
+|`r`|88.24%|`["r", "78a317586cbc30d20f8aa94d8450eb0cd58b312b...`
+|`p`|56.86%|`["p", "78a317586cbc30d20f8aa94d8450eb0cd58b312b...`
+|`desc`|21.57%|`["desc", "assigned you to an issue"]`
+|`comment`|5.88%|`["comment", "{\"id\":\"edbf97fc-6198-40cb-b94f-...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `a13dc1c67bba74d36cc4251839698ff3ce81f635a1bb0e456ecff0bbf88ed59f`
+
+[source,json]
+----
+{
+  "id": "a13dc1c67bba74d36cc4251839698ff3ce81f635a1bb0e456ecff0bbf88ed59f",
+  "sig": "5a785e065e76ac6d6c0e67c66ecb01b17757b41c7de046a2fd9942825582340dc7340f37f3d2aa2e6a1a5a0f114349c6b26423784e01a9c6cf0abb7bccaed78f",
+  "kind": 6927,
+  "tags": [
+    [
+      "alt",
+      "Nestr notification"
+    ],
+    [
+      "type",
+      "pr-assign"
+    ],
+    [
+      "r",
+      "78a317586cbc30d20f8aa94d8450eb0cd58b312bad94fc76139c72eb2e5c81d2:nestr-testr-repository"
+    ],
+    [
+      "context",
+      "26fd33f9-fd88-4953-9088-fd1df8c20559",
+      "78a317586cbc30d20f8aa94d8450eb0cd58b312bad94fc76139c72eb2e5c81d2"
+    ]
+  ],
+  "pubkey": "78a317586cbc30d20f8aa94d8450eb0cd58b312bad94fc76139c72eb2e5c81d2",
+  "content": "assigned you to a pull request",
+  "created_at": 1744031939,
+  "_id": {
+    "$oid": "66e0ae77845f511aa0458756"
+  }
+}
+----
+

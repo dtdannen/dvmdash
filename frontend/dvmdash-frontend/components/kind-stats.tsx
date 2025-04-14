@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from "@/lib/utils"
 import { useKindStats, KindStats as KindStatsType } from '@/lib/api'
@@ -8,8 +8,9 @@ import type { TimeWindow, TimeRangeSelectorProps, ChartProps, NavIconProps, Kind
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock } from 'lucide-react'
+import { ArrowLeft, BarChart3, Bot, Tags, Settings, FileText, ArrowDownToLine, Users, Server, Hash, Star, Zap, Target, Brain, Home, Clock, ExternalLink } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { fetchWikiForKind, extractTitle, generateWikiUrl } from '@/lib/nostr-wiki'
 import {
   LineChart,
   Line,
@@ -266,6 +267,81 @@ export function KindStats({ kindId }: { kindId: number }) {
   const [timeRange, setTimeRange] = useState<TimeWindow>('30d')
   const [viewMode, setViewMode] = useState<ViewMode>('bar')
   const { stats, isLoading, isError } = useKindStats(kindId, timeRange)
+  
+  // Add state for wiki event
+  const [wikiTitle, setWikiTitle] = useState<string | null>(null)
+  const [wikiUrl, setWikiUrl] = useState<string | null>(null)
+  const [isLoadingWiki, setIsLoadingWiki] = useState(true)
+  
+  // Cache for wiki data to avoid re-fetching
+  const [wikiCache, setWikiCache] = useState<Record<number, { title: string | null, url: string | null }>>({});
+  
+  // Fetch wiki event for this kind - only once per kind
+  useEffect(() => {
+    let isMounted = true;
+    
+    // Check if we already have this kind in the cache
+    if (wikiCache[kindId]) {
+      setWikiTitle(wikiCache[kindId].title);
+      setWikiUrl(wikiCache[kindId].url);
+      setIsLoadingWiki(false);
+      return;
+    }
+    
+    async function fetchWiki() {
+      try {
+        const wikiEvent = await fetchWikiForKind(kindId);
+        // Only update state if component is still mounted
+        if (isMounted) {
+          if (wikiEvent) {
+            const title = extractTitle(wikiEvent);
+            const url = generateWikiUrl(wikiEvent);
+            
+            // Update the cache
+            setWikiCache(prev => ({
+              ...prev,
+              [kindId]: { title, url }
+            }));
+            
+            setWikiTitle(title);
+            setWikiUrl(url);
+          } else {
+            // Cache the negative result too
+            setWikiCache(prev => ({
+              ...prev,
+              [kindId]: { title: null, url: null }
+            }));
+            
+            setWikiTitle(null);
+            setWikiUrl(null);
+          }
+          setIsLoadingWiki(false);
+        }
+      } catch (error) {
+        console.error(`Error fetching wiki for kind ${kindId}:`, error);
+        if (isMounted) {
+          // Cache the error result
+          setWikiCache(prev => ({
+            ...prev,
+            [kindId]: { title: null, url: null }
+          }));
+          
+          setWikiTitle(null);
+          setWikiUrl(null);
+          setIsLoadingWiki(false);
+        }
+      }
+    }
+    
+    // Start fetching wiki data
+    setIsLoadingWiki(true);
+    fetchWiki();
+    
+    // Cleanup function to handle component unmounting
+    return () => {
+      isMounted = false;
+    };
+  }, [kindId, wikiCache]);
 
   // Debug logging
   const DEBUG = process.env.NEXT_PUBLIC_LOG_LEVEL === 'DEBUG';
@@ -334,13 +410,32 @@ export function KindStats({ kindId }: { kindId: number }) {
 
       <main className="container mx-auto p-4">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold mb-2">Kind: {stats.kind}</h2>
-          <p className="text-sm text-muted-foreground">
-            {stats.period_start && stats.period_end ? 
-              `Showing data from ${stats.period_start.toLocaleString()} to ${stats.period_end.toLocaleString()}` :
-              'Time range not available'
-            }
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">
+                Kind: {stats.kind}
+                {isLoadingWiki ? (
+                  <span className="ml-2 text-sm text-muted-foreground">Loading wiki...</span>
+                ) : wikiTitle ? (
+                  <span className="ml-2 text-xl font-normal"> - {wikiTitle}</span>
+                ) : null}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {stats.period_start && stats.period_end ? 
+                  `Showing data from ${stats.period_start.toLocaleString()} to ${stats.period_end.toLocaleString()}` :
+                  'Time range not available'
+                }
+              </p>
+            </div>
+            {wikiUrl && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={wikiUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View Wiki
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">

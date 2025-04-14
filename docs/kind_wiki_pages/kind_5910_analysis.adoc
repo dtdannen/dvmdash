@@ -1,0 +1,220 @@
+= Nostr DVM Kind 5910 and 6910 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5910 and 6910.
+Kind 5910 represents DVM requests, while kind 6910 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5910: DVM Request Events (Kind 5910)
+
+=== Summary
+
+Total events analyzed: 763
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`ff9657d54a2eba4d364e2c794c08522f925d350449e89da...`
+|sig|100.00%|`6e39e7c4e37b040101213baa87b45ce84190e41686a2e68...`
+|kind|100.00%|`5910`
+|tags|100.00%|`[["c", "execute-tool"], ["p", "f0abaefb4ca4a304...`
+|pubkey|100.00%|`ede41352397758154514148b24112308ced96d121229b0e...`
+|content|100.00%|`{"name":"get-crypto-price","parameters":{"symbo...`
+|created_at|100.00%|`1744097166`
+|_id|14.55%|`{"$oid": "67aad8a6f6bca3177316dbbe"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`c`|91.35%|`["c", "execute-tool"]`
+|`p`|79.03%|`["p", "f0abaefb4ca4a30411d6e28fa1219330426a73f4...`
+|`output`|15.33%|`["output", "application/json"]`
+|`relays`|12.58%|`["relays", "wss://relay.nostrdvm.com", "wss://r...`
+|`alt`|8.52%|`["alt", "This is a NIP90 Request to contact MCP...`
+|`i`|3.41%|`["i", "{\"limit\":10,\"offset\":0}"]`
+|`j`|3.41%|`["j", "blocks-get"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `ff9657d54a2eba4d364e2c794c08522f925d350449e89dac96b3a7050111bf2e`
+
+[source,json]
+----
+{
+  "id": "ff9657d54a2eba4d364e2c794c08522f925d350449e89dac96b3a7050111bf2e",
+  "sig": "6e39e7c4e37b040101213baa87b45ce84190e41686a2e68e29a90596d52e115fa5d64be19f04b1183ada3b425cc921e95d353fab798f367a223ef34a3b21191a",
+  "kind": 5910,
+  "tags": [
+    [
+      "c",
+      "execute-tool"
+    ],
+    [
+      "p",
+      "f0abaefb4ca4a30411d6e28fa1219330426a73f486dee090a5198103c45d6817"
+    ]
+  ],
+  "pubkey": "ede41352397758154514148b24112308ced96d121229b0e6a66bc5a2b40c03ec",
+  "content": "{\"name\":\"get-crypto-price\",\"parameters\":{\"symbol\":\"BTC\"}}",
+  "created_at": 1744097166,
+  "_id": {
+    "$oid": "67aad8a6f6bca3177316dbbe"
+  }
+}
+----
+
+== Kind 6910: DVM Response Events (Kind 6910)
+
+=== Summary
+
+Total events analyzed: 568
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`61e8ce3f58dd4845bce42b47440c35c60dba2fb470ff0d1...`
+|sig|100.00%|`bdc8f7bd4bbd0b4dfdaab7bca1cf9339c8513b426c9c2a4...`
+|kind|100.00%|`6910`
+|tags|100.00%|`[["c", "execute-tool-response"], ["e", "963ae79...`
+|pubkey|100.00%|`6c8e5d7fced6b5f65d5ac7ee9f554ec8a36b73d236357a0...`
+|content|100.00%|`{"content":[{"type":"text","text":"https://medi...`
+|created_at|100.00%|`1744208778`
+|_id|12.50%|`{"$oid": "67aad8a9f6bca3177316dbc2"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "963ae79eaff49f7e1d2ac5df9c6be1b1edcd54b0...`
+|`p`|100.00%|`["p", "651a07ad4d9958bf107216ffb35fefc38627a07c...`
+|`status`|75.88%|`["status", "success"]`
+|`alt`|66.20%|`["alt", "This is the result of a NIP90 DVM task...`
+|`c`|27.82%|`["c", "execute-tool-response"]`
+|`request`|26.58%|`["request", "{\"id\":\"ea07b1af142b738d1bb4d359...`
+|`relays`|13.03%|`["relays", "wss://relay.nostrdvm.com", "wss://r...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `61e8ce3f58dd4845bce42b47440c35c60dba2fb470ff0d1db9010456025990d2`
+
+[source,json]
+----
+{
+  "id": "61e8ce3f58dd4845bce42b47440c35c60dba2fb470ff0d1db9010456025990d2",
+  "sig": "bdc8f7bd4bbd0b4dfdaab7bca1cf9339c8513b426c9c2a4a7ee036282994a8630aac7c41a14d7b2981ac873f71cd4c94c45a80f9db418e68542437cdf6f9723a",
+  "kind": 6910,
+  "tags": [
+    [
+      "c",
+      "execute-tool-response"
+    ],
+    [
+      "e",
+      "963ae79eaff49f7e1d2ac5df9c6be1b1edcd54b06ec3349082bb0d20700fcd2f"
+    ],
+    [
+      "p",
+      "651a07ad4d9958bf107216ffb35fefc38627a07c558ce853fdfcf55333e4bb02"
+    ]
+  ],
+  "pubkey": "6c8e5d7fced6b5f65d5ac7ee9f554ec8a36b73d236357a0a01b200ba59c754af",
+  "content": "{\"content\":[{\"type\":\"text\",\"text\":\"https://media.tenor.com/0Q5IZ6e9pC8AAAAC/cat-cute-cat.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/tefKNa7oyS8AAAAC/cat-funny-cat.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/OlH-Leue7KoAAAAC/fighting-cat-cat-meme.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/S0jZ3P9i6t4AAAAC/cool-fun.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/l8dtpWrwgtQAAAAC/cats-feeding.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/rMju6fnmPPEAAAAC/silly-cat-chaos.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/2K5_VNZPOAEAAAAC/cat-ears-cat-eyes.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/JOr37Y5h3eAAAAAC/cat-meow.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/NiOwG3OBC6oAAAAC/mandi-cutesy.gif\"},{\"type\":\"text\",\"text\":\"https://media.tenor.com/4aIWzR_-HqoAAAAC/cat-dance-dancing-cat.gif\"}]}",
+  "created_at": 1744208778,
+  "_id": {
+    "$oid": "67aad8a9f6bca3177316dbc2"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 144
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`10f189b23d199354f248deebbb04f604ea7a5d0a7a7eafb...`
+|sig|100.00%|`e659c5b2f6df6c0513ecba5b80235f6236aba148569ffc5...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "815aa21e30973336f2ad2868eb5dd9080e5af0a...`
+|pubkey|100.00%|`f0abaefb4ca4a30411d6e28fa1219330426a73f486dee09...`
+|content|100.00%|`NIP90 DVM task mcp-bridge started processing. 👍`
+|created_at|100.00%|`1742194115`
+|_id|44.44%|`{"$oid": "67aad8a7f6bca3177316dbc0"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "815aa21e30973336f2ad2868eb5dd9080e5af0aa...`
+|`status`|100.00%|`["status", "processing"]`
+|`p`|100.00%|`["p", "ede41352397758154514148b24112308ced96d12...`
+|`alt`|75.69%|`["alt", "NIP90 DVM task mcp-bridge started proc...`
+|`relays`|54.17%|`["relays", "wss://relay.nostrdvm.com", "wss://r...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `10f189b23d199354f248deebbb04f604ea7a5d0a7a7eafbcde247128d2a16884`
+
+[source,json]
+----
+{
+  "id": "10f189b23d199354f248deebbb04f604ea7a5d0a7a7eafbcde247128d2a16884",
+  "sig": "e659c5b2f6df6c0513ecba5b80235f6236aba148569ffc50818e549c3c2ea77915713db9763f866d94ac8bd9c8d24029b9de4f064e21fb1c6d9f7d275dfa1ab9",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "815aa21e30973336f2ad2868eb5dd9080e5af0aa2fb73b7d7b796575f6218a20"
+    ],
+    [
+      "alt",
+      "NIP90 DVM task mcp-bridge started processing. "
+    ],
+    [
+      "status",
+      "processing"
+    ],
+    [
+      "p",
+      "ede41352397758154514148b24112308ced96d121229b0e6a66bc5a2b40c03ec"
+    ]
+  ],
+  "pubkey": "f0abaefb4ca4a30411d6e28fa1219330426a73f486dee090a5198103c45d6817",
+  "content": "NIP90 DVM task mcp-bridge started processing. \ud83d\udc4d",
+  "created_at": 1742194115,
+  "_id": {
+    "$oid": "67aad8a7f6bca3177316dbc0"
+  }
+}
+----
+

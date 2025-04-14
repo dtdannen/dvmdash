@@ -1,0 +1,228 @@
+= Nostr DVM Kind 5900 and 6900 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5900 and 6900.
+Kind 5900 represents DVM requests, while kind 6900 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5900: DVM Request Events (Kind 5900)
+
+=== Summary
+
+Total events analyzed: 126
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`fd0a116e577f0aef15ed998394e2ce5c69efba746cd3be6...`
+|sig|100.00%|`e7f969dc07bd849ac8dd5f544a4b9a9230611df226817dd...`
+|kind|100.00%|`5900`
+|tags|100.00%|`[["param", "git_address", "naddr1qvzqqqrhnypzpw...`
+|pubkey|100.00%|`72aa05abb04ef898ceb15349c4f32274d1a5238d30e532c...`
+|content|100.00%|``
+|created_at|100.00%|`1739500008`
+|_id|99.21%|`{"$oid": "67a2c88a5a3c60006aa1721e"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`i`|50.79%|`["i", "000026dd9b743667182e5ca205341eead5629906...`
+|`param`|49.21%|`["param", "git_address", "naddr1qvzqqqrhnypzpwa...`
+|`alt`|41.27%|`["alt", "DVM Opentimestamp request"]`
+|`client`|30.16%|`["client", "kind0-nip41"]`
+|`relays`|9.52%|`["relays", "wss://pablof7z.nostr1.com", "wss://...`
+|`output`|9.52%|`["output", "text/plain"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `fd0a116e577f0aef15ed998394e2ce5c69efba746cd3be68fa6f7e54a322523a`
+
+[source,json]
+----
+{
+  "id": "fd0a116e577f0aef15ed998394e2ce5c69efba746cd3be68fa6f7e54a322523a",
+  "sig": "e7f969dc07bd849ac8dd5f544a4b9a9230611df226817dd523bae7c22fb0464a45ea70f9fec583b87b255916b0fcc98c64147984c2a07ffe045848622ab66c00",
+  "kind": 5900,
+  "tags": [
+    [
+      "param",
+      "git_address",
+      "naddr1qvzqqqrhnypzpwa4mkswz4t8j70s2s6q00wzqv7k7zamxrmj2y4fs88aktcfuf68qy88wumn8ghj7mn0wvhxcmmv9uq32amnwvaz7tmjv4kxz7fwv3sk6atn9e5k7tcpz9mhxue69uhkummnw3ezuamfdejj7qq0v3mx6ttrd93kgttjw4hxuetj4ux9zv"
+    ],
+    [
+      "param",
+      "git_ref",
+      "main"
+    ],
+    [
+      "param",
+      "pipeline_filepath",
+      ".github/workflows/ci.yaml"
+    ]
+  ],
+  "pubkey": "72aa05abb04ef898ceb15349c4f32274d1a5238d30e532cbf6e4934731a0d153",
+  "content": "",
+  "created_at": 1739500008,
+  "_id": {
+    "$oid": "67a2c88a5a3c60006aa1721e"
+  }
+}
+----
+
+== Kind 6900: DVM Response Events (Kind 6900)
+
+=== Summary
+
+Total events analyzed: 106
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`fbf59c00f4d206263395725c02baf4887796c2f36f86927...`
+|_id|100.00%|`{"$oid": "67a387540a1b5b20315bfa95"}`
+|sig|100.00%|`a5b160fa623c3405a4a3a12c25a67e0db9cc4b4513cb036...`
+|kind|100.00%|`6900`
+|tags|100.00%|`[["a", "30617:a008def15796fba9a0d6fab04e8fd5708...`
+|pubkey|100.00%|`a008def15796fba9a0d6fab04e8fd57089285d9fd505da5...`
+|content|100.00%|``
+|created_at|100.00%|`1738770260`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|99.06%|`["e", "36a3032ba0a27f5a7d0be738d90d3daf51ad933a...`
+|`p`|99.06%|`["p", "72aa05abb04ef898ceb15349c4f32274d1a5238d...`
+|`status`|91.51%|`["status", "processing", "Started running pipel...`
+|`request`|7.55%|`["request", "{\"created_at\":1724361804,\"conte...`
+|`a`|0.94%|`["a", "30617:a008def15796fba9a0d6fab04e8fd57089...`
+|`param`|0.94%|`["param", "git_address", "npub15qydau2hjma6ngxk...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `fbf59c00f4d206263395725c02baf4887796c2f36f8692746e432c49b4e46bcc`
+
+[source,json]
+----
+{
+  "id": "fbf59c00f4d206263395725c02baf4887796c2f36f8692746e432c49b4e46bcc",
+  "_id": {
+    "$oid": "67a387540a1b5b20315bfa95"
+  },
+  "sig": "a5b160fa623c3405a4a3a12c25a67e0db9cc4b4513cb036d14d26f592f09db9366d4152da7f47be684e1ab9fc51a89be234444d9bbfa46f55322b4573e23fe10",
+  "kind": 6900,
+  "tags": [
+    [
+      "a",
+      "30617:a008def15796fba9a0d6fab04e8fd57089285d9fd505da5a83fe8aad57a3564d:ngit"
+    ],
+    [
+      "param",
+      "git_address",
+      "npub15qydau2hjma6ngxkl2cyar74wzyjshvl65za5k5rl69264ar2exs5cyejr/ngit"
+    ],
+    [
+      "param",
+      "git_ref",
+      "refs/heads/main"
+    ],
+    [
+      "param",
+      "pipeline_filepath",
+      ".github/workflows/ci.yaml"
+    ]
+  ],
+  "pubkey": "a008def15796fba9a0d6fab04e8fd57089285d9fd505da5a83fe8aad57a3564d",
+  "content": "",
+  "created_at": 1738770260
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 13
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`6a4ab1a582ed0b67e762156943b5c26d4d3ae48c9c3eca8...`
+|_id|100.00%|`{"$oid": "66c7ac2eef568308f7f15c6b"}`
+|sig|100.00%|`3204c11d6569f9798804238830aa2d35bb297849f5cef5e...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "7ec664ccfe18e9228570f745bb980543da1cedd...`
+|pubkey|100.00%|`82fbb08c8ef45c4d71c88368d0ae805bc62fb92f166ab04...`
+|content|100.00%|`Stamping sent to blockchain`
+|created_at|100.00%|`1724361774`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "7ec664ccfe18e9228570f745bb980543da1cedda...`
+|`p`|100.00%|`["p", "eace674547bd2b43a8f44bddafd1c0740c649072...`
+|`status`|100.00%|`["status", "processing"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `6a4ab1a582ed0b67e762156943b5c26d4d3ae48c9c3eca86fe3345cce3046e95`
+
+[source,json]
+----
+{
+  "id": "6a4ab1a582ed0b67e762156943b5c26d4d3ae48c9c3eca86fe3345cce3046e95",
+  "_id": {
+    "$oid": "66c7ac2eef568308f7f15c6b"
+  },
+  "sig": "3204c11d6569f9798804238830aa2d35bb297849f5cef5ee9273c62db902a0253f6813d0c4bd0639136210de76a7c7222abf81a70e29936de89440ddce49c4aa",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "7ec664ccfe18e9228570f745bb980543da1ceddaf3185fdb54b8c4f6f13ad731",
+      "",
+      "job"
+    ],
+    [
+      "p",
+      "eace674547bd2b43a8f44bddafd1c0740c649072d3a1d4f2998de0c20d0b6a09"
+    ],
+    [
+      "status",
+      "processing"
+    ]
+  ],
+  "pubkey": "82fbb08c8ef45c4d71c88368d0ae805bc62fb92f166ab04a0b7a0c83d8cbc29a",
+  "content": "Stamping sent to blockchain",
+  "created_at": 1724361774
+}
+----
+

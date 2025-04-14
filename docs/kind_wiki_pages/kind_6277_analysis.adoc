@@ -1,0 +1,68 @@
+= Nostr DVM Kind 6277 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 6277.
+Kind 6277 represents DVM responses (without a corresponding request kind).
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 6277: DVM Response Events (Kind 6277)
+
+=== Summary
+
+Total events analyzed: 4
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`d4ac9d36b5e7c7a1566885a5aa6023da110146071945e2a...`
+|_id|100.00%|`{"$oid": "66fdf85eb6e0b68977956227"}`
+|sig|100.00%|`c3999ce1f9565ca65705601bbab0ba63060c6ffdf3253b5...`
+|kind|100.00%|`6277`
+|tags|100.00%|`[["t", "9453844f19f969529626f63a1c531598ab96da9...`
+|pubkey|100.00%|`45465dd7aa50f5ddf0554352680484f2ccec5cadfb0e6af...`
+|content|100.00%|`[1,0]`
+|created_at|100.00%|`1727920220`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`t`|100.00%|`["t", "9453844f19f969529626f63a1c531598ab96da97...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `d4ac9d36b5e7c7a1566885a5aa6023da110146071945e2acd2984288707a44fc`
+
+[source,json]
+----
+{
+  "id": "d4ac9d36b5e7c7a1566885a5aa6023da110146071945e2acd2984288707a44fc",
+  "_id": {
+    "$oid": "66fdf85eb6e0b68977956227"
+  },
+  "sig": "c3999ce1f9565ca65705601bbab0ba63060c6ffdf3253b5c3cec4238d68672ed162687972505b3123aa2daff0d2e36752c19a6a3f585a123949965fecc250ff4",
+  "kind": 6277,
+  "tags": [
+    [
+      "t",
+      "9453844f19f969529626f63a1c531598ab96da973df11b226681b61e1af83982"
+    ]
+  ],
+  "pubkey": "45465dd7aa50f5ddf0554352680484f2ccec5cadfb0e6af907a58e94c98f0331",
+  "content": "[1,0]",
+  "created_at": 1727920220
+}
+----
+

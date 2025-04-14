@@ -1,0 +1,53 @@
+= Nostr DVM Kind 5151 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5151.
+Kind 5151 represents DVM requests.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5151: DVM Request Events (Kind 5151)
+
+=== Summary
+
+Total events analyzed: 1
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`6fa1d4ca4f7a76df49dc75c68b80cd1806e149b63c46527...`
+|_id|100.00%|`{"$oid": "66de6266c8859972df94efc1"}`
+|sig|100.00%|`39cb8292409ab9b30edaf09ae5a82b289273111d7093103...`
+|kind|100.00%|`5151`
+|tags|100.00%|`[]`
+|pubkey|100.00%|`c9bff857765febaaf8b936c2a59c72afced944f30235e87...`
+|content|100.00%|`AqqvXkz/JtrSt/fMdkrtZh2lvBqXuNiP9MQyCxvUOn/vXlh...`
+|created_at|100.00%|`1725850214`
+|===
+
+=== Complete Example Event
+
+Event with ID: `6fa1d4ca4f7a76df49dc75c68b80cd1806e149b63c46527f99f9767c88c57eac`
+
+[source,json]
+----
+{
+  "id": "6fa1d4ca4f7a76df49dc75c68b80cd1806e149b63c46527f99f9767c88c57eac",
+  "_id": {
+    "$oid": "66de6266c8859972df94efc1"
+  },
+  "sig": "39cb8292409ab9b30edaf09ae5a82b289273111d70931035a8c3d170e22b30a85cc4a0f53067125d5f39de16b4d4dc633d826cdcfe9e509c91e2cc89b95ac658",
+  "kind": 5151,
+  "tags": [],
+  "pubkey": "c9bff857765febaaf8b936c2a59c72afced944f30235e87c3e9a8841ccfca679",
+  "content": "AqqvXkz/JtrSt/fMdkrtZh2lvBqXuNiP9MQyCxvUOn/vXlhOCqC/x87bcgJo7PPaYMlslONvHLvkndpZ+vqYQ2XquoMhkZXfLiFV5hcCIyuZoxH8L2QTrEtofzbMNkALQ9cC",
+  "created_at": 1725850214
+}
+----
+

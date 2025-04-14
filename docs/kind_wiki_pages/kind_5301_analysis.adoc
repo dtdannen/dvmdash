@@ -1,0 +1,230 @@
+= Nostr DVM Kind 5301 and 6301 Analysis
+:toc:
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Introduction
+
+An analysis of Nostr Data Vending Machine (DVM) events of kind 5301 and 6301.
+Kind 5301 represents DVM requests, while kind 6301 represents the corresponding responses.
+
+The analysis is based on data collected from the DVM network and shows the prevalence of different fields in these events.
+
+== Kind 5301: DVM Request Events (Kind 5301)
+
+=== Summary
+
+Total events analyzed: 727
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`0383fc28027fada46430416ce59b108eea4307978286fdd...`
+|sig|100.00%|`aefb16cbd85f0d9be2dc6c183e6f2be47b8f4d38106d344...`
+|kind|100.00%|`5301`
+|tags|100.00%|`[["p", "2f3d41885cb3b70e9f1b7c25ccc65798f32f415...`
+|pubkey|100.00%|`c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e...`
+|content|100.00%|`AvhoUWW53fmJZWZLJli2powCq4ugabeZ7o+LzC61QMZKiHf...`
+|created_at|100.00%|`1744308693`
+|_id|70.98%|`{"$oid": "67a51c0e04e56d40c5145b7c"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|96.01%|`["p", "2f3d41885cb3b70e9f1b7c25ccc65798f32f415d...`
+|`encrypted`|52.13%|`["encrypted"]`
+|`param`|26.41%|`["param", "user", "99bb5591c9116600f845107d31f9...`
+|`relays`|16.23%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`i`|5.64%|`["i", "really likes going to the gym", "text"]`
+|`output`|3.71%|`["output", "text/plain"]`
+|`alt`|1.65%|`["alt", "This is a NIP90 DVM AI task to find us...`
+|`wss://relay.damus.io`|1.38%|`["wss://relay.damus.io", "wss://dvms.f7z.io"]`
+|`expiration`|0.83%|`["expiration", "1743256729"]`
+|`wss://relay.primal.net`|0.28%|`["wss://relay.primal.net", "wss://dvms.f7z.io"]`
+|===
+
+=== Complete Example Event
+
+Event with ID: `0383fc28027fada46430416ce59b108eea4307978286fdd9c49e8601355f3956`
+
+[source,json]
+----
+{
+  "id": "0383fc28027fada46430416ce59b108eea4307978286fdd9c49e8601355f3956",
+  "sig": "aefb16cbd85f0d9be2dc6c183e6f2be47b8f4d38106d3445e2be33ddf15c1ae303c783fb0e0b7cd98b7be00a0b073d80f276be22c4a20303bb290fd0726834b9",
+  "kind": 5301,
+  "tags": [
+    [
+      "p",
+      "2f3d41885cb3b70e9f1b7c25ccc65798f32f415d305ac16fc47814f4a7ba8d8b"
+    ],
+    [
+      "encrypted"
+    ]
+  ],
+  "pubkey": "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806",
+  "content": "AvhoUWW53fmJZWZLJli2powCq4ugabeZ7o+LzC61QMZKiHfXRPBZO7pkdLy19lS7KEpufK4RXXmRwkWJ8WUJEJE8qDk7e9KM6im6LFR2JcGWhmSsSdQDaQc5PxUQTgRKwx5hqPVjBE+r/ru0Gh9eFTlBGgLv9pMh/DNicPjbxH8kKdQlI7OWhAUMNmF9iSP/aFzGeY6q7n3ICbMCnT/KIPpGRNpi5EXFt+jRpHT40aEUrbkwqWZrUPY+4c5YPzYH0a+osHSPewDy7Ct8rn4mISLCv5Eh7riDdavfB3IKKgfwfHoS7J9G3aTD4Ao2idF0fEnb+Dy0blCNo6wLKIfDhvtxQQ==",
+  "created_at": 1744308693,
+  "_id": {
+    "$oid": "67a51c0e04e56d40c5145b7c"
+  }
+}
+----
+
+== Kind 6301: DVM Response Events (Kind 6301)
+
+=== Summary
+
+Total events analyzed: 501
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`b89b42d4e043508ed6aab0b2308201f09bb695d4c5fa6e7...`
+|sig|100.00%|`eb82f4e0656ef79e5ed48bd8c01b6ad150c3b119905e5ce...`
+|kind|100.00%|`6301`
+|tags|100.00%|`[["encrypted"], ["p", "c63c5b4e21b9b1ec6b73ad04...`
+|pubkey|100.00%|`2f3d41885cb3b70e9f1b7c25ccc65798f32f415d305ac16...`
+|content|100.00%|`AjHlXb+rsSm/0xPABqLUPVlMhGQOt5usKuhWleVv4hGWn6t...`
+|created_at|100.00%|`1744308699`
+|_id|78.64%|`{"$oid": "67a4e844bf904463da15ab06"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`p`|100.00%|`["p", "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd854...`
+|`e`|100.00%|`["e", "0383fc28027fada46430416ce59b108eea430797...`
+|`request`|97.01%|`["request", "{\"id\":\"1aaa003e200af06bb9e94231...`
+|`status`|97.01%|`["status", "success"]`
+|`alt`|77.64%|`["alt", "This is the result of a NIP90 DVM task...`
+|`encrypted`|49.70%|`["encrypted"]`
+|`relays`|28.54%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|`i`|0.20%|`["i", "Who has gotten the most zaps on nostr", ...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `b89b42d4e043508ed6aab0b2308201f09bb695d4c5fa6e78f08630e92e985ed1`
+
+[source,json]
+----
+{
+  "id": "b89b42d4e043508ed6aab0b2308201f09bb695d4c5fa6e78f08630e92e985ed1",
+  "sig": "eb82f4e0656ef79e5ed48bd8c01b6ad150c3b119905e5cee4fa1f199b164fa4e563376e654fe6573bbbd5fa6127778ca727e13efb81c9b6296757e8eee2c5fac",
+  "kind": 6301,
+  "tags": [
+    [
+      "encrypted"
+    ],
+    [
+      "p",
+      "c63c5b4e21b9b1ec6b73ad0449a6a8589f6bd8542cabd9e5de6ae474b28fe806"
+    ],
+    [
+      "e",
+      "0383fc28027fada46430416ce59b108eea4307978286fdd9c49e8601355f3956"
+    ]
+  ],
+  "pubkey": "2f3d41885cb3b70e9f1b7c25ccc65798f32f415d305ac16fc47814f4a7ba8d8b",
+  "content": "AjHlXb+rsSm/0xPABqLUPVlMhGQOt5usKuhWleVv4hGWn6t0Hrv7VpVUv9ydxYC5KeMrRoo7NnL2+YhSPKQXpaUIMjJ1Ti9YR5lesWG+SGQbhKsW44bW+IV2nEAC4yMQj0qNbhGMR2DUYOWAXBrdd/ZBDMZeXWoAx/UsobO8+tLJHZlMbfFOa98Cs1x9wAT3Kf1VA6wqRR58FnaEsrvN6bmXnFCAr5K1+C2vDiKGf0eIUmxsh53HY3dKfawIlspK9QwW3FGFwL/DCk4iPB5Gitnxl2xOMZULOgwpYp+ZC69W3CBjlBH68IOvPsFnBLLYB2hzDT9tSwh6qPNEtMNz4Z0qYZ5W9JG0MGIBoowvoSKIp8rTppWUt08INZFFr/bJrBl3vr3iBdzSJUb+choMkelUe5OoYyCHdWWT7vg3++/bP8yYlGTIjY6uJ8xGB00vU8txKTia+3iwmjWYAifeKj9jx6SHbZ8aGp+znvvT5Kq9JYpqF+XkDItyNG/l7WiTKpRcxXn91G76L9o1f/gIFzvYjradDhaKYJjt/0FVYn1QVN5op2J/9PonDtCwSew2W1dqDBqxXh7oeddW9MtWWR4LUNIOJ7sRwS5y2Ua+bT7CigIj52gD2q4JRgpxe0pSmwXnN77ZO5w7omNIU4+RP2tyTJfn2gntChbk90hE5g5hLOWAkC352CCjr7AhZZ+smct1s6nHb04KkhPb9oIWKU9JTcGfdeMQP8GAaPZKI8LdiSb16fQ+8FfdV35o+D5hotlp5Je/fNsIGcn8nSt5yoXZ9ZVMeS/oYaFn9WOgGm2ALLL7GQ01KJvLIQdP0Ns2/S2jiVKyjTGeu4qZqXd+89SIsKqt69ipmI5TnCiYSJaZR9pUq1SZVgGgPJwMaLl8DD7+rPnU/Clj9+HyFqIXwM3Ir2nfA0GlBvE3TXsxYqwMV4c=",
+  "created_at": 1744308699,
+  "_id": {
+    "$oid": "67a4e844bf904463da15ab06"
+  }
+}
+----
+
+== Kind 7000: Feedback Events
+
+=== Summary
+
+Total events analyzed: 487
+
+=== Field Prevalence
+
+[options="header"]
+|===
+|Field|Percentage|Example
+|id|100.00%|`cca916943076c28601ce4fcca7c0ce1005c68fc9959c1e1...`
+|sig|100.00%|`660c5857cc93a1ddb29a3cdf7a335817192369023bdb2b8...`
+|kind|100.00%|`7000`
+|tags|100.00%|`[["e", "1aaa003e200af06bb9e94231d762420e704be22...`
+|pubkey|100.00%|`2f3d41885cb3b70e9f1b7c25ccc65798f32f415d305ac16...`
+|content|100.00%|`NIP90 DVM task inactive-followings started proc...`
+|created_at|100.00%|`1743608502`
+|_id|57.29%|`{"$oid": "67a4e843bf904463da15ab05"}`
+|===
+
+=== Tag Structure Analysis
+
+This section analyzes the structure of tags found in the events.
+
+[options="header"]
+|===
+|Tag Type|Percentage|Example
+|`e`|100.00%|`["e", "1aaa003e200af06bb9e94231d762420e704be224...`
+|`p`|100.00%|`["p", "99bb5591c9116600f845107d31f9b59e2f7c7e09...`
+|`status`|64.48%|`["status", "processing"]`
+|`encrypted`|35.52%|`["encrypted"]`
+|`alt`|24.85%|`["alt", "NIP90 DVM task inactive-followings sta...`
+|`amount`|20.12%|`["amount", "10000", "lnbc100n1pn74t99pp5rng48gx...`
+|`relays`|7.39%|`["relays", "wss://relay.nostrdvm.com", "wss://n...`
+|===
+
+=== Complete Example Event
+
+Event with ID: `cca916943076c28601ce4fcca7c0ce1005c68fc9959c1e196533b4e17a71284a`
+
+[source,json]
+----
+{
+  "id": "cca916943076c28601ce4fcca7c0ce1005c68fc9959c1e196533b4e17a71284a",
+  "sig": "660c5857cc93a1ddb29a3cdf7a335817192369023bdb2b88deb12c6204e8a64861a7f21316d63701e790cef549e27986889a4b120ecaf740bc41b063913dd5ef",
+  "kind": 7000,
+  "tags": [
+    [
+      "e",
+      "1aaa003e200af06bb9e94231d762420e704be224deb7d487c3a091419920cafd"
+    ],
+    [
+      "alt",
+      "NIP90 DVM task inactive-followings started processing. "
+    ],
+    [
+      "status",
+      "processing"
+    ],
+    [
+      "relays",
+      "wss://relay.nostrdvm.com",
+      "wss://nostr.mom",
+      "wss://nostr.oxtr.dev"
+    ],
+    [
+      "p",
+      "99bb5591c9116600f845107d31f9b59e2f7c7e09a1ff802e84f1d43da557ca64"
+    ]
+  ],
+  "pubkey": "2f3d41885cb3b70e9f1b7c25ccc65798f32f415d305ac16fc47814f4a7ba8d8b",
+  "content": "NIP90 DVM task inactive-followings started processing. \ud83d\udc4d",
+  "created_at": 1743608502,
+  "_id": {
+    "$oid": "67a4e843bf904463da15ab05"
+  }
+}
+----
+
