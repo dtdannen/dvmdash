@@ -1,5 +1,5 @@
-// GENERATED_TITLE: Kind 5600 Service
-= Nostr DVM Kind 5600/6600 - Kind 5600 Service
+// GENERATED_TITLE: Git CI/CD Workflow
+= Nostr DVM Kind 5600/6600 - Git CI/CD Workflow
 :toc:
 :toclevels: 3
 :source-highlighter: highlight.js
