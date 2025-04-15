@@ -753,25 +753,27 @@ async def list_kinds(
     """
     async with app.state.pool.acquire() as conn:
         query = """
-            WITH active_kinds AS (
-                SELECT DISTINCT kind
-                FROM entity_activity
-                WHERE observed_at >= CASE 
+            WITH time_window AS (
+                SELECT CASE 
                     WHEN $3 = '1 hour' THEN NOW() - INTERVAL '1 hour'
                     WHEN $3 = '24 hours' THEN NOW() - INTERVAL '24 hours'
                     WHEN $3 = '7 days' THEN NOW() - INTERVAL '7 days'
                     WHEN $3 = '30 days' THEN NOW() - INTERVAL '30 days'
-                END
-                AND (
-                    (kind BETWEEN 5000 AND 5999) OR  -- Request kinds
-                    (kind BETWEEN 6000 AND 6999)     -- Response kinds
-                )
+                END AS start_time
+            ),
+            active_kinds AS (
+                SELECT 
+                    kind,
+                    MAX(observed_at) as last_seen
+                FROM entity_activity
+                WHERE observed_at >= (SELECT start_time FROM time_window)
+                AND kind BETWEEN 5000 AND 5999  -- Only request kinds (5xxx)
+                GROUP BY kind
             ),
             dvm_counts AS (
                 SELECT 
                     kind,
-                    COUNT(DISTINCT dvm) as num_supporting_dvms,
-                    MAX(last_seen) as last_seen
+                    COUNT(DISTINCT dvm) as num_supporting_dvms
                 FROM kind_dvm_support
                 GROUP BY kind
             ),
@@ -785,15 +787,15 @@ async def list_kinds(
                 ORDER BY kind, timestamp DESC
             )
             SELECT 
-                dc.kind,
-                dc.last_seen,
-                dc.num_supporting_dvms,
+                ak.kind,
+                ak.last_seen,
+                COALESCE(dc.num_supporting_dvms, 0) as num_supporting_dvms,
                 s.total_requests,
                 s.total_responses
-            FROM dvm_counts dc
-            JOIN active_kinds ak ON dc.kind = ak.kind
-            LEFT JOIN latest_stats s ON s.kind = dc.kind
-            ORDER BY dc.last_seen DESC
+            FROM active_kinds ak
+            LEFT JOIN dvm_counts dc ON dc.kind = ak.kind
+            LEFT JOIN latest_stats s ON s.kind = ak.kind
+            ORDER BY ak.last_seen DESC
             LIMIT $1
             OFFSET $2
         """
