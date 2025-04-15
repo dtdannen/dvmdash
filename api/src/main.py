@@ -767,10 +767,7 @@ async def list_kinds(
                     MAX(observed_at) as last_seen
                 FROM entity_activity
                 WHERE observed_at >= (SELECT start_time FROM time_window)
-                AND (
-                    (kind BETWEEN 5000 AND 5999) OR  -- Request kinds
-                    (kind BETWEEN 6000 AND 6999)     -- Response kinds
-                )
+                AND kind BETWEEN 5000 AND 5999  -- Only request kinds (5xxx)
                 GROUP BY kind
             ),
             dvm_counts AS (
