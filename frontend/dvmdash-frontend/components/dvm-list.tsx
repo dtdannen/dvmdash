@@ -77,7 +77,7 @@ interface DVMTableProps {
   dvms: DVMListItem[]
 }
 
-type SortableColumn = 'id' | 'supported_kinds' | 'total_requests' | 'total_responses' | 'num_supporting_kinds' | 'last_seen'
+type SortableColumn = 'id' | 'supported_kinds' | 'supported_kinds_first' | 'total_requests' | 'total_responses' | 'last_seen'
 
 const DVMTable = ({ dvms }: DVMTableProps) => {
   const [sortColumn, setSortColumn] = useState<SortableColumn | null>(null)
@@ -109,10 +109,14 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
           : String(bValue).localeCompare(String(aValue))
       }
       
-      // Handle array length for supported_kinds
+      // Handle array length for supported_kinds or first kind for supported_kinds_first
       if (sortColumn === 'supported_kinds') {
         aValue = a.supported_kinds.length
         bValue = b.supported_kinds.length
+      } else if (sortColumn === 'supported_kinds_first') {
+        // Sort by the first kind in the list, or 0 if the list is empty
+        aValue = a.supported_kinds.length > 0 ? a.supported_kinds[0] : 0
+        bValue = b.supported_kinds.length > 0 ? b.supported_kinds[0] : 0
       } else if (sortColumn === 'last_seen') {
         // Date comparison for last_seen
         aValue = new Date(a.last_seen).getTime()
@@ -146,9 +150,9 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
-            onClick={() => handleHeaderClick('supported_kinds')}
+            onClick={() => handleHeaderClick('total_responses')}
           >
-            Supported Kinds {renderSortIndicator('supported_kinds')}
+            Responses {renderSortIndicator('total_responses')}
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
@@ -158,15 +162,15 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
-            onClick={() => handleHeaderClick('total_responses')}
+            onClick={() => handleHeaderClick('supported_kinds')}
           >
-            Responses {renderSortIndicator('total_responses')}
+            Kinds {renderSortIndicator('supported_kinds')}
           </TableHead>
           <TableHead 
-            className="text-right cursor-pointer hover:bg-muted/50"
-            onClick={() => handleHeaderClick('num_supporting_kinds')}
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('supported_kinds_first')}
           >
-            Supporting Kinds {renderSortIndicator('num_supporting_kinds')}
+            Supported Kinds {renderSortIndicator('supported_kinds_first')}
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
@@ -190,10 +194,22 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
                 {dvm.dvm_name || dvm.id}
               </Link>
             </TableCell>
-            <TableCell className="text-right">{dvm.supported_kinds.length}</TableCell>
-            <TableCell className="text-right">{dvm.total_requests?.toLocaleString() ?? '0'}</TableCell>
             <TableCell className="text-right">{dvm.total_responses?.toLocaleString() ?? '0'}</TableCell>
-            <TableCell className="text-right">{dvm.num_supporting_kinds}</TableCell>
+            <TableCell className="text-right">{dvm.total_requests?.toLocaleString() ?? '0'}</TableCell>
+            <TableCell className="text-right">{dvm.supported_kinds.length}</TableCell>
+            <TableCell>
+              <div className="flex flex-wrap gap-2">
+                {dvm.supported_kinds.map((kind) => (
+                  <Link 
+                    key={kind} 
+                    href={`/kind-stats/${kind}`}
+                    className="inline-flex items-center px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-xs font-medium transition-colors"
+                  >
+                    {kind}
+                  </Link>
+                ))}
+              </div>
+            </TableCell>
             <TableCell className="text-right">{new Date(dvm.last_seen).toLocaleString()}</TableCell>
           </TableRow>
         ))}
