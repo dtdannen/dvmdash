@@ -150,15 +150,9 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
-            onClick={() => handleHeaderClick('supported_kinds')}
+            onClick={() => handleHeaderClick('total_responses')}
           >
-            Kinds {renderSortIndicator('supported_kinds')}
-          </TableHead>
-          <TableHead 
-            className="cursor-pointer hover:bg-muted/50"
-            onClick={() => handleHeaderClick('supported_kinds_first')}
-          >
-            Supported Kinds {renderSortIndicator('supported_kinds_first')}
+            Responses {renderSortIndicator('total_responses')}
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
@@ -168,9 +162,15 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
-            onClick={() => handleHeaderClick('total_responses')}
+            onClick={() => handleHeaderClick('supported_kinds')}
           >
-            Responses {renderSortIndicator('total_responses')}
+            Kinds {renderSortIndicator('supported_kinds')}
+          </TableHead>
+          <TableHead 
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => handleHeaderClick('supported_kinds_first')}
+          >
+            Supported Kinds {renderSortIndicator('supported_kinds_first')}
           </TableHead>
           <TableHead 
             className="text-right cursor-pointer hover:bg-muted/50"
@@ -194,6 +194,8 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
                 {dvm.dvm_name || dvm.id}
               </Link>
             </TableCell>
+            <TableCell className="text-right">{dvm.total_responses?.toLocaleString() ?? '0'}</TableCell>
+            <TableCell className="text-right">{dvm.total_requests?.toLocaleString() ?? '0'}</TableCell>
             <TableCell className="text-right">{dvm.supported_kinds.length}</TableCell>
             <TableCell>
               <div className="flex flex-wrap gap-2">
@@ -208,8 +210,6 @@ const DVMTable = ({ dvms }: DVMTableProps) => {
                 ))}
               </div>
             </TableCell>
-            <TableCell className="text-right">{dvm.total_requests?.toLocaleString() ?? '0'}</TableCell>
-            <TableCell className="text-right">{dvm.total_responses?.toLocaleString() ?? '0'}</TableCell>
             <TableCell className="text-right">{new Date(dvm.last_seen).toLocaleString()}</TableCell>
           </TableRow>
         ))}
