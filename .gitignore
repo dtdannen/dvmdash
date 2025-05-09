@@ -207,3 +207,8 @@ temp_relay_urls.txt
 unique_relay_urls.txt
 
 utility/cache/*
+utility/MobileLLaMA-1.4B-Base-Q4_K_M.gguf
+utility/event_counts_by_kind.adoc
+utility/dvm_31990_events_analysis.adoc
+docs/dvm_31990_events_analysis.adoc
+utility/kind_recommender_demo/MobileLLaMA-1.4B-Base-Q4_K_M.gguf

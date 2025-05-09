@@ -6,3 +6,4 @@ pydantic==2.5.2
 docker==7.0.0
 redis==5.0.1
 loguru==0.7.3
+cachetools==5.5.2

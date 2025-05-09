@@ -165,7 +165,7 @@ export function useDVMStats(dvmId: string, timeRange: TimeWindow) {
     `${API_BASE}/api/stats/dvm/${dvmId}${timeRange ? `?timeRange=${timeRange}` : ''}`,
     fetcher,
     {
-      refreshInterval: 1000, // Update every second
+      refreshInterval: 60000, // Update every 60 seconds
     }
   )
 
@@ -186,7 +186,7 @@ export function useKindStats(kindId: number, timeRange: TimeWindow) {
     `${API_BASE}/api/stats/kind/${kindId}${timeRange ? `?timeRange=${timeRange}` : ''}`,
     fetcher,
     {
-      refreshInterval: 1000, // Update every second
+      refreshInterval: 60000, // Update every 60 seconds
     }
   )
 
@@ -207,7 +207,7 @@ export function useTimeWindowStats(timeRange: TimeWindow) {
     timeRange ? `${API_BASE}/api/stats/global/latest${timeRange ? `?timeRange=${timeRange}` : ''}` : null,
     fetcher,
     {
-      refreshInterval: 1000, // Update every second
+      refreshInterval: 60000, // Update every 60 seconds
     }
   )
 
@@ -228,7 +228,7 @@ export function useDVMList(limit: number = 100, offset: number = 0, timeRange?: 
     `${API_BASE}/api/dvms${timeRange ? `?timeRange=${timeRange}&` : '?'}limit=${limit}&offset=${offset}`,
     fetcher,
     {
-      refreshInterval: 1000,
+      refreshInterval: 60000, // Update every 60 seconds
       onError: (err) => console.error('SWR Error:', err)
     }
   );
@@ -245,7 +245,7 @@ export function useKindList(limit: number = 100, offset: number = 0, timeRange?:
     `${API_BASE}/api/kinds${timeRange ? `?timeRange=${timeRange}&` : '?'}limit=${limit}&offset=${offset}`,
     fetcher,
     {
-      refreshInterval: 1000,
+      refreshInterval: 60000, // Update every 60 seconds
       onError: (err) => console.error('SWR Error:', err)
     }
   );
