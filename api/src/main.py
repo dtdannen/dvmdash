@@ -19,6 +19,8 @@ from functools import wraps
 import sys
 from cachetools import TTLCache, cached
 import pickle
+import asyncio
+from contextlib import asynccontextmanager
 
 # Configure loguru based on LOG_LEVEL environment variable
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -131,6 +133,9 @@ class MemoryAwareCache:
 
 # Create a global cache instance
 api_cache = MemoryAwareCache()
+
+# Global variable to track cache warming task
+cache_warming_task = None
 
 
 def get_size_estimate(obj):
@@ -297,7 +302,118 @@ class KindListResponse(BaseModel):
     kinds: List[KindListItem]
 
 
-app = FastAPI(title="DVMDash API")
+async def warm_cache(app):
+    """Pre-warm cache with commonly accessed endpoints"""
+    logger.info("Starting cache warming...")
+    
+    # List of common time windows to pre-fetch
+    time_windows = [TimeWindow.ONE_HOUR, TimeWindow.ONE_DAY, TimeWindow.ONE_WEEK, TimeWindow.ONE_MONTH]
+    
+    try:
+        # Warm global stats for all time windows
+        for time_window in time_windows:
+            try:
+                # Call the endpoint function directly with app state
+                # We need to temporarily set the global app variable for the decorators to work
+                globals()['app'] = app
+                await get_latest_global_stats(timeRange=time_window)
+                logger.info(f"Warmed cache for global stats - {time_window.value}")
+            except Exception as e:
+                logger.error(f"Error warming global stats cache for {time_window.value}: {e}")
+        
+        # Warm DVM list for all time windows
+        for time_window in time_windows:
+            try:
+                await list_dvms(limit=100, offset=0, timeRange=time_window)
+                logger.info(f"Warmed cache for DVM list - {time_window.value}")
+            except Exception as e:
+                logger.error(f"Error warming DVM list cache for {time_window.value}: {e}")
+        
+        # Warm kinds list for all time windows
+        for time_window in time_windows:
+            try:
+                await list_kinds(limit=100, offset=0, timeRange=time_window)
+                logger.info(f"Warmed cache for kinds list - {time_window.value}")
+            except Exception as e:
+                logger.error(f"Error warming kinds list cache for {time_window.value}: {e}")
+        
+        logger.info("Cache warming completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Error during cache warming: {e}")
+
+
+async def cache_warming_loop(app):
+    """Background task that continuously warms the cache"""
+    # Wait 5 seconds before first run to ensure app is fully initialized
+    await asyncio.sleep(10)
+    
+    while True:
+        try:
+            await warm_cache(app)
+            # Sleep for 50 seconds (10 seconds before cache expires)
+            await asyncio.sleep(50)
+        except Exception as e:
+            logger.error(f"Error in cache warming loop: {e}")
+            # On error, wait a bit before retrying
+            await asyncio.sleep(10)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifecycle"""
+    # Startup
+    app.state.pool = await get_db_pool()
+    
+    # Initialize Redis connection
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    app.state.redis = redis.from_url(redis_url)
+    
+    # Clean up stale collectors
+    clean_stale_collectors(app.state.redis)
+    
+    # Initialize relays in Redis if none exist
+    relays = RelayConfigManager.get_all_relays(app.state.redis)
+    if not relays:
+        logger.info("No relays found in Redis. Initializing default relays...")
+        default_relays_str = os.getenv(
+            "DEFAULT_RELAYS", "wss://relay.damus.io,wss://relay.primal.net"
+        )
+        default_relays = [
+            url.strip() for url in default_relays_str.split(",") if url.strip()
+        ]
+        
+        for relay_url in default_relays:
+            # Add relay with normal activity level
+            success = RelayConfigManager.add_relay(app.state.redis, relay_url, "normal")
+            if success:
+                logger.info(f"Added relay: {relay_url}")
+            else:
+                logger.error(f"Failed to add relay: {relay_url}")
+        
+        # Request relay distribution from coordinator
+        RelayConfigManager.request_relay_distribution(app.state.redis)
+        logger.info("Requested relay distribution from coordinator")
+    
+    # Start cache warming background task
+    global cache_warming_task
+    cache_warming_task = asyncio.create_task(cache_warming_loop(app))
+    logger.info("Started cache warming background task")
+    
+    yield
+    
+    # Shutdown
+    if cache_warming_task:
+        cache_warming_task.cancel()
+        try:
+            await cache_warming_task
+        except asyncio.CancelledError:
+            pass
+    
+    await app.state.pool.close()
+
+
+app = FastAPI(title="DVMDash API", lifespan=lifespan)
 
 # Include admin routes
 app.include_router(admin_router)
@@ -361,44 +477,6 @@ def clean_stale_collectors(redis_client):
     return removed_count
 
 
-@app.on_event("startup")
-async def startup():
-    app.state.pool = await get_db_pool()
-
-    # Initialize Redis connection
-    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-    app.state.redis = redis.from_url(redis_url)
-
-    # Clean up stale collectors
-    clean_stale_collectors(app.state.redis)
-
-    # Initialize relays in Redis if none exist
-    relays = RelayConfigManager.get_all_relays(app.state.redis)
-    if not relays:
-        print("No relays found in Redis. Initializing default relays...")
-        default_relays_str = os.getenv(
-            "DEFAULT_RELAYS", "wss://relay.damus.io,wss://relay.primal.net"
-        )
-        default_relays = [
-            url.strip() for url in default_relays_str.split(",") if url.strip()
-        ]
-
-        for relay_url in default_relays:
-            # Add relay with normal activity level
-            success = RelayConfigManager.add_relay(app.state.redis, relay_url, "normal")
-            if success:
-                print(f"Added relay: {relay_url}")
-            else:
-                print(f"Failed to add relay: {relay_url}")
-
-        # Request relay distribution from coordinator
-        RelayConfigManager.request_relay_distribution(app.state.redis)
-        print("Requested relay distribution from coordinator")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    await app.state.pool.close()
 
 
 @app.get("/api/cache/stats")
