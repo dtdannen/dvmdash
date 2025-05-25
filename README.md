@@ -23,6 +23,22 @@ docker compose ps
 
 Now you should be able to navigate to http://localhost:3000/ and see data from the last 30 days.
 
+## Run the admin panel
+
+This enables managing relay connections without having to restart the whole system.
+
+```bash
+cd dvmdash/  # start from the root dir
+docker build -t admin-container ./admin
+docker run -p 3002:3000 --env-file ./admin/.env.production admin-container
+```
+
+Then navigate to http://localhost:3002/admin/relays to see the status of all relays and event collectors. It may take a few seconds to pull the necessary data from redis. You can switch between local and production environments by changing the redis URL that you use, via the `REDIS_URL` env variable.
+
+https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/screenshots/admin_panel_event_collectors.png
+
+https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/screenshots/admin_panel_relay_connections.png
+
 ### Frontend API Configuration
 
 The frontend application uses environment variables to determine API endpoints:
