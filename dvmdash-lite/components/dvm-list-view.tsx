@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Copy, ExternalLink } from 'lucide-react'
 import { Button } from './ui/button'
+import { DVMDetailDialog } from './dvm-detail-dialog'
 
 interface DVMProfile {
   pubkey: string
@@ -22,11 +23,19 @@ interface DVMListViewProps {
 
 export function DVMListView({ profiles }: DVMListViewProps) {
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null)
+  const [selectedProfile, setSelectedProfile] = useState<DVMProfile | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-  const copyPubkey = (pubkey: string) => {
+  const copyPubkey = (e: React.MouseEvent, pubkey: string) => {
+    e.stopPropagation() // Prevent opening dialog
     navigator.clipboard.writeText(pubkey)
     setCopiedPubkey(pubkey)
     setTimeout(() => setCopiedPubkey(null), 2000)
+  }
+
+  const openDialog = (profile: DVMProfile) => {
+    setSelectedProfile(profile)
+    setDialogOpen(true)
   }
 
   const getTypeBadgeClass = (type: 'legacy' | 'context' | 'encrypted') => {
@@ -52,12 +61,14 @@ export function DVMListView({ profiles }: DVMListViewProps) {
   }
 
   return (
-    <div className="space-y-2">
-      {profiles.map((profile) => (
-        <div
-          key={profile.pubkey}
-          className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-        >
+    <>
+      <div className="space-y-2">
+        {profiles.map((profile) => (
+          <div
+            key={profile.pubkey}
+            className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+            onClick={() => openDialog(profile)}
+          >
           {/* Avatar */}
           <div className="flex-shrink-0">
             {profile.picture ? (
@@ -113,7 +124,7 @@ export function DVMListView({ profiles }: DVMListViewProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => copyPubkey(profile.pubkey)}
+              onClick={(e) => copyPubkey(e, profile.pubkey)}
               title={copiedPubkey === profile.pubkey ? 'Copied!' : 'Copy pubkey'}
             >
               <Copy className="h-4 w-4" />
@@ -122,5 +133,15 @@ export function DVMListView({ profiles }: DVMListViewProps) {
         </div>
       ))}
     </div>
+
+    {/* Detail Dialog */}
+    {selectedProfile && (
+      <DVMDetailDialog
+        profile={selectedProfile}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
+    )}
+  </>
   )
 }

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from './ui/card'
 import { Button } from './ui/button'
 import { Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DVMDetailDialog } from './dvm-detail-dialog'
 
 interface DVMProfile {
   pubkey: string
@@ -15,6 +16,7 @@ interface DVMProfile {
   serverUrl?: string
   identifier: string
   createdAt: number
+  type: 'legacy' | 'context' | 'encrypted'
 }
 
 interface DVMProfileCardProps {
@@ -24,6 +26,7 @@ interface DVMProfileCardProps {
 
 export function DVMProfileCard({ profile, type }: DVMProfileCardProps) {
   const [imageError, setImageError] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const truncatePubkey = (pubkey: string) => {
     return `${pubkey.substring(0, 8)}...${pubkey.substring(pubkey.length - 8)}`
@@ -42,9 +45,13 @@ export function DVMProfileCard({ profile, type }: DVMProfileCardProps) {
   }
 
   return (
-    <Card className={cn('hover:bg-muted/50 transition-all duration-300', typeColors[type])}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start gap-4">
+    <>
+      <Card
+        className={cn('hover:bg-muted/50 transition-all duration-300 cursor-pointer', typeColors[type])}
+        onClick={() => setDialogOpen(true)}
+      >
+        <CardHeader className="pb-3">
+          <div className="flex items-start gap-4">
           {/* Avatar */}
           <div className="flex-shrink-0">
             {profile.picture && !imageError ? (
@@ -115,7 +122,8 @@ export function DVMProfileCard({ profile, type }: DVMProfileCardProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation() // Prevent opening dialog
             navigator.clipboard.writeText(profile.pubkey)
           }}
           className="w-full"
@@ -125,5 +133,13 @@ export function DVMProfileCard({ profile, type }: DVMProfileCardProps) {
         </Button>
       </CardContent>
     </Card>
+
+    {/* Detail Dialog */}
+    <DVMDetailDialog
+      profile={{ ...profile, type }}
+      open={dialogOpen}
+      onOpenChange={setDialogOpen}
+    />
+  </>
   )
 }
