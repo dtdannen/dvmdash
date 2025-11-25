@@ -218,3 +218,6 @@ docs/6_month_progress_report_prompt.md
 docs/6_month_progress_report_opensats_v2.md
 docs/Progress Report - DVMDash May 2025.md
 docs/6_month_progress_report_opensats.pdf
+
+# Large data files
+scripts/dvmdash_historical.json
