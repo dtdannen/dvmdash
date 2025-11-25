@@ -213,19 +213,27 @@ export default function HistoryPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-2 mb-8 border-b overflow-x-auto">
-          {(['overview', 'dvms', 'activity', 'relays'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 font-medium capitalize whitespace-nowrap transition-colors ${
-                activeTab === tab
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+          {(['overview', 'dvms', 'activity', 'relays'] as const).map((tab) => {
+            const tabLabels: Record<string, string> = {
+              overview: 'Overview',
+              dvms: 'DVMs',
+              activity: 'Activity',
+              relays: 'Relays'
+            }
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 font-medium whitespace-nowrap transition-colors ${
+                  activeTab === tab
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tabLabels[tab]}
+              </button>
+            )
+          })}
         </div>
 
         {/* Tab Content */}
@@ -393,20 +401,44 @@ export default function HistoryPage() {
             {/* Top Kinds */}
             <section>
               <h2 className="text-2xl font-bold mb-6">Most Popular DVM Types (Kinds)</h2>
+
+              {/* Highlight the dominant kind */}
+              {data.top_kinds[0] && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-blue-400 mb-1">Dominant Kind</p>
+                      <p className="text-3xl font-bold">Kind {data.top_kinds[0].kind}</p>
+                      <p className="text-muted-foreground mt-1">{data.top_kinds[0].description || 'Text-to-Speech'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-4xl font-bold text-blue-400">{formatNumber(data.top_kinds[0].total_requests)}</p>
+                      <p className="text-sm text-muted-foreground">requests ({((data.top_kinds[0].total_requests / data.top_kinds.reduce((sum, k) => sum + k.total_requests, 0)) * 100).toFixed(1)}% of total)</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-muted-foreground mb-4">
+                Other DVM types by request volume (excluding Kind 5300 for scale)
+              </p>
               <div className="bg-card border rounded-xl p-6">
                 <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={data.top_kinds.slice(0, 15)} layout="vertical">
+                  <BarChart data={data.top_kinds.slice(1, 15)} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis type="number" stroke="#888" fontSize={12} tickFormatter={formatNumber} />
+                    <XAxis
+                      type="number"
+                      stroke="#888"
+                      fontSize={12}
+                      tickFormatter={formatNumber}
+                    />
                     <YAxis type="category" dataKey="kind" stroke="#888" fontSize={12} width={60} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                       labelStyle={{ color: '#fff' }}
                       formatter={(value: number) => formatNumber(value)}
                     />
-                    <Legend />
                     <Bar dataKey="total_requests" name="Requests" fill="#3b82f6" />
-                    <Bar dataKey="dvm_count" name="DVMs Supporting" fill="#8b5cf6" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -567,7 +599,16 @@ export default function HistoryPage() {
 
         {/* Footer */}
         <footer className="text-center text-muted-foreground text-sm mt-16 border-t pt-8">
-          <p>Data generated on {new Date(data.metadata.generated_at).toLocaleDateString()}</p>
+          <p>
+            Data powering this page:{' '}
+            <a
+              href="https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvmdash_historical.json"
+              className="text-primary hover:underline"
+              download="dvmdash_historical.json"
+            >
+              dvmdash_historical.json
+            </a>
+          </p>
           <p className="mt-2">
             <Link href="/" className="text-primary hover:underline">
               Back to DVMDash Lite
