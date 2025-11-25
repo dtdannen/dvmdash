@@ -10,7 +10,7 @@ export default function HomePage() {
             Explore Data Vending Machines on Nostr
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Run API services over Nostr. No domain names. Innately asynchronous for long-running jobs.
+            DVMs are API services over Nostr. No domain names. Innately asynchronous for long-running jobs.
           </p>
         </header>
 
