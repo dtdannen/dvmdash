@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from './ui/dialog'
 import { Button } from './ui/button'
-import { Copy, ExternalLink } from 'lucide-react'
+import { Copy, ExternalLink, FileJson } from 'lucide-react'
 
 interface DVMProfile {
   pubkey: string
@@ -21,6 +21,7 @@ interface DVMProfile {
   identifier: string
   createdAt: number
   type: 'legacy' | 'context' | 'encrypted'
+  rawEvent?: any
 }
 
 interface DVMDetailDialogProps {
@@ -32,12 +33,32 @@ interface DVMDetailDialogProps {
 export function DVMDetailDialog({ profile, open, onOpenChange }: DVMDetailDialogProps) {
   const [imageError, setImageError] = useState(false)
   const [copiedPubkey, setCopiedPubkey] = useState(false)
+  const [copiedRawJson, setCopiedRawJson] = useState(false)
 
   const copyPubkey = () => {
     navigator.clipboard.writeText(profile.pubkey)
     setCopiedPubkey(true)
     setTimeout(() => setCopiedPubkey(false), 2000)
   }
+  const copyRawJson = () => {
+    if (profile.rawEvent) {
+      // Create a plain object from the NDK event to avoid circular references
+      const plainEvent = {
+        id: profile.rawEvent.id,
+        pubkey: profile.rawEvent.pubkey,
+        created_at: profile.rawEvent.created_at,
+        kind: profile.rawEvent.kind,
+        tags: profile.rawEvent.tags,
+        content: profile.rawEvent.content,
+        sig: profile.rawEvent.sig
+      }
+      const jsonString = JSON.stringify(plainEvent, null, 2)
+      navigator.clipboard.writeText(jsonString)
+      setCopiedRawJson(true)
+      setTimeout(() => setCopiedRawJson(false), 2000)
+    }
+  }
+
 
   const getTypeBadgeClass = (type: 'legacy' | 'context' | 'encrypted') => {
     switch (type) {
@@ -173,6 +194,19 @@ export function DVMDetailDialog({ profile, open, onOpenChange }: DVMDetailDialog
               <p className="text-sm">{formatDate(profile.createdAt)}</p>
             </div>
           </div>
+          {/* Copy Raw JSON Button */}
+          {profile.rawEvent && (
+            <div className="pt-4 border-t">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={copyRawJson}
+              >
+                <FileJson className="h-4 w-4 mr-2" />
+                {copiedRawJson ? 'Copied!' : 'Copy Raw Advertisement JSON'}
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
