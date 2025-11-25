@@ -1,5 +1,7 @@
 # DVMDash Lite
 
+> **Note:** This project has transitioned to a lightweight directory. The full DVMDash monitoring infrastructure is still available in the main repository, but this lite version is designed as a simple, standalone explorer for the DVM ecosystem.
+
 A lightweight directory of Data Vending Machines (DVMs) on Nostr.
 
 ## Overview
@@ -43,11 +45,10 @@ npm run dev
 
 ## Pages
 
-- `/` - Homepage with navigation and sunset notice
-- `/legacy-dvms` - Legacy DVM directory (kind 31990)
-- `/context-dvms` - ContextVM server directory (kind 11316)
-- `/encrypted-dvms` - Encrypted DVM directory (kind 11999)
-- `/learn` - Educational articles about DVMs
+- `/` - Homepage with navigation to the three main sections
+- `/history` - Historical data and statistics about the DVM ecosystem
+- `/dvms` - Unified DVM directory with filtering by type (Legacy, ContextVM, Encrypted)
+- `/articles` - Curated educational articles about DVMs
 
 ## Environment Variables
 

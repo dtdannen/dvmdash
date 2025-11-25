@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { fetchEventsByNaddrs, eventToArticle } from '@/lib/nostr'
 import { LoadingSpinner } from '@/components/loading-spinner'
 
@@ -55,12 +54,40 @@ const noteConfigs: NoteConfig[] = [
   {
     naddr: 'naddr1qvzqqqr4gupzpwa4mkswz4t8j70s2s6q00wzqv7k7zamxrmj2y4fs88aktcfuf68qqnxx6rpd9hxjmn894j8vmtn94nx7u3ddehhxarj943kjcmy94cxjur9d35kuetn0uz742',
     category: 'idea'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qq2nq735d92hwj2wg3xrxdp5x44y7apexaxnvn96qwa',
+    category: 'idea'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzde4xscryvpc8qerzwf55lgxw9',
+    category: 'news'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzde4xscrzwpexyerzdes85ynm8',
+    category: 'tutorial'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzde4xy6nwwf3x5cn2wfjg32j4h',
+    category: 'idea'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzden8y6nqwp3xqer2vec3d8m8c',
+    category: 'news'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzdenxu6nwd3sxgmryv3506t7ws',
+    category: 'news'
+  },
+  {
+    naddr: 'naddr1qvzqqqr4gupzpkscaxrqqs8nhaynsahuz6c6jy4wtfhkl2x4zkwrmc4cyvaqmxz3qqxnzdejxv6nyd34xscnjd3sz05q9v',
+    category: 'news'
   }
 ]
 
 const naddrs = noteConfigs.map(config => config.naddr)
 
-export default function LearnPage() {
+export default function ArticlesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
@@ -136,22 +163,11 @@ export default function LearnPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black">
-      <div className="container mx-auto px-4 py-16 max-w-7xl">
-        {/* Back Button */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Home
-        </Link>
-
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 text-transparent bg-clip-text">
-            Learn About DVMs
+            Articles
           </h1>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
             Educational articles and guides about Data Vending Machines on Nostr
@@ -203,7 +219,7 @@ export default function LearnPage() {
 
         {/* Content */}
         {loading ? (
-          <LoadingSpinner />
+          <LoadingSpinner message="Loading articles..." />
         ) : filteredArticles.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredArticles.map((article, index) => (
@@ -275,6 +291,21 @@ export default function LearnPage() {
             <p className="text-gray-500">Try adjusting your search or filter</p>
           </div>
         )}
+
+        {/* Footer */}
+        <footer className="text-center text-gray-500 text-sm mt-16 border-t border-gray-800 pt-8">
+          <p>
+            Want to add an article?{' '}
+            <a
+              href="https://github.com/dtdannen/dvmdash/blob/main/dvmdash-lite/app/articles/page.tsx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:underline"
+            >
+              PRs welcome!
+            </a>
+          </p>
+        </footer>
       </div>
     </div>
   )

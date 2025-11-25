@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { nip19 } from 'nostr-tools'
 import {
   LineChart,
@@ -63,6 +62,7 @@ interface HistoricalData {
   }>
   top_kinds: Array<{
     kind: number
+    description?: string
     dvm_count: number
     total_requests: number
     total_responses: number
@@ -189,12 +189,6 @@ export default function HistoryPage() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <header className="mb-8">
-          <Link href="/" className="text-muted-foreground hover:text-primary mb-4 inline-flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Home
-          </Link>
           <h1 className="text-4xl md:text-5xl font-bold mb-4">DVM Ecosystem History</h1>
           <p className="text-xl text-muted-foreground">
             Chronicling {monitoringStart} - {monitoringEnd}
@@ -598,21 +592,15 @@ export default function HistoryPage() {
         )}
 
         {/* Footer */}
-        <footer className="text-center text-muted-foreground text-sm mt-16 border-t pt-8">
+        <footer className="text-center text-muted-foreground text-sm mt-16 border-t pt-8 pb-8">
           <p>
             Data powering this page:{' '}
             <a
               href="https://dvmdashbucket.nyc3.cdn.digitaloceanspaces.com/dvmdash_historical.json"
               className="text-primary hover:underline"
-              download="dvmdash_historical.json"
             >
               dvmdash_historical.json
             </a>
-          </p>
-          <p className="mt-2">
-            <Link href="/" className="text-primary hover:underline">
-              Back to DVMDash Lite
-            </Link>
           </p>
         </footer>
       </div>

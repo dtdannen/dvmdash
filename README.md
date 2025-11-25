@@ -1,6 +1,8 @@
 # dvmdash
 
-DVMDash is a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user’s feeds, and many other use cases.
+> **Note:** The live site at [dvmdash.live](https://dvmdash.live) is now running **DVMDash Lite**, a lightweight directory that fetches DVM data directly from Nostr relays without any database infrastructure. See the [dvmdash-lite](./dvmdash-lite) folder for more details. The full monitoring infrastructure below is still available for those who want comprehensive stats and historical data.
+
+DVMDash is a monitoring and debugging tool for DVM activity on Nostr. Data Vending Machines (nip-90) offload computationally expensive tasks from relays and clients in a decentralized, free-market manner. They are especially useful for AI tools, algorithmic processing of user's feeds, and many other use cases.
 
 
 A version of the stats app is running here:
